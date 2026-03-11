@@ -1,0 +1,107 @@
+# Copyright 2026 Lowplane contributors
+# SPDX-License-Identifier: Apache-2.0
+# https://goreleaser.com/customization/
+
+version: 2
+
+project_name: kerno
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: kerno
+    main: ./cmd/kerno/
+    binary: kerno
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/lowplane/kerno/internal/version.Version={{ .Version }}
+      - -X github.com/lowplane/kerno/internal/version.Commit={{ .ShortCommit }}
+      - -X github.com/lowplane/kerno/internal/version.Date={{ .Date }}
+
+archives:
+  - id: default
+    formats:
+      - tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+      - CONTRIBUTING.md
+      - deploy/**/*
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+      - "Merge pull request"
+
+release:
+  github:
+    owner: lowplane
+    name: kerno
+  prerelease: auto
+  draft: false
+  name_template: "{{ .Tag }}"
+  header: |
+    ## Kerno {{ .Tag }}
+
+    See the [full changelog](https://github.com/lowplane/kerno/compare/{{ .PreviousTag }}...{{ .Tag }}).
+  footer: |
+    ---
+    **Full Changelog**: https://github.com/lowplane/kerno/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+dockers:
+  - image_templates:
+      - "ghcr.io/lowplane/kerno:{{ .Tag }}-amd64"
+    use: buildx
+    build_flag_templates:
+      - "--platform=linux/amd64"
+      - "--label=org.opencontainers.image.title={{ .ProjectName }}"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+      - "--label=org.opencontainers.image.source=https://github.com/lowplane/kerno"
+      - "--label=org.opencontainers.image.licenses=Apache-2.0"
+    dockerfile: Dockerfile.goreleaser
+    goos: linux
+    goarch: amd64
+
+  - image_templates:
+      - "ghcr.io/lowplane/kerno:{{ .Tag }}-arm64"
+    use: buildx
+    build_flag_templates:
+      - "--platform=linux/arm64"
+      - "--label=org.opencontainers.image.title={{ .ProjectName }}"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+      - "--label=org.opencontainers.image.source=https://github.com/lowplane/kerno"
+      - "--label=org.opencontainers.image.licenses=Apache-2.0"
+    dockerfile: Dockerfile.goreleaser
+    goos: linux
+    goarch: arm64
+
+docker_manifests:
+  - name_template: "ghcr.io/lowplane/kerno:{{ .Tag }}"
+    image_templates:
+      - "ghcr.io/lowplane/kerno:{{ .Tag }}-amd64"
+      - "ghcr.io/lowplane/kerno:{{ .Tag }}-arm64"
+  - name_template: "ghcr.io/lowplane/kerno:latest"
+    image_templates:
+      - "ghcr.io/lowplane/kerno:{{ .Tag }}-amd64"
+      - "ghcr.io/lowplane/kerno:{{ .Tag }}-arm64"
