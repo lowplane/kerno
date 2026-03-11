@@ -1,0 +1,60 @@
+# Binaries
+bin/
+dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# eBPF build artifacts
+*.o
+!internal/bpf/headers/*.h
+*_bpfel.go
+*_bpfeb.go
+*_bpfel.o
+*_bpfeb.o
+
+# Go
+*.test
+*.out
+coverage.txt
+coverage.html
+go.work
+go.work.sum
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Debug
+__debug_bin*
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Dashboard frontend build output (fetched by CI)
+internal/dashboard/dist/assets/
+
+# Node (kerno-ui is a separate repo, but in case of local dev)
+node_modules/
+
+# Goreleaser
+dist/
+
+# Local-only documents (not tracked in repo)
+ebpf-guide.md
+TODO.md
+BUSINESS-STRATEGY.md
+
+# Temporary
+tmp/
+*.tmp
+*.log
