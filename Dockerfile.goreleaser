@@ -1,0 +1,21 @@
+# Copyright 2026 Lowplane contributors
+# SPDX-License-Identifier: Apache-2.0
+
+# Minimal runtime image for goreleaser (binary is pre-built).
+FROM gcr.io/distroless/static-debian12:nonroot
+
+LABEL org.opencontainers.image.title="kerno" \
+      org.opencontainers.image.description="eBPF-based kernel observability engine" \
+      org.opencontainers.image.source="https://github.com/lowplane/kerno" \
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.vendor="Lowplane"
+
+COPY kerno /usr/local/bin/kerno
+
+USER root
+
+EXPOSE 9090
+EXPOSE 8080
+
+ENTRYPOINT ["kerno"]
+CMD ["start"]
