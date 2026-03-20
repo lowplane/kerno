@@ -45,6 +45,13 @@ typedef __u64  dev_t;
 typedef long   ssize_t;
 typedef unsigned long size_t;
 
+// Network byte-order types (needed by bpf_helper_defs.h).
+typedef __u16 __be16;
+typedef __u32 __be32;
+typedef __u64 __be64;
+typedef __u32 __wsum;
+typedef __u16 __sum16;
+
 #ifndef bool
 typedef _Bool bool;
 #define true  1
@@ -54,6 +61,73 @@ typedef _Bool bool;
 #ifndef NULL
 #define NULL ((void *)0)
 #endif
+
+// ─── BPF constants ──────────────────────────────────────────────────────────
+
+// Map types used by Kerno programs.
+enum bpf_map_type {
+    BPF_MAP_TYPE_UNSPEC         = 0,
+    BPF_MAP_TYPE_HASH           = 1,
+    BPF_MAP_TYPE_ARRAY          = 2,
+    BPF_MAP_TYPE_PROG_ARRAY     = 3,
+    BPF_MAP_TYPE_PERF_EVENT_ARRAY = 4,
+    BPF_MAP_TYPE_PERCPU_HASH    = 5,
+    BPF_MAP_TYPE_PERCPU_ARRAY   = 6,
+    BPF_MAP_TYPE_STACK_TRACE    = 7,
+    BPF_MAP_TYPE_CGROUP_ARRAY   = 8,
+    BPF_MAP_TYPE_LRU_HASH       = 9,
+    BPF_MAP_TYPE_LRU_PERCPU_HASH = 10,
+    BPF_MAP_TYPE_LPM_TRIE       = 11,
+    BPF_MAP_TYPE_ARRAY_OF_MAPS  = 12,
+    BPF_MAP_TYPE_HASH_OF_MAPS   = 13,
+    BPF_MAP_TYPE_DEVMAP         = 14,
+    BPF_MAP_TYPE_SOCKMAP         = 15,
+    BPF_MAP_TYPE_CPUMAP         = 16,
+    BPF_MAP_TYPE_XSKMAP         = 17,
+    BPF_MAP_TYPE_SOCKHASH       = 18,
+    BPF_MAP_TYPE_CGROUP_STORAGE = 19,
+    BPF_MAP_TYPE_REUSEPORT_SOCKARRAY = 20,
+    BPF_MAP_TYPE_PERCPU_CGROUP_STORAGE = 21,
+    BPF_MAP_TYPE_QUEUE          = 22,
+    BPF_MAP_TYPE_STACK          = 23,
+    BPF_MAP_TYPE_SK_STORAGE     = 24,
+    BPF_MAP_TYPE_DEVMAP_HASH    = 25,
+    BPF_MAP_TYPE_STRUCT_OPS     = 26,
+    BPF_MAP_TYPE_RINGBUF        = 27,
+    BPF_MAP_TYPE_INODE_STORAGE  = 28,
+    BPF_MAP_TYPE_TASK_STORAGE   = 29,
+};
+
+// BPF map update flags.
+#define BPF_ANY     0
+#define BPF_NOEXIST 1
+#define BPF_EXIST   2
+
+// ─── pt_regs (needed by bpf_tracing.h for kprobes) ─────────────────────────
+
+struct pt_regs {
+    unsigned long r15;
+    unsigned long r14;
+    unsigned long r13;
+    unsigned long r12;
+    unsigned long bp;
+    unsigned long bx;
+    unsigned long r11;
+    unsigned long r10;
+    unsigned long r9;
+    unsigned long r8;
+    unsigned long ax;
+    unsigned long cx;
+    unsigned long dx;
+    unsigned long si;
+    unsigned long di;
+    unsigned long orig_ax;
+    unsigned long ip;
+    unsigned long cs;
+    unsigned long flags;
+    unsigned long sp;
+    unsigned long ss;
+};
 
 // ─── Network ────────────────────────────────────────────────────────────────
 
