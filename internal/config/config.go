@@ -25,6 +25,9 @@ type Config struct {
 	// Doctor configures the kerno doctor analysis engine.
 	Doctor DoctorConfig `mapstructure:"doctor" json:"doctor"`
 
+	// AI configures the optional AI analysis layer.
+	AI AIConfig `mapstructure:"ai" json:"ai"`
+
 	// Prometheus configures the Prometheus metrics exporter.
 	Prometheus PrometheusConfig `mapstructure:"prometheus" json:"prometheus"`
 
@@ -33,6 +36,40 @@ type Config struct {
 
 	// Kubernetes configures the K8s adapter for pod enrichment.
 	Kubernetes KubernetesConfig `mapstructure:"kubernetes" json:"kubernetes"`
+}
+
+// AIConfig controls the optional AI analysis layer.
+// AI is disabled by default — kerno works without an API key.
+type AIConfig struct {
+	// Enabled turns on AI-powered analysis enrichment.
+	Enabled bool `mapstructure:"enabled" json:"enabled"`
+
+	// Provider is the LLM backend: "anthropic", "openai", "ollama".
+	Provider string `mapstructure:"provider" json:"provider"`
+
+	// Model is the specific model to use (e.g., "claude-sonnet-4-20250514", "gpt-4o-mini").
+	Model string `mapstructure:"model" json:"model"`
+
+	// APIKey for authentication. Prefer KERNO_AI_API_KEY env var.
+	APIKey string `mapstructure:"api_key" json:"apiKey"`
+
+	// Endpoint override (e.g., "http://localhost:11434" for Ollama).
+	Endpoint string `mapstructure:"endpoint" json:"endpoint"`
+
+	// MaxTokens caps the LLM response length.
+	MaxTokens int `mapstructure:"max_tokens" json:"maxTokens"`
+
+	// Temperature controls response randomness (0.0–1.0).
+	Temperature float64 `mapstructure:"temperature" json:"temperature"`
+
+	// CacheTTL is how long to cache AI responses (e.g., "5m").
+	CacheTTL string `mapstructure:"cache_ttl" json:"cacheTTL"`
+
+	// RateLimitPerMinute caps LLM calls per minute.
+	RateLimitPerMinute int `mapstructure:"rate_limit_per_minute" json:"rateLimitPerMinute"`
+
+	// PrivacyMode controls what data is sent to the LLM: "full", "redacted", "summary".
+	PrivacyMode string `mapstructure:"privacy_mode" json:"privacyMode"`
 }
 
 // CollectorsConfig controls which signal collectors are active.
@@ -114,6 +151,16 @@ func Default() *Config {
 				FDGrowthPerSec:       10.0,          // 10 FDs/sec
 			},
 		},
+		AI: AIConfig{
+			Enabled:            false,
+			Provider:           "anthropic",
+			Model:              "",
+			MaxTokens:          1024,
+			Temperature:        0.2,
+			CacheTTL:           "5m",
+			RateLimitPerMinute: 10,
+			PrivacyMode:        "summary",
+		},
 		Prometheus: PrometheusConfig{
 			Enabled: true,
 			Addr:    ":9090",
@@ -148,6 +195,22 @@ func (c *Config) Validate() error {
 	}
 	if c.Doctor.Duration > 5*time.Minute {
 		return fmt.Errorf("doctor.duration must be at most 5m, got %s", c.Doctor.Duration)
+	}
+
+	if c.AI.Enabled {
+		switch c.AI.Provider {
+		case "anthropic", "openai", "ollama":
+		default:
+			return fmt.Errorf("invalid ai.provider %q: must be anthropic, openai, or ollama", c.AI.Provider)
+		}
+		if c.AI.Provider != "ollama" && c.AI.APIKey == "" {
+			return fmt.Errorf("ai.api_key (or KERNO_AI_API_KEY) is required for provider %q", c.AI.Provider)
+		}
+		switch c.AI.PrivacyMode {
+		case "full", "redacted", "summary", "":
+		default:
+			return fmt.Errorf("invalid ai.privacy_mode %q: must be full, redacted, or summary", c.AI.PrivacyMode)
+		}
 	}
 
 	if c.Prometheus.Enabled && c.Prometheus.Addr == "" {
