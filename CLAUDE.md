@@ -118,6 +118,8 @@ Keep messages concise — one line, under 72 chars. Body only if needed for "why
 
 **IMPORTANT:** Do NOT add `Co-Authored-By` lines. All commits are authored solely by the repo owner.
 
+**IMPORTANT:** Before every commit, run `go build ./... && go test ./... && go vet ./...` and ensure all pass. Never commit broken code.
+
 ## PR Strategy
 
 - Small, focused PRs — one logical change per PR
