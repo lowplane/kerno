@@ -27,6 +27,7 @@ type Signals struct {
 	DiskIO  *DiskIOSnapshot  `json:"diskIO,omitempty"`
 	Sched   *SchedSnapshot   `json:"sched,omitempty"`
 	FD      *FDSnapshot      `json:"fd,omitempty"`
+	Memory  *MemorySnapshot  `json:"memory,omitempty"`
 }
 
 // HostInfo identifies the machine being observed.
@@ -60,11 +61,12 @@ type SyscallSnapshot struct {
 
 // SyscallEntry represents latency stats for one (syscall, process) pair.
 type SyscallEntry struct {
-	SyscallNr uint32      `json:"syscallNr"`
-	Name      string      `json:"name"` // resolved syscall name
-	Comm      string      `json:"comm"`
-	Count     uint64      `json:"count"`
-	Latency   Percentiles `json:"latency"`
+	SyscallNr  uint32      `json:"syscallNr"`
+	Name       string      `json:"name"` // resolved syscall name
+	Comm       string      `json:"comm"`
+	Count      uint64      `json:"count"`
+	ErrorCount uint64      `json:"errorCount"` // syscalls that returned error
+	Latency    Percentiles `json:"latency"`
 }
 
 // ─── TCP Snapshot ───────────────────────────────────────────────────────────
@@ -180,4 +182,30 @@ type FDEntry struct {
 	Closes     uint64  `json:"closes"`
 	NetDelta   int64   `json:"netDelta"`
 	GrowthRate float64 `json:"growthRate"` // FDs per second
+}
+
+// ─── Memory Snapshot ─────────────────────────────────────────────────────────
+
+// MemorySnapshot tracks system memory usage and pressure.
+type MemorySnapshot struct {
+	// TotalBytes is total system memory.
+	TotalBytes uint64 `json:"totalBytes"`
+
+	// UsedBytes is current memory in use (excluding caches/buffers).
+	UsedBytes uint64 `json:"usedBytes"`
+
+	// UsedPct is the percentage of memory in use (0–100).
+	UsedPct float64 `json:"usedPct"`
+
+	// GrowthRateBytesPerSec is the rate of memory consumption growth.
+	GrowthRateBytesPerSec float64 `json:"growthRateBytesPerSec"`
+
+	// AvailableBytes is memory available for allocation without swapping.
+	AvailableBytes uint64 `json:"availableBytes"`
+
+	// SwapUsedBytes is current swap usage.
+	SwapUsedBytes uint64 `json:"swapUsedBytes"`
+
+	// SwapTotalBytes is total swap space.
+	SwapTotalBytes uint64 `json:"swapTotalBytes"`
 }
