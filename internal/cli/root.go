@@ -49,6 +49,8 @@ Run 'kerno doctor' for a 30-second automated kernel diagnostic.`,
 	// Register sub-commands.
 	root.AddCommand(
 		newDoctorCmd(),
+		newExplainCmd(),
+		newPredictCmd(),
 		newVersionCmd(),
 		newStartCmd(),
 	)
