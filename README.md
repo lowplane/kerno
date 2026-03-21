@@ -157,33 +157,36 @@ sudo kerno start
 
 ## How It Works
 
-```
-                 KERNEL SPACE (eBPF programs)
-┌──────────────────────────────────────────────────┐
-│  sys_enter/sys_exit ──► syscall latency          │
-│  tcp_retransmit_skb ──► retransmit events        │
-│  oom_kill_process   ──► OOM events               │
-│  block_rq_*         ──► disk I/O latency         │
-│  sched_wakeup/switch──► run queue delay          │
-│  sys_exit_openat    ──► FD open/close tracking   │
-│            Ring Buffers (mmap, zero-copy)         │
-└────────────────────┬─────────────────────────────┘
-                     │
-┌────────────────────▼─────────────────────────────┐
-│              USER SPACE (Go)                      │
-│                                                   │
-│  Collectors ──► Signals Snapshot ──► Doctor Engine │
-│       │              │                    │       │
-│       │              │              ┌─────┴─────┐ │
-│       ▼              ▼              │ Rules     │ │
-│  Prometheus    SLO Engine          │ (9 rules) │ │
-│  :9090/metrics  (error budgets)    │     +     │ │
-│                                    │ AI Layer  │ │
-│                                    └─────┬─────┘ │
-│                                          ▼       │
-│                                 Terminal Report   │
-│                                 (pretty / JSON)   │
-└──────────────────────────────────────────────────┘
+```mermaid
+graph TD
+    subgraph Kernel["🔧 Kernel Space — eBPF Programs"]
+        SC[sys_enter / sys_exit]
+        TC[tcp_retransmit_skb]
+        OC[oom_kill_process]
+        DC[block_rq_issue / complete]
+        SD[sched_wakeup / switch]
+        FD[sys_exit_openat / close]
+    end
+
+    RB[Ring Buffers<br/><i>mmap · zero-copy</i>]
+
+    subgraph User["⚡ User Space — Go"]
+        COL[Collectors]
+        SIG[Signals Snapshot]
+        DOC[Doctor Engine<br/><b>9 rules</b>]
+        AI[AI Layer<br/><i>optional · post-processing</i>]
+        OUT[Terminal Report<br/><i>pretty │ JSON</i>]
+        PROM[Prometheus<br/>:9090/metrics]
+    end
+
+    SC & TC & OC & DC & SD & FD --> RB --> COL --> SIG
+    SIG --> DOC --> AI --> OUT
+    SIG --> PROM
+
+    style Kernel fill:#1a1a2e,stroke:#e94560,color:#eee
+    style User fill:#0f3460,stroke:#16213e,color:#eee
+    style RB fill:#533483,stroke:#e94560,color:#fff
+    style AI fill:#e94560,stroke:#fff,color:#fff
 ```
 
 Kerno uses **6 eBPF programs** attached to stable kernel tracepoints. Events flow through ring buffers to Go userspace, where they are aggregated into percentile distributions and analyzed by **9 diagnostic rules**. An optional **AI layer** enriches findings with cross-signal correlation and root cause analysis.
@@ -304,26 +307,6 @@ kerno/
 ├── .goreleaser.yml      # Release automation
 └── CLAUDE.md            # AI assistant development guide
 ```
-
-## Roadmap
-
-See [TODO.md](TODO.md) for the full production roadmap.
-
-| Phase | Status | What |
-|-------|--------|------|
-| 0 — Skeleton | ✅ | go.mod, Makefile, CI, goreleaser, Docker |
-| 1 — eBPF Programs | ✅ | 6 C programs, bpf2go, Go loaders |
-| 2 — Collectors | ✅ | Signals struct, Collector interface, Registry |
-| 3 — Doctor Engine | ✅ | 9 rules, engine, renderers, 28 tests |
-| 4 — CLI | 🚧 | root, doctor, explain, predict, start, version |
-| AI — Integration | 🚧 | 3 providers, analyzer, cache, rate limiter, fallback |
-| 5 — Prometheus | 📋 | `/metrics` with 14 kernel metrics |
-| 6 — Adapters | 📋 | K8s, systemd, bare-metal enrichment |
-| 7 — K8s Deploy | 📋 | Helm chart + DaemonSet |
-| 8 — Demo | 📋 | stress-test.sh + GIF recording |
-| 9 — Hardening | 📋 | 80% coverage, benchmarks, security |
-| 10 — Dashboard | 📋 | Real-time web UI (separate repo) |
-| 11-13 — Advanced | 📋 | SLO bridge, KEDA scaler, CNCF |
 
 ## Contributing
 
