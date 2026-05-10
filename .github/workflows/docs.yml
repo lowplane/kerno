@@ -30,7 +30,7 @@ jobs:
     name: Markdown link check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Check markdown links
         uses: gaurav-nelson/github-action-markdown-link-check@v1
@@ -43,10 +43,10 @@ jobs:
     name: Spell check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Spell check
-        uses: streetsidesoftware/cspell-action@v6
+        uses: streetsidesoftware/cspell-action@v8
         with:
           incremental_files_only: true
           files: "**/*.md"

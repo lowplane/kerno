@@ -36,7 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Parse and apply assignment
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             // Pick the body to scan: comment body for issue_comment, issue body for issues.opened.
