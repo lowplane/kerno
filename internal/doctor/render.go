@@ -596,7 +596,7 @@ type jsonReport struct {
 	Findings  []jsonFinding     `json:"findings"`
 	Summary   reportSummary     `json:"summary"`
 	Analysis  *AnalysisResponse `json:"analysis,omitempty"`
-	Signals   interface{}       `json:"signals,omitempty"`
+	Signals   any               `json:"signals,omitempty"`
 }
 
 type jsonFinding struct {

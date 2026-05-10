@@ -116,7 +116,7 @@ func (c *DiskIOCollector) record(event *bpf.DiskEvent) {
 }
 
 // Snapshot implements Collector. Returns *DiskIOSnapshot.
-func (c *DiskIOCollector) Snapshot() interface{} {
+func (c *DiskIOCollector) Snapshot() any {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 

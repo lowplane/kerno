@@ -31,7 +31,7 @@ type Collector interface {
 
 	// Snapshot returns a point-in-time copy of the aggregated signals.
 	// The returned value is safe for concurrent read by other goroutines.
-	Snapshot() interface{}
+	Snapshot() any
 }
 
 // Registry manages the lifecycle of multiple collectors.

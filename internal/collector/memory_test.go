@@ -98,7 +98,7 @@ func TestCollectorMemoryHighCardinalityBurst(t *testing.T) {
 
 	// Force snapshots to ensure they don't reveal hidden allocations.
 	for _, snapper := range []interface {
-		Snapshot() interface{}
+		Snapshot() any
 	}{sc, tc, oc, dc, schc, fc} {
 		_ = snapper.Snapshot()
 	}

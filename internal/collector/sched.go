@@ -131,7 +131,7 @@ func (c *SchedCollector) record(event *bpf.SchedEvent) {
 }
 
 // Snapshot implements Collector. Returns *SchedSnapshot.
-func (c *SchedCollector) Snapshot() interface{} {
+func (c *SchedCollector) Snapshot() any {
 	c.mu.Lock()
 	total := c.total
 	globalSnap := c.global.Snapshot()

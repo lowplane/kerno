@@ -80,7 +80,7 @@ func liveFooter(w io.Writer, s liveStyle, eventsCaptured uint64, elapsed time.Du
 
 // liveColumnHeader formats a row of column labels in cyan-bold so
 // header lines are visually distinct from data rows.
-func liveColumnHeader(s liveStyle, format string, args ...interface{}) string {
+func liveColumnHeader(s liveStyle, format string, args ...any) string {
 	row := fmt.Sprintf(format, args...)
 	if !s.color {
 		return row

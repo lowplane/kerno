@@ -173,7 +173,7 @@ func (c *MemoryCollector) poll() error {
 }
 
 // Snapshot implements Collector. Returns *MemorySnapshot.
-func (c *MemoryCollector) Snapshot() interface{} {
+func (c *MemoryCollector) Snapshot() any {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if !c.have {

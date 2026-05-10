@@ -113,7 +113,7 @@ func (c *OOMCollector) record(event *bpf.OOMEvent) {
 }
 
 // Snapshot implements Collector. Returns *OOMSnapshot.
-func (c *OOMCollector) Snapshot() interface{} {
+func (c *OOMCollector) Snapshot() any {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 

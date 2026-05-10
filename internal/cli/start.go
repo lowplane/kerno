@@ -234,7 +234,7 @@ func healthzHandler(loaded, total int) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]any{
 			"status":         "ok",
 			"programsLoaded": loaded,
 			"programsTotal":  total,

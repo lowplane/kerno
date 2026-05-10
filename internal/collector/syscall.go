@@ -139,7 +139,7 @@ func (c *SyscallCollector) record(event *bpf.SyscallEvent) {
 }
 
 // Snapshot implements Collector. Returns *SyscallSnapshot.
-func (c *SyscallCollector) Snapshot() interface{} {
+func (c *SyscallCollector) Snapshot() any {
 	c.mu.Lock()
 	total := c.totalCount
 	entries := make([]SyscallEntry, 0, c.keys.Len())
