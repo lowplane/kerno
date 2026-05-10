@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # ── Stage 1: Build ───────────────────────────────────────────────────────────
-FROM golang:1.25-bookworm AS builder
+FROM golang:1.26-bookworm AS builder
 
 # Install eBPF build dependencies.
 RUN apt-get update && apt-get install -y --no-install-recommends \
