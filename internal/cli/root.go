@@ -83,6 +83,7 @@ and copy-paste fix steps.`,
 	auditCmd := newAuditCmd()
 	chaosCmd := newChaosCmd()
 	versionCmd := newVersionCmd()
+	completionCmd := newCompletionCmd()
 
 	root.AddGroup(
 		&cobra.Group{ID: "diagnose", Title: "Incident diagnosis:"},
@@ -98,8 +99,9 @@ and copy-paste fix steps.`,
 	startCmd.GroupID = "ops"
 	chaosCmd.GroupID = "ops"
 	versionCmd.GroupID = "ops"
+	completionCmd.GroupID = "ops"
 
-	root.AddCommand(doctorCmd, explainCmd, predictCmd, traceCmd, watchCmd, auditCmd, startCmd, chaosCmd, versionCmd)
+	root.AddCommand(doctorCmd, explainCmd, predictCmd, traceCmd, watchCmd, auditCmd, startCmd, chaosCmd, versionCmd, completionCmd)
 
 	return root
 }
