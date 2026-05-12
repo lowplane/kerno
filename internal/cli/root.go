@@ -128,14 +128,23 @@ func initConfig(cmd *cobra.Command) error {
 	v.SetEnvPrefix("KERNO")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_", "-", "_"))
 	v.AutomaticEnv()
+	if os.Getenv("NO_COLOR") != "" {
+	v.Set("no_color", true)
+}
 
 	// Bind CLI flags to viper.
 	if err := v.BindPFlag("log_level", cmd.Root().PersistentFlags().Lookup("log-level")); err != nil {
-		return fmt.Errorf("binding log-level flag: %w", err)
-	}
-	if err := v.BindPFlag("log_format", cmd.Root().PersistentFlags().Lookup("log-format")); err != nil {
-		return fmt.Errorf("binding log-format flag: %w", err)
-	}
+	return fmt.Errorf("binding log-level flag: %w", err)
+}
+
+if err := v.BindPFlag("log_format", cmd.Root().PersistentFlags().Lookup("log-format")); err != nil {
+	return fmt.Errorf("binding log-format flag: %w", err)
+}
+}
+
+if err := v.BindPFlag("no_color", cmd.Root().PersistentFlags().Lookup("no-color")); err != nil {
+	return fmt.Errorf("binding no-color flag: %w", err)
+}
 
 	// Read config file (not an error if it doesn't exist).
 	if err := v.ReadInConfig(); err != nil {
