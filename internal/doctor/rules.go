@@ -503,8 +503,14 @@ func formatBytes(b uint64) string {
 		kB = 1024
 		mB = kB * 1024
 		gB = mB * 1024
+		tB = gB * 1024
+		pB = tB * 1024
 	)
 	switch {
+	case b >= pB:
+		return fmt.Sprintf("%.1fPB", float64(b)/float64(pB))
+	case b >= tB:
+		return fmt.Sprintf("%.1fTB", float64(b)/float64(tB))
 	case b >= gB:
 		return fmt.Sprintf("%.1fGB", float64(b)/float64(gB))
 	case b >= mB:
