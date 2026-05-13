@@ -6,7 +6,10 @@ package chaos
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"runtime"
+	"strconv"
 	"time"
 )
 
@@ -73,5 +76,93 @@ func memoryMBFromIntensity(intensity Intensity) int {
 		return 512
 	default:
 		return 200
+	}
+}
+
+// ─── CgroupMemoryScenario ────────────────────────────────────────────────────
+
+// CgroupMemoryScenario creates a simulated cgroup v2 directory tree under
+// /tmp with memory.max set to a finite limit and memory.current growing
+// toward it. The kerno doctor CgroupMemoryCollector must be pointed at the
+// same root (via --cgroup-root or the KERNO_CGROUP_ROOT env var) to detect
+// the simulated pressure.
+//
+// This pairs with the memory_limit_pressure rule.
+type CgroupMemoryScenario struct{}
+
+func init() { Register(CgroupMemoryScenario{}) }
+
+func (CgroupMemoryScenario) Name() string        { return "cgroup-memory" }
+func (CgroupMemoryScenario) Description() string  { return "Simulate a container approaching its cgroup memory.max limit" }
+func (CgroupMemoryScenario) PairedRule() string   { return "memory_limit_pressure" }
+
+// Run implements Scenario.
+func (s CgroupMemoryScenario) Run(ctx context.Context, opts Options) error {
+	limitMB := cgroupMemoryLimitMB(opts.Intensity)
+	limitBytes := uint64(limitMB) << 20
+
+	cgroupDir := filepath.Join(os.TempDir(), "kerno-chaos-cgroup", "kubepods", "burstable", "pod-kerno-chaos", "container-0")
+	if err := os.MkdirAll(cgroupDir, 0o755); err != nil {
+		return fmt.Errorf("cgroup-memory: create dir: %w", err)
+	}
+	defer func() {
+		_ = os.RemoveAll(filepath.Join(os.TempDir(), "kerno-chaos-cgroup"))
+	}()
+
+	if err := os.WriteFile(filepath.Join(cgroupDir, "memory.max"), []byte(strconv.FormatUint(limitBytes, 10)+"\n"), 0o644); err != nil {
+		return fmt.Errorf("cgroup-memory: write memory.max: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(cgroupDir, "memory.high"), []byte(strconv.FormatUint(limitBytes*9/10, 10)+"\n"), 0o644); err != nil {
+		return fmt.Errorf("cgroup-memory: write memory.high: %w", err)
+	}
+
+	fmt.Fprintf(opts.Out, "    cgroup root: %s\n", filepath.Join(os.TempDir(), "kerno-chaos-cgroup"))
+	fmt.Fprintf(opts.Out, "    memory.max=%d MB, growing toward limit\n", limitMB)
+	fmt.Fprintf(opts.Out, "    hint: run kerno doctor --cgroup-root=%s to detect pressure\n",
+		filepath.Join(os.TempDir(), "kerno-chaos-cgroup"))
+
+	// Grow current usage from 80 % to 97 % over the run duration.
+	startBytes := limitBytes * 80 / 100
+	endBytes := limitBytes * 97 / 100
+	rangeBytes := endBytes - startBytes
+
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	start := time.Now()
+	highEvents := uint64(0)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+			elapsed := time.Since(start)
+			frac := elapsed.Seconds() / opts.Duration.Seconds()
+			if frac > 1.0 {
+				frac = 1.0
+			}
+			current := startBytes + uint64(float64(rangeBytes)*frac)
+
+			// Increment high events to simulate kernel reclaim pressure.
+			if current >= limitBytes*85/100 {
+				highEvents += 2
+			}
+
+			events := fmt.Sprintf("low 0\nhigh %d\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n", highEvents)
+			_ = os.WriteFile(filepath.Join(cgroupDir, "memory.current"), []byte(strconv.FormatUint(current, 10)+"\n"), 0o644)
+			_ = os.WriteFile(filepath.Join(cgroupDir, "memory.events"), []byte(events), 0o644)
+		}
+	}
+}
+
+func cgroupMemoryLimitMB(intensity Intensity) int {
+	switch intensity {
+	case IntensityLow:
+		return 128
+	case IntensityHigh:
+		return 1024
+	default:
+		return 256
 	}
 }

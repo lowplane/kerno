@@ -18,9 +18,11 @@ var validDoctorRules = map[string]bool{
 	"tcp_rtt_degradation":  true,
 	"scheduler_contention": true,
 	"fd_leak":              true,
-	"syscall_latency_high": true,
-	"syscall_error_rate":   true,
-	"healthy_system":       true,
+	"syscall_latency_high":    true,
+	"syscall_error_rate":      true,
+	"memory_limit_pressure":   true,
+	"memory_high_throttling":  true,
+	"healthy_system":          true,
 	// "multiple" is a sentinel used by cascade — not a real rule but a
 	// recognized placeholder.
 	"multiple": true,
