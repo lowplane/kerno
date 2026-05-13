@@ -98,6 +98,14 @@ type Finding struct {
 	Process string
 }
 
+// Fingerprint returns a unique string identifying this finding.
+// Findings with the same fingerprint in different cycles are considered
+// the "same" issue. It includes the rule, signal, metric, and process
+// (if any), but excludes the severity and current value.
+func (f *Finding) Fingerprint() string {
+	return fmt.Sprintf("%s|%s|%s|%s|%s", f.Rule, f.Signal, f.Metric, f.Process, f.Title)
+}
+
 // ETAString returns a human-readable ETA string, or empty if no ETA.
 func (f *Finding) ETAString() string {
 	if f.ETA == nil {
