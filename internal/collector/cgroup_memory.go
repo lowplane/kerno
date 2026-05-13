@@ -14,6 +14,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/optiqor/kerno/internal/metrics"
 )
 
 // DefaultCgroupMemoryPollInterval is the polling cadence for cgroup memory
@@ -51,14 +53,21 @@ type cgroupMemSample struct {
 
 // NewCgroupMemoryCollector creates a collector that reads
 // /sys/fs/cgroup (or cgroupRoot if overridden) every interval.
+// The root can also be overridden at runtime via the KERNO_CGROUP_ROOT
+// environment variable, which is how the cgroup-memory chaos scenario
+// surfaces simulated pressure to the collector.
 func NewCgroupMemoryCollector(logger *slog.Logger, interval time.Duration) *CgroupMemoryCollector {
 	if interval <= 0 {
 		interval = DefaultCgroupMemoryPollInterval
 	}
+	root := "/sys/fs/cgroup"
+	if env := os.Getenv("KERNO_CGROUP_ROOT"); env != "" {
+		root = env
+	}
 	return &CgroupMemoryCollector{
 		logger:     logger.With("collector", "cgroup_memory"),
 		interval:   interval,
-		cgroupRoot: "/sys/fs/cgroup",
+		cgroupRoot: root,
 		prev:       make(map[string]cgroupMemSample),
 		done:       make(chan struct{}),
 	}
@@ -136,9 +145,23 @@ func (c *CgroupMemoryCollector) poll() error {
 		}
 	}
 
-	if len(entries) > 0 {
-		c.snap = &CgroupMemorySnapshot{Containers: entries}
+	// Always overwrite the snapshot — nil when no limited cgroups are
+	// present so stale findings don't linger after limits are removed.
+	if len(entries) == 0 {
+		c.snap = nil
+		metrics.CgroupMemoryPressurePct.Reset()
+		return nil
 	}
+
+	c.snap = &CgroupMemorySnapshot{Containers: entries}
+
+	// Update the Prometheus gauge for each container and clear any label
+	// combinations that no longer exist.
+	metrics.CgroupMemoryPressurePct.Reset()
+	for _, e := range entries {
+		metrics.CgroupMemoryPressurePct.WithLabelValues(e.Pod, e.Namespace).Set(e.UsedPct)
+	}
+
 	return nil
 }
 

@@ -205,8 +205,8 @@ type collectorBuildResult struct {
 // DEGRADATION panel instead of letting WARN logs scatter through.
 func buildCollectors(logger *slog.Logger) collectorBuildResult {
 	registry := collector.NewRegistry(logger)
-	// Up to 7 collectors are registered (6 eBPF + procfs memory).
-	closers := make([]func(), 0, 7)
+	// Up to 8 collectors are registered (6 eBPF + procfs memory + cgroup memory).
+	closers := make([]func(), 0, 8)
 
 	type loaderRegistration struct {
 		name    string
@@ -298,6 +298,15 @@ func buildCollectors(logger *slog.Logger) collectorBuildResult {
 			enabled: true,
 			build: func() (collector.Collector, io.Closer, error) {
 				return collector.NewMemoryCollector(logger, 0), noopCloser{}, nil
+			},
+		},
+		{
+			// Cgroup memory collector walks /sys/fs/cgroup for per-container
+			// limits. Also no eBPF; root overrideable via KERNO_CGROUP_ROOT.
+			name:    "cgroup_memory",
+			enabled: true,
+			build: func() (collector.Collector, io.Closer, error) {
+				return collector.NewCgroupMemoryCollector(logger, 0), noopCloser{}, nil
 			},
 		},
 	}

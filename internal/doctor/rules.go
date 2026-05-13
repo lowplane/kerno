@@ -516,8 +516,10 @@ func evalMemoryLimitPressure(s *collector.Signals) []Finding {
 		}
 
 		sev := SeverityWarning
+		threshold := 85.0
 		if c.UsedPct > 95.0 && c.GrowthRateBytesPerSec > 0 {
 			sev = SeverityCritical
+			threshold = 95.0
 		}
 
 		label := c.Pod
@@ -550,7 +552,7 @@ func evalMemoryLimitPressure(s *collector.Signals) []Finding {
 			},
 			Metric:    "cgroup_memory_used_pct",
 			Value:     c.UsedPct,
-			Threshold: 85.0,
+			Threshold: threshold,
 			Process:   c.Pod,
 		}
 

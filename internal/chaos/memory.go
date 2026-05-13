@@ -83,9 +83,9 @@ func memoryMBFromIntensity(intensity Intensity) int {
 
 // CgroupMemoryScenario creates a simulated cgroup v2 directory tree under
 // /tmp with memory.max set to a finite limit and memory.current growing
-// toward it. The kerno doctor CgroupMemoryCollector must be pointed at the
-// same root (via --cgroup-root or the KERNO_CGROUP_ROOT env var) to detect
-// the simulated pressure.
+// toward it. Set KERNO_CGROUP_ROOT to the printed path before running
+// kerno doctor so the CgroupMemoryCollector reads the simulated files
+// instead of /sys/fs/cgroup.
 //
 // This pairs with the memory_limit_pressure rule.
 type CgroupMemoryScenario struct{}
@@ -118,10 +118,10 @@ func (s CgroupMemoryScenario) Run(ctx context.Context, opts Options) error {
 		return fmt.Errorf("cgroup-memory: write memory.high: %w", err)
 	}
 
-	fmt.Fprintf(opts.Out, "    cgroup root: %s\n", filepath.Join(os.TempDir(), "kerno-chaos-cgroup"))
+	chaosRoot := filepath.Join(os.TempDir(), "kerno-chaos-cgroup")
+	fmt.Fprintf(opts.Out, "    cgroup root: %s\n", chaosRoot)
 	fmt.Fprintf(opts.Out, "    memory.max=%d MB, growing toward limit\n", limitMB)
-	fmt.Fprintf(opts.Out, "    hint: run kerno doctor --cgroup-root=%s to detect pressure\n",
-		filepath.Join(os.TempDir(), "kerno-chaos-cgroup"))
+	fmt.Fprintf(opts.Out, "    hint: export KERNO_CGROUP_ROOT=%s && kerno doctor\n", chaosRoot)
 
 	// Grow current usage from 80 % to 97 % over the run duration.
 	startBytes := limitBytes * 80 / 100
@@ -152,8 +152,12 @@ func (s CgroupMemoryScenario) Run(ctx context.Context, opts Options) error {
 			}
 
 			events := fmt.Sprintf("low 0\nhigh %d\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n", highEvents)
-			_ = os.WriteFile(filepath.Join(cgroupDir, "memory.current"), []byte(strconv.FormatUint(current, 10)+"\n"), 0o600)
-			_ = os.WriteFile(filepath.Join(cgroupDir, "memory.events"), []byte(events), 0o600)
+			if err := os.WriteFile(filepath.Join(cgroupDir, "memory.current"), []byte(strconv.FormatUint(current, 10)+"\n"), 0o600); err != nil {
+				opts.Logger.Warn("cgroup-memory: failed to update memory.current", "error", err)
+			}
+			if err := os.WriteFile(filepath.Join(cgroupDir, "memory.events"), []byte(events), 0o600); err != nil {
+				opts.Logger.Warn("cgroup-memory: failed to update memory.events", "error", err)
+			}
 		}
 	}
 }
