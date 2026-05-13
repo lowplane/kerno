@@ -1,13 +1,13 @@
 // Copyright 2026 Optiqor contributors
 // SPDX-License-Identifier: Apache-2.0
 
-// bpf-verify is a standalone test harness that loads each Kerno eBPF
+// Bpf-verify is a standalone test harness that loads each Kerno eBPF
 // program into the kernel verifier and reports the result. Run with
 // sudo (or with CAP_BPF + CAP_PERFMON granted to the binary).
 //
 //	go build -o bin/bpf-verify ./cmd/bpf-verify
-//	sudo ./bin/bpf-verify             # loads all 6 programs
-//	sudo ./bin/bpf-verify --read 5s   # then read events for 5 seconds
+//	sudo ./bin/bpf-verify             # Loads all 6 programs
+//	sudo ./bin/bpf-verify --read 5s   # Then read events for 5 seconds
 //
 // On success, prints "VERIFIER OK" for each program and exits 0. On
 // failure, prints the kernel verifier log so the eBPF C source can be
