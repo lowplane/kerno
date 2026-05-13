@@ -21,7 +21,7 @@ jobs:
       - uses: actions/first-interaction@v3
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-          issue-message: |
+          issue-message: &issue_msg |
             Welcome to **Kerno**, and thanks for opening your first issue! 🎉
 
             A maintainer will triage this within 48 hours. While you wait:
@@ -31,7 +31,8 @@ jobs:
             - 💬 [Discussions](https://github.com/optiqor/kerno/discussions) for questions and design talk
 
             Tip: if you can paste output of `sudo ./bin/bpf-verify` (or `kerno preflight` when it ships) we'll diagnose 90% faster.
-          pr-message: |
+          issue_message: *issue_msg
+          pr-message: &pr_msg |
             🚀 **First PR — welcome aboard!**
 
             A few things to expect:
@@ -42,3 +43,4 @@ jobs:
             4. **Review**: a maintainer will review within 72 hours. Suggestions are conversations, not orders — push back if something doesn't fit your context.
 
             If you get stuck, reply here or jump to [Discussions](https://github.com/optiqor/kerno/discussions). We want this PR to land.
+          pr_message: *pr_msg
