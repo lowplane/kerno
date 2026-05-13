@@ -543,6 +543,34 @@ func TestEvaluate_MemoryLimitPressure_CriticalNoETA(t *testing.T) {
 	t.Error("expected CRITICAL memory_limit_pressure finding")
 }
 
+func TestEvaluate_MemoryLimitPressure_ExactlyAt95(t *testing.T) {
+	limit := uint64(4 << 30)
+	signals := &collector.Signals{
+		CgroupMemory: &collector.CgroupMemorySnapshot{
+			Containers: []collector.CgroupMemoryEntry{
+				{
+					Pod:                   "pod-boundary",
+					LimitBytes:            limit,
+					CurrentBytes:          uint64(float64(limit) * 0.95),
+					UsedPct:               95.0,
+					GrowthRateBytesPerSec: 2 * 1024 * 1024, // 2 MB/s — growing
+				},
+			},
+		},
+	}
+
+	findings := Evaluate(signals, defaultThresholds())
+	for _, f := range findings {
+		if f.Rule == "memory_limit_pressure" {
+			if f.Severity != SeverityCritical {
+				t.Errorf("expected CRITICAL at exactly 95%%, got %s", f.Severity)
+			}
+			return
+		}
+	}
+	t.Error("expected memory_limit_pressure finding at exactly 95%")
+}
+
 func TestEvaluate_MemoryLimitPressure_BelowThreshold(t *testing.T) {
 	limit := uint64(4 << 30)
 	signals := &collector.Signals{

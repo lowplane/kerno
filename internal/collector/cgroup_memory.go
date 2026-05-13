@@ -26,6 +26,13 @@ const DefaultCgroupMemoryPollInterval = 5 * time.Second
 // maxCgroupWalkDepth guards against unexpectedly deep cgroup trees.
 const maxCgroupWalkDepth = 8
 
+// PodLookup resolves a cgroup path to a Kubernetes pod name and namespace.
+// The KubernetesAdapter implements this interface; on non-K8s nodes the
+// injected value is nil and enrichment is skipped.
+type PodLookup interface {
+	LookupByPath(cgroupPath string) (pod, namespace string)
+}
+
 // CgroupMemoryCollector walks the cgroup v2 hierarchy and collects per-
 // container memory state every poll interval. It feeds the doctor's
 // memory_limit_pressure and memory_high_throttling rules.
@@ -36,6 +43,7 @@ type CgroupMemoryCollector struct {
 	logger     *slog.Logger
 	interval   time.Duration
 	cgroupRoot string // overrideable for tests
+	enricher   PodLookup
 
 	mu   sync.Mutex
 	snap *CgroupMemorySnapshot
@@ -44,6 +52,10 @@ type CgroupMemoryCollector struct {
 	cancelFn context.CancelFunc
 	done     chan struct{}
 }
+
+// SetEnricher injects an optional pod lookup for namespace enrichment.
+// Safe to call before Start(); not safe to call concurrently.
+func (c *CgroupMemoryCollector) SetEnricher(e PodLookup) { c.enricher = e }
 
 type cgroupMemSample struct {
 	currentBytes uint64
@@ -159,7 +171,7 @@ func (c *CgroupMemoryCollector) poll() error {
 	// combinations that no longer exist.
 	metrics.CgroupMemoryPressurePct.Reset()
 	for _, e := range entries {
-		metrics.CgroupMemoryPressurePct.WithLabelValues(e.Pod, e.Namespace).Set(e.UsedPct)
+		metrics.CgroupMemoryPressurePct.WithLabelValues(e.Pod).Set(e.UsedPct)
 	}
 
 	return nil
@@ -178,6 +190,10 @@ func (c *CgroupMemoryCollector) Snapshot() interface{} {
 
 // walkCgroups recursively visits cgroup directories and collects entries
 // that have a finite memory.max limit (i.e., the value is not "max").
+// Only leaf nodes in the limit hierarchy are emitted: if a child directory
+// also has memory.max set, the parent is skipped. This avoids 4–6 duplicate
+// findings per K8s pod where every level of the hierarchy (kubepods.slice →
+// pod.slice → container.scope) has memory.max set.
 func (c *CgroupMemoryCollector) walkCgroups(dir string, depth int) ([]CgroupMemoryEntry, error) {
 	if depth > maxCgroupWalkDepth {
 		return nil, nil
@@ -191,35 +207,11 @@ func (c *CgroupMemoryCollector) walkCgroups(dir string, depth int) ([]CgroupMemo
 		return nil, err
 	}
 
-	var result []CgroupMemoryEntry
-
 	limitBytes, hasLimit := readCgroupMemoryMax(filepath.Join(dir, "memory.max"))
-	if hasLimit {
-		current := readCgroupUint64File(filepath.Join(dir, "memory.current"))
-		highBytes := readCgroupUint64File(filepath.Join(dir, "memory.high"))
-		events := readCgroupMemoryEvents(filepath.Join(dir, "memory.events"))
 
-		usedPct := 0.0
-		if limitBytes > 0 {
-			usedPct = float64(current) / float64(limitBytes) * 100.0
-		}
-
-		pod := parseCgroupPod(dir)
-		result = append(result, CgroupMemoryEntry{
-			CgroupPath:    dir,
-			Pod:           pod,
-			Namespace:     "",
-			CurrentBytes:  current,
-			LimitBytes:    limitBytes,
-			HighBytes:     highBytes,
-			UsedPct:       usedPct,
-			EventsHigh:    events["high"],
-			EventsMax:     events["max"],
-			EventsOOM:     events["oom"],
-			EventsOOMKill: events["oom_kill"],
-		})
-	}
-
+	// Recurse into children first so we can tell whether any child also has
+	// a finite limit. If so, this node is an intermediate parent — skip it.
+	var result []CgroupMemoryEntry
 	for _, de := range dirEntries {
 		if !de.IsDir() {
 			continue
@@ -231,6 +223,42 @@ func (c *CgroupMemoryCollector) walkCgroups(dir string, depth int) ([]CgroupMemo
 			continue
 		}
 		result = append(result, children...)
+	}
+
+	// Emit this node only if it has a finite limit AND no child also reported
+	// an entry (i.e., this is the innermost / leaf cgroup with a limit).
+	if hasLimit && len(result) == 0 {
+		current := readCgroupUint64File(filepath.Join(dir, "memory.current"))
+		highBytes := readCgroupUint64File(filepath.Join(dir, "memory.high"))
+		events := readCgroupMemoryEvents(filepath.Join(dir, "memory.events"))
+
+		usedPct := 0.0
+		if limitBytes > 0 {
+			usedPct = float64(current) / float64(limitBytes) * 100.0
+		}
+
+		pod := parseCgroupPod(dir)
+		ns := ""
+		if c.enricher != nil {
+			pod, ns = c.enricher.LookupByPath(dir)
+			if pod == "" {
+				pod = parseCgroupPod(dir)
+			}
+		}
+
+		result = append(result, CgroupMemoryEntry{
+			CgroupPath:    dir,
+			Pod:           pod,
+			Namespace:     ns,
+			CurrentBytes:  current,
+			LimitBytes:    limitBytes,
+			HighBytes:     highBytes,
+			UsedPct:       usedPct,
+			EventsHigh:    events["high"],
+			EventsMax:     events["max"],
+			EventsOOM:     events["oom"],
+			EventsOOMKill: events["oom_kill"],
+		})
 	}
 
 	return result, nil

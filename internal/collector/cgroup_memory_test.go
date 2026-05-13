@@ -194,6 +194,56 @@ func TestCgroupMemoryCollector_StartStop(t *testing.T) {
 	}
 }
 
+// TestCgroupMemoryCollector_LeafOnly verifies that when a parent directory
+// and a child directory both have a finite memory.max, only the child (leaf)
+// is reported. This mirrors the real K8s hierarchy where kubepods.slice,
+// pod.slice, and container.scope all have memory.max set.
+func TestCgroupMemoryCollector_LeafOnly(t *testing.T) {
+	root := t.TempDir()
+
+	// Parent cgroup with a limit — should NOT be reported because its child
+	// also has a limit.
+	parentDir := filepath.Join(root, "kubepods", "burstable", "pod-test")
+	if err := os.MkdirAll(parentDir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	writeFileAt := func(path, content string) {
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	const limitBytes = uint64(512 << 20)
+	writeFileAt(filepath.Join(parentDir, "memory.max"), fmt.Sprintf("%d\n", limitBytes))
+	writeFileAt(filepath.Join(parentDir, "memory.current"), fmt.Sprintf("%d\n", limitBytes/2))
+	writeFileAt(filepath.Join(parentDir, "memory.high"), fmt.Sprintf("%d\n", limitBytes*9/10))
+	writeFileAt(filepath.Join(parentDir, "memory.events"), "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n")
+
+	// Child (leaf) cgroup — the one that should be reported.
+	childDir := filepath.Join(parentDir, "container-0")
+	writeCgroupDir(t, filepath.Join(root, "kubepods", "burstable", "pod-test"), limitBytes, limitBytes*3/4, limitBytes*9/10, 0)
+	// writeCgroupDir creates container-0 under pod-test automatically.
+	_ = childDir
+
+	c := NewCgroupMemoryCollector(newSilentLogger(), 50*time.Millisecond)
+	c.cgroupRoot = root
+
+	if err := c.poll(); err != nil {
+		t.Fatalf("poll: %v", err)
+	}
+
+	snap, ok := c.Snapshot().(*CgroupMemorySnapshot)
+	if !ok || snap == nil {
+		t.Fatal("expected non-nil snapshot")
+	}
+	if len(snap.Containers) != 1 {
+		t.Fatalf("leaf-only: expected 1 container, got %d (duplicate parent entries)", len(snap.Containers))
+	}
+	// The reported entry must be the leaf (container-0), not the parent.
+	if snap.Containers[0].CgroupPath == parentDir {
+		t.Errorf("reported parent %q instead of leaf container", parentDir)
+	}
+}
+
 func TestReadCgroupMemoryEvents(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "memory.events")

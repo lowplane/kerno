@@ -96,6 +96,23 @@ func (a *KubernetesAdapter) Stop() {
 	}
 }
 
+// LookupByPath resolves a cgroup path to a Kubernetes pod name and namespace.
+// Returns ("", "") when the path cannot be matched (non-K8s or unknown pod).
+// Implements collector.PodLookup.
+func (a *KubernetesAdapter) LookupByPath(cgroupPath string) (pod, namespace string) {
+	uid := extractPodUID(cgroupPath)
+	if uid == "" {
+		return "", ""
+	}
+	a.mu.RLock()
+	info, ok := a.index[uid]
+	a.mu.RUnlock()
+	if !ok {
+		return "", ""
+	}
+	return info.Name, info.Namespace
+}
+
 // Enrich maps the PID's cgroup path to a K8s pod and populates metadata.
 func (a *KubernetesAdapter) Enrich(meta *EventMeta) {
 	meta.Hostname = a.hostname

@@ -153,7 +153,7 @@ func runDoctor(ctx context.Context, opts doctorOpts) error {
 	// Build the eBPF loader set + collector registry. Loader failures are
 	// non-fatal — we degrade gracefully and surface the gap in the report
 	// via a single DEGRADATION panel.
-	build := buildCollectors(logger)
+	build := buildCollectors(ctx, logger)
 	defer func() {
 		for _, c := range build.closers {
 			c()
@@ -203,7 +203,7 @@ type collectorBuildResult struct {
 // skipped (graceful degradation) but their errors are captured into
 // the result so the doctor's pretty renderer can show a single
 // DEGRADATION panel instead of letting WARN logs scatter through.
-func buildCollectors(logger *slog.Logger) collectorBuildResult {
+func buildCollectors(ctx context.Context, logger *slog.Logger) collectorBuildResult {
 	registry := collector.NewRegistry(logger)
 	// Up to 8 collectors are registered (6 eBPF + procfs memory + cgroup memory).
 	closers := make([]func(), 0, 8)
@@ -216,6 +216,9 @@ func buildCollectors(logger *slog.Logger) collectorBuildResult {
 		// (nil, nil, error) so the caller can log + skip.
 		build func() (collector.Collector, io.Closer, error)
 	}
+
+	// Captured so we can inject a pod enricher after the registration loop.
+	var cgroupColl *collector.CgroupMemoryCollector
 
 	registrations := []loaderRegistration{
 		{
@@ -306,7 +309,8 @@ func buildCollectors(logger *slog.Logger) collectorBuildResult {
 			name:    "cgroup_memory",
 			enabled: true,
 			build: func() (collector.Collector, io.Closer, error) {
-				return collector.NewCgroupMemoryCollector(logger, 0), noopCloser{}, nil
+				cgroupColl = collector.NewCgroupMemoryCollector(logger, 0)
+				return cgroupColl, noopCloser{}, nil
 			},
 		},
 	}
@@ -343,6 +347,19 @@ func buildCollectors(logger *slog.Logger) collectorBuildResult {
 			continue
 		}
 		loaded++
+	}
+
+	// Wire Kubernetes pod/namespace enrichment into the cgroup collector.
+	// The adapter queries the local Kubelet API; on non-K8s nodes its index
+	// stays empty and LookupByPath returns ("", "") — a no-op.
+	if cgroupColl != nil {
+		kubeAdapter := adapter.NewKubernetesAdapter(logger)
+		// Start in a goroutine so a slow or absent Kubelet does not block
+		// the doctor startup. Enrichment is best-effort: early polls may
+		// have empty namespace; later polls will have it once the index is built.
+		go func() { _ = kubeAdapter.Start(ctx) }() //nolint:errcheck // Start always returns nil
+		cgroupColl.SetEnricher(kubeAdapter)
+		closers = append(closers, func() { kubeAdapter.Stop() })
 	}
 
 	return collectorBuildResult{
