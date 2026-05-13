@@ -119,7 +119,7 @@ func cgroupPathForPID(pid uint32) string {
 
 // parseCgroupPath extracts the cgroup path from /proc/PID/cgroup content.
 func parseCgroupPath(content string) string {
-	// Parse line by line. cgroup v2 has "0::<path>".
+	// Parse line by line. Cgroup v2 has "0::<path>".
 	// cgroup v1 has multiple lines like "12:memory:<path>".
 	for i := 0; i < len(content); {
 		end := i

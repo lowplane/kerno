@@ -182,7 +182,7 @@ func runDoctor(ctx context.Context, opts doctorOpts) error {
 }
 
 // noopCloser satisfies io.Closer with a no-op Close. Used by collectors
-// that don't load any eBPF program (e.g. the procfs-based memory
+// that don't load any eBPF program (e.g. the Procfs-based memory
 // collector) so the registration table can stay uniform.
 type noopCloser struct{}
 
