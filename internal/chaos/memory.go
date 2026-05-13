@@ -92,27 +92,29 @@ type CgroupMemoryScenario struct{}
 
 func init() { Register(CgroupMemoryScenario{}) }
 
-func (CgroupMemoryScenario) Name() string        { return "cgroup-memory" }
-func (CgroupMemoryScenario) Description() string  { return "Simulate a container approaching its cgroup memory.max limit" }
-func (CgroupMemoryScenario) PairedRule() string   { return "memory_limit_pressure" }
+func (CgroupMemoryScenario) Name() string { return "cgroup-memory" }
+func (CgroupMemoryScenario) Description() string {
+	return "Simulate a container approaching its cgroup memory.max limit"
+}
+func (CgroupMemoryScenario) PairedRule() string { return "memory_limit_pressure" }
 
 // Run implements Scenario.
 func (s CgroupMemoryScenario) Run(ctx context.Context, opts Options) error {
 	limitMB := cgroupMemoryLimitMB(opts.Intensity)
-	limitBytes := uint64(limitMB) << 20
+	limitBytes := uint64(limitMB) << 20 //nolint:gosec // limitMB is a small controlled constant, no overflow risk
 
 	cgroupDir := filepath.Join(os.TempDir(), "kerno-chaos-cgroup", "kubepods", "burstable", "pod-kerno-chaos", "container-0")
-	if err := os.MkdirAll(cgroupDir, 0o755); err != nil {
+	if err := os.MkdirAll(cgroupDir, 0o750); err != nil { //nolint:gosec // temp dir for chaos simulation
 		return fmt.Errorf("cgroup-memory: create dir: %w", err)
 	}
 	defer func() {
 		_ = os.RemoveAll(filepath.Join(os.TempDir(), "kerno-chaos-cgroup"))
 	}()
 
-	if err := os.WriteFile(filepath.Join(cgroupDir, "memory.max"), []byte(strconv.FormatUint(limitBytes, 10)+"\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(cgroupDir, "memory.max"), []byte(strconv.FormatUint(limitBytes, 10)+"\n"), 0o600); err != nil {
 		return fmt.Errorf("cgroup-memory: write memory.max: %w", err)
 	}
-	if err := os.WriteFile(filepath.Join(cgroupDir, "memory.high"), []byte(strconv.FormatUint(limitBytes*9/10, 10)+"\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(cgroupDir, "memory.high"), []byte(strconv.FormatUint(limitBytes*9/10, 10)+"\n"), 0o600); err != nil {
 		return fmt.Errorf("cgroup-memory: write memory.high: %w", err)
 	}
 
@@ -150,8 +152,8 @@ func (s CgroupMemoryScenario) Run(ctx context.Context, opts Options) error {
 			}
 
 			events := fmt.Sprintf("low 0\nhigh %d\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n", highEvents)
-			_ = os.WriteFile(filepath.Join(cgroupDir, "memory.current"), []byte(strconv.FormatUint(current, 10)+"\n"), 0o644)
-			_ = os.WriteFile(filepath.Join(cgroupDir, "memory.events"), []byte(events), 0o644)
+			_ = os.WriteFile(filepath.Join(cgroupDir, "memory.current"), []byte(strconv.FormatUint(current, 10)+"\n"), 0o600)
+			_ = os.WriteFile(filepath.Join(cgroupDir, "memory.events"), []byte(events), 0o600)
 		}
 	}
 }

@@ -21,12 +21,12 @@ type Signals struct {
 	Host HostInfo `json:"host"`
 
 	// Per-signal snapshots (nil if collector is disabled or has no data).
-	Syscall *SyscallSnapshot `json:"syscall,omitempty"`
-	TCP     *TCPSnapshot     `json:"tcp,omitempty"`
-	OOM     *OOMSnapshot     `json:"oom,omitempty"`
-	DiskIO  *DiskIOSnapshot  `json:"diskIO,omitempty"`
-	Sched   *SchedSnapshot   `json:"sched,omitempty"`
-	FD      *FDSnapshot      `json:"fd,omitempty"`
+	Syscall      *SyscallSnapshot      `json:"syscall,omitempty"`
+	TCP          *TCPSnapshot          `json:"tcp,omitempty"`
+	OOM          *OOMSnapshot          `json:"oom,omitempty"`
+	DiskIO       *DiskIOSnapshot       `json:"diskIO,omitempty"`
+	Sched        *SchedSnapshot        `json:"sched,omitempty"`
+	FD           *FDSnapshot           `json:"fd,omitempty"`
 	Memory       *MemorySnapshot       `json:"memory,omitempty"`
 	CgroupMemory *CgroupMemorySnapshot `json:"cgroupMemory,omitempty"`
 }

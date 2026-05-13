@@ -509,7 +509,7 @@ func evalMemoryLimitPressure(s *collector.Signals) []Finding {
 		return nil
 	}
 
-	var findings []Finding
+	findings := make([]Finding, 0, len(s.CgroupMemory.Containers))
 	for _, c := range s.CgroupMemory.Containers {
 		if c.LimitBytes == 0 || c.UsedPct < 85.0 {
 			continue
@@ -533,12 +533,12 @@ func evalMemoryLimitPressure(s *collector.Signals) []Finding {
 		impact := fmt.Sprintf("OOM kill will terminate container %s if usage reaches the limit", label)
 
 		f := Finding{
-			Severity:  sev,
-			Rule:      "memory_limit_pressure",
-			Title:     title,
-			Signal:    "cgroup_memory",
-			Cause:     fmt.Sprintf("Container memory usage is at %.1f%% of its cgroup limit", c.UsedPct),
-			Impact:    impact,
+			Severity: sev,
+			Rule:     "memory_limit_pressure",
+			Title:    title,
+			Signal:   "cgroup_memory",
+			Cause:    fmt.Sprintf("Container memory usage is at %.1f%% of its cgroup limit", c.UsedPct),
+			Impact:   impact,
 			Evidence: fmt.Sprintf(
 				"current=%s limit=%s used=%.1f%% growth=%.1f MB/s events(high=%d oom=%d oom_kill=%d)",
 				formatBytes(c.CurrentBytes), formatBytes(c.LimitBytes), c.UsedPct,
@@ -589,7 +589,7 @@ func evalMemoryHighThrottling(s *collector.Signals) []Finding {
 		return nil
 	}
 
-	var findings []Finding
+	findings := make([]Finding, 0, len(s.CgroupMemory.Containers))
 	for _, c := range s.CgroupMemory.Containers {
 		if c.HighEventRate < 1.0 {
 			continue

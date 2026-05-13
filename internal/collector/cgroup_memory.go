@@ -181,11 +181,11 @@ func (c *CgroupMemoryCollector) walkCgroups(dir string, depth int) ([]CgroupMemo
 			usedPct = float64(current) / float64(limitBytes) * 100.0
 		}
 
-		pod, ns := parseCgroupPodNamespace(dir)
+		pod := parseCgroupPod(dir)
 		result = append(result, CgroupMemoryEntry{
 			CgroupPath:    dir,
 			Pod:           pod,
-			Namespace:     ns,
+			Namespace:     "",
 			CurrentBytes:  current,
 			LimitBytes:    limitBytes,
 			HighBytes:     highBytes,
@@ -216,7 +216,7 @@ func (c *CgroupMemoryCollector) walkCgroups(dir string, depth int) ([]CgroupMemo
 // readCgroupMemoryMax reads memory.max. Returns (bytes, true) when a finite
 // limit is set; (0, false) for "max" (unlimited) or missing file.
 func readCgroupMemoryMax(path string) (uint64, bool) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // path is constructed from the controlled cgroupRoot
 	if err != nil {
 		return 0, false
 	}
@@ -234,7 +234,7 @@ func readCgroupMemoryMax(path string) (uint64, bool) {
 // readCgroupUint64File reads a single uint64 from a cgroup file, returning 0
 // on error or when the value is the sentinel "max".
 func readCgroupUint64File(path string) uint64 {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // path is constructed from the controlled cgroupRoot
 	if err != nil {
 		return 0
 	}
@@ -260,7 +260,7 @@ func readCgroupUint64File(path string) uint64 {
 //	oom_group_kill 0
 func readCgroupMemoryEvents(path string) map[string]uint64 {
 	out := make(map[string]uint64)
-	f, err := os.Open(path)
+	f, err := os.Open(path) //nolint:gosec // path is constructed from the controlled cgroupRoot
 	if err != nil {
 		return out
 	}
@@ -280,26 +280,25 @@ func readCgroupMemoryEvents(path string) map[string]uint64 {
 	return out
 }
 
-// parseCgroupPodNamespace extracts a pod identifier and namespace from a
-// cgroup path. Kubernetes uses paths like:
+// parseCgroupPod extracts a pod identifier from a cgroup path.
+// Kubernetes uses paths like:
 //
 //	/sys/fs/cgroup/kubepods/burstable/pod<uid>/<container-id>
 //
-// We return the pod<uid> component as pod and leave namespace empty —
-// full namespace resolution requires the Kubernetes API.
-func parseCgroupPodNamespace(path string) (pod, namespace string) {
+// Namespace resolution requires the Kubernetes API and is not done here;
+// callers set Namespace="" and enrich later if needed.
+func parseCgroupPod(path string) string {
 	parts := strings.Split(filepath.ToSlash(path), "/")
 	for _, p := range parts {
 		if strings.HasPrefix(p, "pod") && len(p) > 3 {
-			return p, ""
+			return p
 		}
 	}
-	// Not a K8s-style path — use the last component as an identifier.
-	if len(parts) > 0 {
-		last := parts[len(parts)-1]
-		if last != "" {
-			return last, ""
+	// Not a K8s-style path — use the last non-empty component.
+	for i := len(parts) - 1; i >= 0; i-- {
+		if parts[i] != "" {
+			return parts[i]
 		}
 	}
-	return filepath.Base(path), ""
+	return filepath.Base(path)
 }
