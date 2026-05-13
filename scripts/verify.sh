@@ -294,23 +294,32 @@ phase_induce_detect() {
     echo "==> 9. induce → detect pairings"
     local n=$1
 
+    # Format: "scenario:rule" or "scenario:rule:ENV=val" when the doctor
+    # invocation needs an extra environment variable (e.g. cgroup-memory
+    # writes to /tmp and requires KERNO_CGROUP_ROOT to be pointed there).
     local pairings=(
         "disk-sat:disk_io_bottleneck"
         "fd-leak:fd_leak"
         "cpu:scheduler_contention"
         "tcp-churn:scheduler_contention"
+        "cgroup-memory:memory_limit_pressure:KERNO_CGROUP_ROOT=/tmp/kerno-chaos-cgroup"
     )
 
     for p in "${pairings[@]}"; do
-        local scenario="${p%%:*}"
-        local expected="${p##*:}"
+        local scenario expected doctor_env
+        scenario="${p%%:*}"
+        rest="${p#*:}"
+        expected="${rest%%:*}"
+        doctor_env="${rest#*:}"
+        # doctor_env equals expected when there is no third field.
+        [[ "$doctor_env" == "$expected" ]] && doctor_env=""
 
         "$KERNO" chaos --induce "$scenario" --duration 12s --intensity high --yes \
             >/tmp/verify-chaos-"$scenario"-id.log 2>&1 &
         local cpid=$!
         sleep 1
 
-        sudo "$KERNO" --config scripts/verify-config.yaml \
+        env $doctor_env sudo -E "$KERNO" --config scripts/verify-config.yaml \
             doctor --duration 10s --output json \
             >/tmp/verify-doctor-"$scenario".json 2>/tmp/verify-doctor-"$scenario".log
 
