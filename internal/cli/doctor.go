@@ -147,8 +147,8 @@ func runDoctor(ctx context.Context, opts doctorOpts) error {
 		renderer = &doctor.JSONRenderer{Pretty: true}
 	default:
 		renderer = &doctor.PrettyRenderer{
-	NoColor: viper.GetBool("no_color") || os.Getenv("NO_COLOR") != "" || !isTerminal(),
-}
+			NoColor: viper.GetBool("no_color") || os.Getenv("NO_COLOR") != "" || !isTerminal(),
+		}
 	}
 
 	// Build the eBPF loader set + collector registry. Loader failures are
