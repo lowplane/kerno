@@ -1,7 +1,6 @@
 {
   "name": "kerno",
   "image": "mcr.microsoft.com/devcontainers/go:1-1.25-bookworm",
-
   "features": {
     "ghcr.io/devcontainers/features/docker-in-docker:2": {},
     "ghcr.io/devcontainers/features/github-cli:1": {},
@@ -10,9 +9,7 @@
       "helm": "latest"
     }
   },
-
   "postCreateCommand": "bash -lc 'sudo apt-get update && sudo apt-get install -y --no-install-recommends clang llvm libbpf-dev linux-headers-generic linux-tools-common bpftool jq make && go install github.com/cilium/ebpf/cmd/bpf2go@latest && curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.62.0 || true'",
-
   "customizations": {
     "vscode": {
       "extensions": [
@@ -44,9 +41,7 @@
       }
     }
   },
-
   "remoteUser": "vscode",
-
   "mounts": [
     "source=/sys/kernel/btf/vmlinux,target=/sys/kernel/btf/vmlinux,type=bind,readonly,optional=true"
   ]
