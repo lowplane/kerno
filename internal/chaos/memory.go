@@ -83,9 +83,9 @@ func memoryMBFromIntensity(intensity Intensity) int {
 
 // CgroupMemoryScenario creates a simulated cgroup v2 directory tree under
 // /tmp with memory.max set to a finite limit and memory.current growing
-// toward it. Set KERNO_CGROUP_ROOT to the printed path before running
-// kerno doctor so the CgroupMemoryCollector reads the simulated files
-// instead of /sys/fs/cgroup.
+// toward it. Pass KERNO_CGROUP_ROOT inline when invoking kerno doctor
+// (e.g. KERNO_CGROUP_ROOT=<path> kerno doctor) so the env var is scoped
+// to that process only and does not persist in the shell session.
 //
 // This pairs with the memory_limit_pressure rule.
 type CgroupMemoryScenario struct{}
@@ -121,7 +121,7 @@ func (s CgroupMemoryScenario) Run(ctx context.Context, opts Options) error {
 	chaosRoot := filepath.Join(os.TempDir(), "kerno-chaos-cgroup")
 	fmt.Fprintf(opts.Out, "    cgroup root: %s\n", chaosRoot)
 	fmt.Fprintf(opts.Out, "    memory.max=%d MB, growing toward limit\n", limitMB)
-	fmt.Fprintf(opts.Out, "    hint: export KERNO_CGROUP_ROOT=%s && kerno doctor\n", chaosRoot)
+	fmt.Fprintf(opts.Out, "    hint: KERNO_CGROUP_ROOT=%s kerno doctor\n", chaosRoot)
 
 	// Grow current usage from 80 % to 97 % over the run duration.
 	startBytes := limitBytes * 80 / 100

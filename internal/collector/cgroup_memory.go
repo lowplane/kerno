@@ -43,6 +43,8 @@ type CgroupMemoryCollector struct {
 	logger     *slog.Logger
 	interval   time.Duration
 	cgroupRoot string // overrideable for tests
+
+	enricherMu sync.RWMutex
 	enricher   PodLookup
 
 	mu   sync.Mutex
@@ -54,8 +56,12 @@ type CgroupMemoryCollector struct {
 }
 
 // SetEnricher injects an optional pod lookup for namespace enrichment.
-// Safe to call before Start(); not safe to call concurrently.
-func (c *CgroupMemoryCollector) SetEnricher(e PodLookup) { c.enricher = e }
+// Safe to call at any time, including after Start().
+func (c *CgroupMemoryCollector) SetEnricher(e PodLookup) {
+	c.enricherMu.Lock()
+	c.enricher = e
+	c.enricherMu.Unlock()
+}
 
 type cgroupMemSample struct {
 	currentBytes uint64
@@ -239,10 +245,12 @@ func (c *CgroupMemoryCollector) walkCgroups(dir string, depth int) ([]CgroupMemo
 
 		pod := parseCgroupPod(dir)
 		ns := ""
-		if c.enricher != nil {
-			pod, ns = c.enricher.LookupByPath(dir)
-			if pod == "" {
-				pod = parseCgroupPod(dir)
+		c.enricherMu.RLock()
+		enr := c.enricher
+		c.enricherMu.RUnlock()
+		if enr != nil {
+			if p, n := enr.LookupByPath(dir); p != "" {
+				pod, ns = p, n
 			}
 		}
 

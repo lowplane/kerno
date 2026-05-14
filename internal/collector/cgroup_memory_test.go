@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -195,34 +196,36 @@ func TestCgroupMemoryCollector_StartStop(t *testing.T) {
 }
 
 // TestCgroupMemoryCollector_LeafOnly verifies that when a parent directory
-// and a child directory both have a finite memory.max, only the child (leaf)
-// is reported. This mirrors the real K8s hierarchy where kubepods.slice,
-// pod.slice, and container.scope all have memory.max set.
+// and its direct child both have a finite memory.max — as in a real K8s
+// hierarchy (kubepods.slice → pod-x.slice → container.scope) — only the
+// innermost leaf is reported, not the parent.
 func TestCgroupMemoryCollector_LeafOnly(t *testing.T) {
 	root := t.TempDir()
-
-	// Parent cgroup with a limit — should NOT be reported because its child
-	// also has a limit.
-	parentDir := filepath.Join(root, "kubepods", "burstable", "pod-test")
-	if err := os.MkdirAll(parentDir, 0o750); err != nil {
-		t.Fatal(err)
-	}
-	writeFileAt := func(path, content string) {
+	writeAt := func(path, content string) {
 		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 			t.Fatal(err)
 		}
 	}
-	const limitBytes = uint64(512 << 20)
-	writeFileAt(filepath.Join(parentDir, "memory.max"), fmt.Sprintf("%d\n", limitBytes))
-	writeFileAt(filepath.Join(parentDir, "memory.current"), fmt.Sprintf("%d\n", limitBytes/2))
-	writeFileAt(filepath.Join(parentDir, "memory.high"), fmt.Sprintf("%d\n", limitBytes*9/10))
-	writeFileAt(filepath.Join(parentDir, "memory.events"), "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n")
 
-	// Child (leaf) cgroup — the one that should be reported.
-	childDir := filepath.Join(parentDir, "container-0")
-	writeCgroupDir(t, filepath.Join(root, "kubepods", "burstable", "pod-test"), limitBytes, limitBytes*3/4, limitBytes*9/10, 0)
-	// writeCgroupDir creates container-0 under pod-test automatically.
-	_ = childDir
+	// Parent slice — has memory.max but must NOT appear because its child also has one.
+	parent := filepath.Join(root, "kubepods.slice", "pod-x.slice")
+	if err := os.MkdirAll(parent, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	writeAt(filepath.Join(parent, "memory.max"), "8589934592\n")     // 8 GiB
+	writeAt(filepath.Join(parent, "memory.current"), "4294967296\n") // 4 GiB
+	writeAt(filepath.Join(parent, "memory.high"), "7516192768\n")
+	writeAt(filepath.Join(parent, "memory.events"), "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n")
+
+	// Leaf container scope — direct child of parent; this is the only entry that should appear.
+	leaf := filepath.Join(parent, "container.scope")
+	if err := os.MkdirAll(leaf, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	writeAt(filepath.Join(leaf, "memory.max"), "4294967296\n")     // 4 GiB
+	writeAt(filepath.Join(leaf, "memory.current"), "3865470566\n") // ~90 %
+	writeAt(filepath.Join(leaf, "memory.high"), "3865470566\n")
+	writeAt(filepath.Join(leaf, "memory.events"), "low 0\nhigh 2\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n")
 
 	c := NewCgroupMemoryCollector(newSilentLogger(), 50*time.Millisecond)
 	c.cgroupRoot = root
@@ -236,11 +239,10 @@ func TestCgroupMemoryCollector_LeafOnly(t *testing.T) {
 		t.Fatal("expected non-nil snapshot")
 	}
 	if len(snap.Containers) != 1 {
-		t.Fatalf("leaf-only: expected 1 container, got %d (duplicate parent entries)", len(snap.Containers))
+		t.Fatalf("leaf-only: expected 1 entry, got %d (parent was incorrectly included)", len(snap.Containers))
 	}
-	// The reported entry must be the leaf (container-0), not the parent.
-	if snap.Containers[0].CgroupPath == parentDir {
-		t.Errorf("reported parent %q instead of leaf container", parentDir)
+	if !strings.Contains(snap.Containers[0].CgroupPath, "container.scope") {
+		t.Errorf("expected leaf path (container.scope), got %q", snap.Containers[0].CgroupPath)
 	}
 }
 
