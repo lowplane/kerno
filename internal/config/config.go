@@ -70,6 +70,19 @@ type AIConfig struct {
 
 	// PrivacyMode controls what data is sent to the LLM: "full", "redacted", "summary".
 	PrivacyMode string `mapstructure:"privacy_mode" json:"privacyMode"`
+// Proxy is an optional explicit HTTP/HTTPS proxy URL for all AI provider traffic.
+	// When empty, HTTPS_PROXY / HTTP_PROXY / NO_PROXY env vars are honoured automatically.
+	Proxy string `mapstructure:"proxy" json:"proxy"`
+
+	// CACertFile is a path to a PEM-encoded CA certificate appended to the system root CA pool.
+	// Use when a corporate MITM proxy re-signs traffic with an internal root CA.
+	CACertFile string `mapstructure:"ca_cert_file" json:"caCertFile"`
+
+	// InsecureSkipVerify disables TLS certificate verification. NEVER true in production.
+	InsecureSkipVerify bool `mapstructure:"insecure_skip_verify" json:"insecureSkipVerify"`
+
+	// Timeout overrides the default 30-second HTTP client timeout for AI calls.
+	Timeout time.Duration `mapstructure:"timeout" json:"timeout"`
 }
 
 // CollectorsConfig controls which signal collectors are active.

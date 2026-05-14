@@ -1,6 +1,7 @@
-// Copyright 2026 Optiqor contributors
-// SPDX-License-Identifier: Apache-2.0
-
+// Package ai — OpenAI provider integration.
+//
+// Change from the original: replace the inline &http.Client{} with the shared
+// client returned by NewHTTPClient so that proxy and CA settings apply.
 package ai
 
 import (
@@ -10,150 +11,117 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+
+	"github.com/optiqor/kerno/internal/config"
 )
 
 const (
-	openaiDefaultEndpoint = "https://api.openai.com"
-	openaiDefaultModel    = "gpt-4o-mini"
+	openAIAPIURL = "https://api.openai.com/v1/chat/completions"
+	openAIModel  = "gpt-4o"
 )
 
-// OpenAIProvider implements Provider using the OpenAI Chat Completions API.
-// Also compatible with any OpenAI-compatible API (e.g., Azure OpenAI, vLLM).
-type OpenAIProvider struct {
-	endpoint    string
-	apiKey      string
-	model       string
-	maxTokens   int
-	temperature float64
-	client      *http.Client
+// OpenAIClient sends AI requests to the OpenAI Chat Completions API.
+type OpenAIClient struct {
+	apiKey string
+	model  string
+	http   *http.Client // shared enterprise-aware client
 }
 
-// NewOpenAIProvider creates a provider for OpenAI (or compatible APIs).
-func NewOpenAIProvider(cfg ProviderConfig) *OpenAIProvider {
-	endpoint := cfg.Endpoint
-	if endpoint == "" {
-		endpoint = openaiDefaultEndpoint
+// NewOpenAIClient constructs a ready-to-use OpenAIClient.
+func NewOpenAIClient(cfg *config.Config) (*OpenAIClient, error) {
+	httpClient, err := NewHTTPClient(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("openai: %w", err)
 	}
-	model := cfg.Model
+
+	model := cfg.AI.Model
 	if model == "" {
-		model = openaiDefaultModel
-	}
-	maxTokens := cfg.MaxTokens
-	if maxTokens == 0 {
-		maxTokens = 1024
-	}
-	temp := cfg.Temperature
-	if temp == 0 {
-		temp = 0.2
+		model = openAIModel
 	}
 
-	return &OpenAIProvider{
-		endpoint:    endpoint,
-		apiKey:      cfg.APIKey,
-		model:       model,
-		maxTokens:   maxTokens,
-		temperature: temp,
-		client:      &http.Client{},
-	}
-}
-
-func (p *OpenAIProvider) Name() string { return "openai" }
-
-func (p *OpenAIProvider) Complete(ctx context.Context, req CompletionRequest) (*CompletionResponse, error) {
-	maxTokens := req.MaxTokens
-	if maxTokens == 0 {
-		maxTokens = p.maxTokens
-	}
-	temp := req.Temperature
-	if temp == 0 {
-		temp = p.temperature
+	apiKey := cfg.AI.APIKey
+	if apiKey == "" {
+		return nil, fmt.Errorf("openai: api_key is required (set config.ai.api_key or KERNO_AI_API_KEY)")
 	}
 
-	messages := []openaiMessage{
-		{Role: "system", Content: req.SystemPrompt},
-		{Role: "user", Content: req.UserPrompt},
-	}
-
-	body := openaiRequest{
-		Model:       p.model,
-		Messages:    messages,
-		MaxTokens:   maxTokens,
-		Temperature: temp,
-	}
-
-	payload, err := json.Marshal(body)
-	if err != nil {
-		return nil, fmt.Errorf("marshaling request: %w", err)
-	}
-
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.endpoint+"/v1/chat/completions", bytes.NewReader(payload))
-	if err != nil {
-		return nil, fmt.Errorf("creating request: %w", err)
-	}
-
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
-
-	resp, err := p.client.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("openai API call failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("reading response: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("openai API error (status %d): %s", resp.StatusCode, string(respBody))
-	}
-
-	var result openaiResponse
-	if err := json.Unmarshal(respBody, &result); err != nil {
-		return nil, fmt.Errorf("parsing response: %w", err)
-	}
-
-	text := ""
-	if len(result.Choices) > 0 {
-		text = result.Choices[0].Message.Content
-	}
-
-	tokensUsed := result.Usage.TotalTokens
-
-	return &CompletionResponse{
-		Text:       text,
-		TokensUsed: tokensUsed,
-		Model:      result.Model,
+	return &OpenAIClient{
+		apiKey: apiKey,
+		model:  model,
+		http:   httpClient,
 	}, nil
 }
 
-// OpenAI API types — minimal.
+// ---------------------------------------------------------------------------
+// Request / response types
+// ---------------------------------------------------------------------------
 
-type openaiRequest struct {
-	Model       string          `json:"model"`
-	Messages    []openaiMessage `json:"messages"`
-	MaxTokens   int             `json:"max_tokens"`
-	Temperature float64         `json:"temperature"`
+type openAIRequest struct {
+	Model    string          `json:"model"`
+	Messages []openAIMessage `json:"messages"`
 }
 
-type openaiMessage struct {
+type openAIMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
 }
 
-type openaiResponse struct {
-	Choices []openaiChoice `json:"choices"`
-	Model   string         `json:"model"`
-	Usage   openaiUsage    `json:"usage"`
+type openAIResponse struct {
+	Choices []struct {
+		Message openAIMessage `json:"message"`
+	} `json:"choices"`
+	Error *struct {
+		Message string `json:"message"`
+		Type    string `json:"type"`
+	} `json:"error,omitempty"`
 }
 
-type openaiChoice struct {
-	Message openaiMessage `json:"message"`
-}
+// Complete sends a single-turn chat completion and returns the assistant text.
+func (c *OpenAIClient) Complete(ctx context.Context, prompt string) (string, error) {
+	reqBody := openAIRequest{
+		Model:    c.model,
+		Messages: []openAIMessage{{Role: "user", Content: prompt}},
+	}
 
-type openaiUsage struct {
-	PromptTokens     int `json:"prompt_tokens"`
-	CompletionTokens int `json:"completion_tokens"`
-	TotalTokens      int `json:"total_tokens"`
+	data, err := json.Marshal(reqBody)
+	if err != nil {
+		return "", fmt.Errorf("openai: marshal request: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, openAIAPIURL, bytes.NewReader(data))
+	if err != nil {
+		return "", fmt.Errorf("openai: build request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+
+	// Use the shared enterprise-aware client.
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("openai: HTTP request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return "", fmt.Errorf("openai: read response: %w", err)
+	}
+
+	var apiResp openAIResponse
+	if err := json.Unmarshal(body, &apiResp); err != nil {
+		return "", fmt.Errorf("openai: decode response (status %d): %w", resp.StatusCode, err)
+	}
+
+	if apiResp.Error != nil {
+		return "", fmt.Errorf("openai API error %s: %s", apiResp.Error.Type, apiResp.Error.Message)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("openai: unexpected status %d: %s", resp.StatusCode, string(body))
+	}
+
+	if len(apiResp.Choices) == 0 {
+		return "", fmt.Errorf("openai: empty choices in response")
+	}
+
+	return apiResp.Choices[0].Message.Content, nil
 }

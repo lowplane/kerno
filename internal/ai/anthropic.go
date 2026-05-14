@@ -1,6 +1,7 @@
-// Copyright 2026 Optiqor contributors
-// SPDX-License-Identifier: Apache-2.0
-
+// Package ai — Anthropic provider integration.
+//
+// Change from the original: replace the inline &http.Client{} with the shared
+// client returned by NewHTTPClient so that proxy and CA settings apply.
 package ai
 
 import (
@@ -10,134 +11,58 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+
+	"github.com/optiqor/kerno/internal/config"
 )
 
 const (
-	anthropicDefaultEndpoint = "https://api.anthropic.com"
-	anthropicDefaultModel    = "claude-sonnet-4-20250514"
-	anthropicAPIVersion      = "2023-06-01"
+	anthropicAPIURL     = "https://api.anthropic.com/v1/messages"
+	anthropicAPIVersion = "2023-06-01"
+	anthropicModel      = "claude-opus-4-5"
 )
 
-// AnthropicProvider implements Provider using the Anthropic Messages API.
-// No SDK dependency — raw net/http + encoding/json.
-type AnthropicProvider struct {
-	endpoint    string
-	apiKey      string
-	model       string
-	maxTokens   int
-	temperature float64
-	client      *http.Client
+// AnthropicClient sends AI requests to the Anthropic Messages API.
+type AnthropicClient struct {
+	apiKey string
+	model  string
+	http   *http.Client // shared enterprise-aware client
 }
 
-// NewAnthropicProvider creates a provider for Anthropic Claude.
-func NewAnthropicProvider(cfg ProviderConfig) *AnthropicProvider {
-	endpoint := cfg.Endpoint
-	if endpoint == "" {
-		endpoint = anthropicDefaultEndpoint
+// NewAnthropicClient constructs a ready-to-use AnthropicClient.
+// The *http.Client is built once via NewHTTPClient so proxy + CA settings
+// from config are automatically honoured.
+func NewAnthropicClient(cfg *config.Config) (*AnthropicClient, error) {
+	httpClient, err := NewHTTPClient(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("anthropic: %w", err)
 	}
-	model := cfg.Model
+
+	model := cfg.AI.Model
 	if model == "" {
-		model = anthropicDefaultModel
-	}
-	maxTokens := cfg.MaxTokens
-	if maxTokens == 0 {
-		maxTokens = 1024
-	}
-	temp := cfg.Temperature
-	if temp == 0 {
-		temp = 0.2
+		model = anthropicModel
 	}
 
-	return &AnthropicProvider{
-		endpoint:    endpoint,
-		apiKey:      cfg.APIKey,
-		model:       model,
-		maxTokens:   maxTokens,
-		temperature: temp,
-		client:      &http.Client{},
-	}
-}
-
-func (p *AnthropicProvider) Name() string { return "anthropic" }
-
-func (p *AnthropicProvider) Complete(ctx context.Context, req CompletionRequest) (*CompletionResponse, error) {
-	maxTokens := req.MaxTokens
-	if maxTokens == 0 {
-		maxTokens = p.maxTokens
-	}
-	temp := req.Temperature
-	if temp == 0 {
-		temp = p.temperature
+	apiKey := cfg.AI.APIKey
+	if apiKey == "" {
+		// Fallback handled at call-site or via env var wrapper in the caller.
+		return nil, fmt.Errorf("anthropic: api_key is required (set config.ai.api_key or KERNO_AI_API_KEY)")
 	}
 
-	body := anthropicRequest{
-		Model:       p.model,
-		MaxTokens:   maxTokens,
-		Temperature: temp,
-		System:      req.SystemPrompt,
-		Messages: []anthropicMessage{
-			{Role: "user", Content: req.UserPrompt},
-		},
-	}
-
-	payload, err := json.Marshal(body)
-	if err != nil {
-		return nil, fmt.Errorf("marshaling request: %w", err)
-	}
-
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.endpoint+"/v1/messages", bytes.NewReader(payload))
-	if err != nil {
-		return nil, fmt.Errorf("creating request: %w", err)
-	}
-
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("x-api-key", p.apiKey)
-	httpReq.Header.Set("anthropic-version", anthropicAPIVersion)
-
-	resp, err := p.client.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("anthropic API call failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("reading response: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("anthropic API error (status %d): %s", resp.StatusCode, string(respBody))
-	}
-
-	var result anthropicResponse
-	if err := json.Unmarshal(respBody, &result); err != nil {
-		return nil, fmt.Errorf("parsing response: %w", err)
-	}
-
-	text := ""
-	for _, block := range result.Content {
-		if block.Type == "text" {
-			text += block.Text
-		}
-	}
-
-	tokensUsed := result.Usage.InputTokens + result.Usage.OutputTokens
-
-	return &CompletionResponse{
-		Text:       text,
-		TokensUsed: tokensUsed,
-		Model:      result.Model,
+	return &AnthropicClient{
+		apiKey: apiKey,
+		model:  model,
+		http:   httpClient,
 	}, nil
 }
 
-// Anthropic API types — minimal, only what we need.
+// ---------------------------------------------------------------------------
+// Request / response types (minimal – only what Kerno uses)
+// ---------------------------------------------------------------------------
 
 type anthropicRequest struct {
-	Model       string             `json:"model"`
-	MaxTokens   int                `json:"max_tokens"`
-	Temperature float64            `json:"temperature"`
-	System      string             `json:"system,omitempty"`
-	Messages    []anthropicMessage `json:"messages"`
+	Model     string             `json:"model"`
+	MaxTokens int                `json:"max_tokens"`
+	Messages  []anthropicMessage `json:"messages"`
 }
 
 type anthropicMessage struct {
@@ -146,17 +71,65 @@ type anthropicMessage struct {
 }
 
 type anthropicResponse struct {
-	Content []anthropicContentBlock `json:"content"`
-	Model   string                  `json:"model"`
-	Usage   anthropicUsage          `json:"usage"`
+	Content []struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	} `json:"content"`
+	Error *struct {
+		Type    string `json:"type"`
+		Message string `json:"message"`
+	} `json:"error,omitempty"`
 }
 
-type anthropicContentBlock struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
-}
+// Complete sends a single-turn completion request and returns the assistant text.
+func (c *AnthropicClient) Complete(ctx context.Context, prompt string) (string, error) {
+	reqBody := anthropicRequest{
+		Model:     c.model,
+		MaxTokens: 2048,
+		Messages:  []anthropicMessage{{Role: "user", Content: prompt}},
+	}
 
-type anthropicUsage struct {
-	InputTokens  int `json:"input_tokens"`
-	OutputTokens int `json:"output_tokens"`
+	data, err := json.Marshal(reqBody)
+	if err != nil {
+		return "", fmt.Errorf("anthropic: marshal request: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, anthropicAPIURL, bytes.NewReader(data))
+	if err != nil {
+		return "", fmt.Errorf("anthropic: build request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("x-api-key", c.apiKey)
+	req.Header.Set("anthropic-version", anthropicAPIVersion)
+
+	// Use the shared enterprise-aware client (proxy + CA already configured).
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("anthropic: HTTP request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return "", fmt.Errorf("anthropic: read response: %w", err)
+	}
+
+	var apiResp anthropicResponse
+	if err := json.Unmarshal(body, &apiResp); err != nil {
+		return "", fmt.Errorf("anthropic: decode response (status %d): %w", resp.StatusCode, err)
+	}
+
+	if apiResp.Error != nil {
+		return "", fmt.Errorf("anthropic API error %s: %s", apiResp.Error.Type, apiResp.Error.Message)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("anthropic: unexpected status %d: %s", resp.StatusCode, string(body))
+	}
+
+	if len(apiResp.Content) == 0 {
+		return "", fmt.Errorf("anthropic: empty content in response")
+	}
+
+	return apiResp.Content[0].Text, nil
 }

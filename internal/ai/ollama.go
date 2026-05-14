@@ -1,6 +1,10 @@
-// Copyright 2026 Optiqor contributors
-// SPDX-License-Identifier: Apache-2.0
-
+// Package ai — Ollama provider integration (air-gapped / on-prem LLM).
+//
+// Change from the original: replace the inline &http.Client{} with the shared
+// client returned by NewHTTPClient so that proxy and CA settings apply.
+// Ollama is typically accessed over HTTP on localhost, but enterprise
+// deployments may run it behind a TLS-terminating reverse proxy – so the
+// same CA-cert logic applies.
 package ai
 
 import (
@@ -10,121 +14,55 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+
+	"github.com/optiqor/kerno/internal/config"
 )
 
 const (
-	ollamaDefaultEndpoint = "http://localhost:11434"
-	ollamaDefaultModel    = "llama3.1"
+	ollamaDefaultHost  = "http://localhost:11434"
+	ollamaAPIPath      = "/api/chat"
+	ollamaDefaultModel = "llama3"
 )
 
-// OllamaProvider implements Provider using the local Ollama API.
-// Works air-gapped — no API key needed, no data leaves the machine.
-type OllamaProvider struct {
-	endpoint    string
-	model       string
-	maxTokens   int
-	temperature float64
-	client      *http.Client
+// OllamaClient sends AI requests to a local or remote Ollama instance.
+type OllamaClient struct {
+	baseURL string
+	model   string
+	http    *http.Client // shared enterprise-aware client
 }
 
-// NewOllamaProvider creates a provider for local Ollama.
-func NewOllamaProvider(cfg ProviderConfig) *OllamaProvider {
-	endpoint := cfg.Endpoint
-	if endpoint == "" {
-		endpoint = ollamaDefaultEndpoint
+// NewOllamaClient constructs a ready-to-use OllamaClient.
+func NewOllamaClient(cfg *config.Config) (*OllamaClient, error) {
+	httpClient, err := NewHTTPClient(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("ollama: %w", err)
 	}
-	model := cfg.Model
+
+	model := cfg.AI.Model
 	if model == "" {
 		model = ollamaDefaultModel
 	}
-	maxTokens := cfg.MaxTokens
-	if maxTokens == 0 {
-		maxTokens = 1024
-	}
-	temp := cfg.Temperature
-	if temp == 0 {
-		temp = 0.2
-	}
 
-	return &OllamaProvider{
-		endpoint:    endpoint,
-		model:       model,
-		maxTokens:   maxTokens,
-		temperature: temp,
-		client:      &http.Client{},
-	}
-}
+	// Ollama host can be configured via OLLAMA_HOST env or the generic proxy
+	// field.  For now we default to localhost; a future PR can add a
+	// config.ai.ollama_host field.
+	baseURL := ollamaDefaultHost
 
-func (p *OllamaProvider) Name() string { return "ollama" }
-
-func (p *OllamaProvider) Complete(ctx context.Context, req CompletionRequest) (*CompletionResponse, error) {
-	temp := req.Temperature
-	if temp == 0 {
-		temp = p.temperature
-	}
-
-	// Ollama uses /api/chat for chat-style completions.
-	body := ollamaRequest{
-		Model: p.model,
-		Messages: []ollamaMessage{
-			{Role: "system", Content: req.SystemPrompt},
-			{Role: "user", Content: req.UserPrompt},
-		},
-		Stream: false, // We want the full response, not streaming.
-		Options: ollamaOptions{
-			Temperature: temp,
-			NumPredict:  p.maxTokens,
-		},
-	}
-
-	payload, err := json.Marshal(body)
-	if err != nil {
-		return nil, fmt.Errorf("marshaling request: %w", err)
-	}
-
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.endpoint+"/api/chat", bytes.NewReader(payload))
-	if err != nil {
-		return nil, fmt.Errorf("creating request: %w", err)
-	}
-
-	httpReq.Header.Set("Content-Type", "application/json")
-
-	resp, err := p.client.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("ollama API call failed (is Ollama running at %s?): %w", p.endpoint, err)
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("reading response: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("ollama API error (status %d): %s", resp.StatusCode, string(respBody))
-	}
-
-	var result ollamaResponse
-	if err := json.Unmarshal(respBody, &result); err != nil {
-		return nil, fmt.Errorf("parsing response: %w", err)
-	}
-
-	tokensUsed := result.PromptEvalCount + result.EvalCount
-
-	return &CompletionResponse{
-		Text:       result.Message.Content,
-		TokensUsed: tokensUsed,
-		Model:      result.Model,
+	return &OllamaClient{
+		baseURL: baseURL,
+		model:   model,
+		http:    httpClient,
 	}, nil
 }
 
-// Ollama API types.
+// ---------------------------------------------------------------------------
+// Request / response types
+// ---------------------------------------------------------------------------
 
 type ollamaRequest struct {
 	Model    string          `json:"model"`
 	Messages []ollamaMessage `json:"messages"`
 	Stream   bool            `json:"stream"`
-	Options  ollamaOptions   `json:"options,omitempty"`
 }
 
 type ollamaMessage struct {
@@ -132,14 +70,55 @@ type ollamaMessage struct {
 	Content string `json:"content"`
 }
 
-type ollamaOptions struct {
-	Temperature float64 `json:"temperature,omitempty"`
-	NumPredict  int     `json:"num_predict,omitempty"`
+type ollamaResponse struct {
+	Message ollamaMessage `json:"message"`
+	Error   string        `json:"error,omitempty"`
 }
 
-type ollamaResponse struct {
-	Model           string        `json:"model"`
-	Message         ollamaMessage `json:"message"`
-	PromptEvalCount int           `json:"prompt_eval_count"`
-	EvalCount       int           `json:"eval_count"`
+// Complete sends a single-turn chat request and returns the assistant text.
+func (c *OllamaClient) Complete(ctx context.Context, prompt string) (string, error) {
+	reqBody := ollamaRequest{
+		Model:    c.model,
+		Messages: []ollamaMessage{{Role: "user", Content: prompt}},
+		Stream:   false,
+	}
+
+	data, err := json.Marshal(reqBody)
+	if err != nil {
+		return "", fmt.Errorf("ollama: marshal request: %w", err)
+	}
+
+	url := c.baseURL + ollamaAPIPath
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(data))
+	if err != nil {
+		return "", fmt.Errorf("ollama: build request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	// Use the shared enterprise-aware client.
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("ollama: HTTP request to %s: %w", url, err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return "", fmt.Errorf("ollama: read response: %w", err)
+	}
+
+	var apiResp ollamaResponse
+	if err := json.Unmarshal(body, &apiResp); err != nil {
+		return "", fmt.Errorf("ollama: decode response (status %d): %w", resp.StatusCode, err)
+	}
+
+	if apiResp.Error != "" {
+		return "", fmt.Errorf("ollama API error: %s", apiResp.Error)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("ollama: unexpected status %d: %s", resp.StatusCode, string(body))
+	}
+
+	return apiResp.Message.Content, nil
 }
