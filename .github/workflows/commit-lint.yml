@@ -1,0 +1,58 @@
+# Copyright 2026 Optiqor contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Enforces Conventional Commits on PR titles (we squash-merge, so the PR title
+# becomes the merge commit). Per-commit messages are advisory — DCO is the
+# only hard gate per CLAUDE.md.
+name: PR title lint
+
+on:
+  pull_request_target:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  conventional-title:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            docs
+            test
+            refactor
+            build
+            ci
+            chore
+            style
+            perf
+            revert
+          scopes: |
+            doctor
+            ai
+            cli
+            collector
+            bpf
+            config
+            export
+            chaos
+            metrics
+            k8s
+            helm
+            adapter
+            release
+            ci
+            docs
+            deps
+            deps-dev
+          requireScope: false
+          subjectPattern: "^[a-z].+[^.]$"
+          subjectPatternError: |
+            Subject ("{subject}") must start lowercase and not end with a period.
+            Example: feat(doctor): add dns_failure_rate rule

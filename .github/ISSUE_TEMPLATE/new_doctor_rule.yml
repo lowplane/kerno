@@ -1,0 +1,96 @@
+name: 🩺 New doctor rule
+description: Propose a new diagnostic rule for `kerno doctor`.
+title: "rule: "
+labels: ["enhancement", "area/doctor", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Each rule should map to a real production incident class. Vague "detect bad things" rules get closed.
+
+        See [docs/adding-a-rule.md](https://github.com/optiqor/kerno/blob/main/docs/adding-a-rule.md) for the contributor walkthrough.
+
+  - type: input
+    id: rule_name
+    attributes:
+      label: Proposed rule name
+      description: snake_case, descriptive, ≤30 chars.
+      placeholder: dns_failure_rate
+    validations:
+      required: true
+
+  - type: textarea
+    id: incident
+    attributes:
+      label: Incident this rule detects
+      description: A real, concrete failure mode. Cite a real outage if you can.
+      placeholder: |
+        CoreDNS hiccups cause cascading 5-second timeouts across every service in the cluster.
+        Application logs report "connection refused" but the actual cause is DNS.
+    validations:
+      required: true
+
+  - type: textarea
+    id: signal
+    attributes:
+      label: Underlying signal
+      description: Which collector(s) produce the data? If none — propose a new collector first.
+      placeholder: |
+        Need new collector: dns. Hooks tracepoint/syscalls/sys_enter_sendmsg + sys_exit_recvmsg, filters UDP/53.
+        Aggregates per-pod request rate, response rate, latency p99, failure rate.
+    validations:
+      required: true
+
+  - type: textarea
+    id: trigger
+    attributes:
+      label: Trigger condition
+      description: |
+        Concrete threshold(s) and severity. Static thresholds OR adaptive (issue #45).
+      placeholder: |
+        WARNING:  failure rate > 1% in window
+        CRITICAL: failure rate > 5% OR p99 latency > 500ms
+    validations:
+      required: true
+
+  - type: textarea
+    id: finding_text
+    attributes:
+      label: Example finding text
+      description: |
+        Cause / Impact / Evidence / Fix sections of the rendered finding.
+        Should be plain English and actionable — see existing rules for tone.
+      placeholder: |
+        Cause:    DNS resolution failing for 8% of queries
+        Evidence: 47 timeouts / 600 queries to 10.96.0.10 (CoreDNS) in 30s window
+        Impact:   Application requests stalling 5s waiting on resolv.conf retries
+        Fix:      - kubectl get pods -n kube-system -l k8s-app=kube-dns
+                  - kubectl logs -n kube-system -l k8s-app=kube-dns | grep "i/o timeout"
+                  - Consider raising CoreDNS replica count
+    validations:
+      required: true
+
+  - type: textarea
+    id: chaos_pair
+    attributes:
+      label: Paired chaos scenario
+      description: |
+        How will users (and CI) verify this rule fires? Existing scenarios are in `internal/chaos/`.
+      placeholder: |
+        New scenario: kerno chaos --induce dns-flood
+        Generates N rapid DNS lookups to a slow/dead resolver, exercising the failure path.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: scope_compat
+    attributes:
+      label: Where does this rule fire?
+      multiple: true
+      options:
+        - Kubernetes
+        - Bare metal
+        - Virtual machine (EC2/GCE/Azure)
+        - systemd-managed servers
+    validations:
+      required: true

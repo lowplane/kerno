@@ -1,0 +1,114 @@
+# Copyright 2026 Optiqor contributors
+# SPDX-License-Identifier: Apache-2.0
+# https://goreleaser.com/customization/
+
+version: 2
+
+project_name: kerno
+
+before:
+  hooks:
+    - go mod tidy
+    # Generate bpf2go bindings (*_bpfel.go) and rewrite their build tag
+    # so the `ebpf` tag selects them over the no-clang stubs in gen_stub.go.
+    # The release workflow installs clang + libbpf-dev before invoking goreleaser.
+    - make generate
+
+builds:
+  - id: kerno
+    main: ./cmd/kerno/
+    binary: kerno
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    # `ebpf` tag selects the bpf2go-generated bindings over the no-clang stubs.
+    tags:
+      - ebpf
+    ldflags:
+      - -s -w
+      - -X github.com/optiqor/kerno/internal/version.Version={{ .Version }}
+      - -X github.com/optiqor/kerno/internal/version.Commit={{ .ShortCommit }}
+      - -X github.com/optiqor/kerno/internal/version.Date={{ .Date }}
+
+archives:
+  - id: default
+    formats:
+      - tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+      - CONTRIBUTING.md
+      - deploy/**/*
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+      - "Merge pull request"
+
+release:
+  github:
+    owner: optiqor
+    name: kerno
+  prerelease: auto
+  draft: false
+  name_template: "{{ .Tag }}"
+  header: |
+    ## Kerno {{ .Tag }}
+
+    See the [full changelog](https://github.com/optiqor/kerno/compare/{{ .PreviousTag }}...{{ .Tag }}).
+  footer: |
+    ---
+    **Full Changelog**: https://github.com/optiqor/kerno/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+dockers:
+  - image_templates:
+      - "ghcr.io/optiqor/kerno:{{ .Tag }}-amd64"
+    use: buildx
+    build_flag_templates:
+      - "--platform=linux/amd64"
+      - "--label=org.opencontainers.image.title={{ .ProjectName }}"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+      - "--label=org.opencontainers.image.source=https://github.com/optiqor/kerno"
+      - "--label=org.opencontainers.image.licenses=Apache-2.0"
+    dockerfile: Dockerfile.goreleaser
+    goos: linux
+    goarch: amd64
+
+  - image_templates:
+      - "ghcr.io/optiqor/kerno:{{ .Tag }}-arm64"
+    use: buildx
+    build_flag_templates:
+      - "--platform=linux/arm64"
+      - "--label=org.opencontainers.image.title={{ .ProjectName }}"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+      - "--label=org.opencontainers.image.source=https://github.com/optiqor/kerno"
+      - "--label=org.opencontainers.image.licenses=Apache-2.0"
+    dockerfile: Dockerfile.goreleaser
+    goos: linux
+    goarch: arm64
+
+docker_manifests:
+  - name_template: "ghcr.io/optiqor/kerno:{{ .Tag }}"
+    image_templates:
+      - "ghcr.io/optiqor/kerno:{{ .Tag }}-amd64"
+      - "ghcr.io/optiqor/kerno:{{ .Tag }}-arm64"
+  - name_template: "ghcr.io/optiqor/kerno:latest"
+    image_templates:
+      - "ghcr.io/optiqor/kerno:{{ .Tag }}-amd64"
+      - "ghcr.io/optiqor/kerno:{{ .Tag }}-arm64"

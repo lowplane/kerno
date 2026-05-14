@@ -1,0 +1,136 @@
+# Copyright 2026 Optiqor contributors
+# SPDX-License-Identifier: Apache-2.0
+
+version: "2"
+
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+
+linters:
+  default: none
+  enable:
+    # Default linters.
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+
+    # Style & correctness.
+    - bodyclose
+    - durationcheck
+    - errname
+    - errorlint
+    - exhaustive
+    - copyloopvar
+    - gocritic
+    - gosec
+    - misspell
+    - nilerr
+    - noctx
+    - prealloc
+    - predeclared
+    - revive
+    - unconvert
+    - unparam
+    - whitespace
+
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: false
+      # Deferred closes on Readers/Closers are idiomatic to ignore.
+      exclude-functions:
+        - (io.Closer).Close
+        - (*os.File).Close
+        - (*net/http.Response).Body.Close
+
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - performance
+      disabled-checks:
+        # Finding is intentionally passed by value for immutability.
+        - rangeValCopy
+        - hugeParam
+
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment
+
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: increment-decrement
+        - name: var-naming
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: indent-error-flow
+        - name: errorf
+        - name: superfluous-else
+        - name: unreachable-code
+
+    exhaustive:
+      default-signifies-exhaustive: true
+
+  exclusions:
+    paths:
+      - ".*_bpfel\\.go$"
+      - ".*_bpfeb\\.go$"
+      - "gen_stub\\.go$"
+    rules:
+      # Tests may use hardcoded creds, mock encoders, intentionally-unused struct writes.
+      - path: _test\.go
+        linters:
+          - gosec
+          - errcheck
+          - govet
+          - staticcheck
+      # Deferred Close on readers/links/bpf objects — errors are ignored idiomatically.
+      - linters:
+          - errcheck
+        text: "Error return value of `.*\\.Close` is not checked"
+      # stdout/stderr writes via fmt.Fprintln/Fprintf and JSON encoder to tty.
+      - linters:
+          - errcheck
+        text: "Error return value of `(fmt\\.Fprint|fmt\\.Fprintln|fmt\\.Fprintf|encoder\\.Encode|.*\\.Encode)` is not checked"
+      # gosec G104 is a duplicate of errcheck for unhandled errors.
+      - linters:
+          - gosec
+        text: "G104"
+      # Kernel-time uint64 ns → int64 time.Duration fits (292 years headroom).
+      - linters:
+          - gosec
+        text: "G115: integer overflow conversion uint64 -> int64"
+      # adapter reads cgroup/procfs paths built from known roots — not user-controlled.
+      - path: internal/adapter/
+        linters:
+          - gosec
+        text: "G304"
+      # QF1001/QF1003 are stylistic refactor suggestions, not bugs.
+      - linters:
+          - staticcheck
+        text: "^QF100[13]:"
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/optiqor/kerno
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

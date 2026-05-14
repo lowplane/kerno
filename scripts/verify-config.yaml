@@ -1,0 +1,48 @@
+# Test-tuned thresholds for scripts/verify.sh.
+#
+# These thresholds are intentionally looser than the production defaults
+# in deploy/systemd/kerno.yaml — they're calibrated so synthetic chaos
+# scenarios on a fast dev box (NVMe SSD, 12-core CPU) reliably trip
+# the relevant rules within ~10 seconds. Do not use this config for
+# real-world monitoring.
+#
+# Production defaults (for comparison):
+#   syscall_p99_warning_ns  100ms
+#   disk_p99_warning_ns      50ms
+#   sched_delay_warning_ns    5ms
+#   fd_growth_per_sec         10/s
+
+log_level: info
+log_format: text
+
+doctor:
+  duration: 10s
+  thresholds:
+    # Disk: SSD fsync is sub-ms; we want even modest contention to
+    # surface, so warning at 2ms / critical at 20ms.
+    disk_p99_warning_ns:   2000000     # 2ms
+    disk_p99_critical_ns: 20000000    # 20ms
+
+    # Scheduler: empirically p99 runqueue delay under chaos cpu --high
+    # lands at ~200us on a 12-core dev box (measured: p99=196608 ns
+    # with 96 spinners + 48 wakers). Warn at 100us so the rule fires.
+    sched_delay_warning_ns:   100000  # 100us
+    sched_delay_critical_ns: 5000000  # 5ms
+
+    # FD: chaos opens 200 FDs/s at medium intensity. Default 10/s
+    # threshold already fires; keep it for parity.
+    fd_growth_per_sec: 5
+
+    # Syscall: leave at production defaults — chaos doesn't target them
+    # directly, and lowering risks false positives from real workloads
+    # running on the same box during the test.
+    syscall_p99_warning_ns:  100000000   # 100ms
+    syscall_p99_critical_ns: 500000000   # 500ms
+
+    oom_memory_pct: 90.0
+
+prometheus:
+  enabled: false
+
+ai:
+  enabled: false

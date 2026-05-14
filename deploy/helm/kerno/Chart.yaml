@@ -1,0 +1,18 @@
+apiVersion: v2
+name: kerno
+description: eBPF-based kernel observability engine for Kubernetes
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/optiqor/kerno
+sources:
+  - https://github.com/optiqor/kerno
+maintainers:
+  - name: Shivam Kumar
+    url: https://github.com/btwshivam
+keywords:
+  - ebpf
+  - observability
+  - kernel
+  - prometheus
+  - monitoring

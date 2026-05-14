@@ -1,0 +1,44 @@
+# Copyright 2026 Optiqor contributors
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kerno
+  namespace: kerno-system
+  labels:
+    app.kubernetes.io/name: kerno
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kerno
+  labels:
+    app.kubernetes.io/name: kerno
+rules:
+  # ── Pod/Node enrichment (cgroup → pod name, namespace, labels) ──────
+  - apiGroups: [""]
+    resources: ["pods", "nodes"]
+    verbs: ["get", "list", "watch"]
+  # ── Namespace enrichment ────────────────────────────────────────────
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list"]
+  # ── Service name resolution (pod labels → Service name mapping) ─────
+  - apiGroups: [""]
+    resources: ["services", "endpoints"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kerno
+  labels:
+    app.kubernetes.io/name: kerno
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kerno
+subjects:
+  - kind: ServiceAccount
+    name: kerno
+    namespace: kerno-system

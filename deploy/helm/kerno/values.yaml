@@ -1,0 +1,122 @@
+# Default values for kerno Helm chart.
+# Scoped to v0.2 release: 20 diagnostic rules.
+
+image:
+  repository: ghcr.io/optiqor/kerno
+  tag: ""  # Defaults to Chart.appVersion
+  pullPolicy: IfNotPresent
+
+# Resource requests and limits.
+# 20 rules + 6 eBPF programs + procfs/sysfs/cgroupfs polling.
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+# Prometheus metrics configuration.
+prometheus:
+  enabled: true
+  port: 9090
+
+# Logging configuration.
+log:
+  level: info
+  format: json
+
+# ── eBPF collectors (require kernel >= 5.8 with BTF) ─────────────────
+collectors:
+  syscallLatency: true    # Rules: syscall_latency_high, syscall_error_rate
+  tcpMonitor: true        # Rules: tcp_retransmit_storm, tcp_rtt_degradation
+  oomTrack: true          # Rule:  oom_kill_occurred
+  diskIO: true            # Rule:  disk_io_bottleneck
+  schedDelay: true        # Rule:  scheduler_contention
+  fdTrack: true           # Rule:  fd_leak
+  # Future eBPF collectors (disabled until implemented):
+  # dnsMonitor: false     # Requires new dns_monitor.c eBPF program
+  # lockContention: false # Requires kernel >= 5.17
+  # pageFault: false      # Requires new page_fault.c eBPF program
+  # processLifecycle: false # Requires new process_lifecycle.c eBPF program
+  # cgroupPressure: false # Requires kernel >= 5.13 PSI tracepoints
+  # kernelHealth: false   # Requires new kernel_health.c eBPF program
+
+# ── Userspace polling collectors (no eBPF, read procfs/sysfs/cgroupfs) ──
+# These are lightweight and ship in v0.2.
+pollers:
+  memory: true            # Rule:  oom_imminent, memory_pressure, swap_thrashing
+  cgroupStats: true       # Rules: cpu_throttled, memory_limit_pressure
+  diskSpace: true         # Rule:  disk_space_critical
+  conntrack: true         # Rule:  conntrack_exhaustion
+  cpuAccounting: true     # Rule:  cpu_steal_high
+  nicStats: true          # Rule:  nic_errors
+  nodePressure: true      # Rule:  node_memory_pressure
+  # Future pollers (disabled until implemented):
+  # filesystem: false     # inode_exhaustion, writeback_pressure
+  # ephemeralPorts: false # ephemeral_port_exhaustion
+  # thermal: false        # cpu_throttled_thermal, thermal_critical
+  # clockDrift: false     # clock_drift, ntp_unsynchronized
+  # kubeletEviction: false # node_disk_pressure, node_pid_pressure
+  # containerRuntime: false # container_runtime_stall
+  # arpTable: false       # arp_table_pressure
+  # ipvs: false           # ipvs_backend_down, service_connectivity_failure
+
+# Container runtime socket (disabled for v0.2 — no runtime health rule yet).
+containerRuntime:
+  enabled: false
+  hostSocketPath: /run/containerd/containerd.sock
+  socketPath: /run/containerd/containerd.sock
+
+# ServiceMonitor for Prometheus Operator (requires CRD).
+serviceMonitor:
+  enabled: false
+  interval: 15s
+  scrapeTimeout: 10s
+
+# Pod tolerations — by default, run on all nodes including control-plane.
+tolerations:
+  - operator: Exists
+
+# Node selector for restricting kerno to specific nodes.
+nodeSelector: {}
+
+# Affinity rules.
+affinity: {}
+
+# Kerno should survive node pressure to report on it.
+priorityClassName: system-node-critical
+
+# Additional environment variables.
+# Example: set AI provider for kerno doctor --ai
+#   extraEnv:
+#     - name: KERNO_AI_API_KEY
+#       valueFrom:
+#         secretKeyRef:
+#           name: kerno-ai
+#           key: api-key
+#     - name: KERNO_AI_PROVIDER
+#       value: anthropic
+extraEnv: []
+
+# PodDisruptionBudget.
+pdb:
+  enabled: true
+  maxUnavailable: 1
+
+# Security context for the kerno container.
+# privileged: true is required for eBPF program loading, tracepoint
+# attachment, and reading host cgroup/procfs/sysfs filesystems.
+#
+# For a more restrictive setup (requires kernel >= 5.19):
+#   securityContext:
+#     privileged: false
+#     capabilities:
+#       add: [BPF, PERFMON, SYS_PTRACE, SYS_ADMIN, NET_ADMIN, DAC_READ_SEARCH]
+#       drop: [ALL]
+securityContext:
+  privileged: true
+
+# Host path prefix — Kerno mounts host paths under /host/ to avoid conflicts.
+# All pollers read from /host/proc, /host/sys/fs/cgroup, etc.
+hostPathPrefix: /host

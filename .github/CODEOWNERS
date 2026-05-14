@@ -1,0 +1,31 @@
+# Copyright 2026 Optiqor contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# CODEOWNERS — auto-assign reviewers when paths change.
+# https://docs.github.com/en/repositories/managing-your-repositories-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owner for everything not matched below.
+*                                       @btwshivam
+
+# eBPF C programs and Go loaders — kernel-level, high-risk.
+/internal/bpf/                          @btwshivam
+/internal/bpf/c/                        @btwshivam
+
+# Diagnostic engine and rules — product surface area.
+/internal/doctor/                       @btwshivam
+/internal/collector/                    @btwshivam
+
+# AI integration — privacy-sensitive.
+/internal/ai/                           @btwshivam
+
+# Deployment and release tooling — operational risk.
+/.github/                               @btwshivam
+/.goreleaser.yml                        @btwshivam
+/Dockerfile                             @btwshivam
+/Dockerfile.goreleaser                  @btwshivam
+/deploy/                                @btwshivam
+/scripts/install.sh                     @btwshivam
+
+# Documentation — anyone with maintainer rights can review.
+*.md                                    @btwshivam
+/docs/                                  @btwshivam

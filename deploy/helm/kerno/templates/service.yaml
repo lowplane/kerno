@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kerno
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "kerno.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    {{- include "kerno.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: metrics
+      port: {{ .Values.prometheus.port }}
+      targetPort: metrics
+      protocol: TCP

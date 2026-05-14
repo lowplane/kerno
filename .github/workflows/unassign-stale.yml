@@ -1,0 +1,158 @@
+# Copyright 2026 Optiqor contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Auto-release stale claims.
+#
+# Runs daily and scans every open, assigned issue. For each issue:
+#
+#   - At 7 days of inactivity from the assignee → posts a friendly nudge
+#     ("Are you still working on this? It'll be released in 3 days otherwise.")
+#   - At 10 days of inactivity → unassigns, removes the `claimed` label,
+#     and posts a release notice so others know the issue is up for grabs.
+#
+# "Inactivity" is reset by ANY of:
+#   - A new comment on the issue authored by the assignee
+#   - A new commit in a linked PR authored by the assignee
+#   - The assignee being assigned (covers the just-claimed case)
+#
+# Issues with the `pinned` or `long-running` label are exempt.
+
+name: Unassign stale claims
+
+on:
+  schedule:
+    - cron: "0 5 * * *"   # daily at 05:00 UTC
+  workflow_dispatch:       # allow manual trigger for ops/testing
+
+permissions:
+  issues: write
+  pull-requests: read
+
+env:
+  WARN_DAYS: 7
+  UNASSIGN_DAYS: 10
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sweep stale assignments
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const repo = { owner: context.repo.owner, repo: context.repo.repo };
+            const WARN_DAYS = Number(process.env.WARN_DAYS);
+            const UNASSIGN_DAYS = Number(process.env.UNASSIGN_DAYS);
+            const now = Date.now();
+            const dayMs = 24 * 60 * 60 * 1000;
+
+            // Tag we drop on the first-warning so we don't spam every day.
+            const WARN_MARKER = '<!-- kerno:stale-claim-warning -->';
+
+            // Page through open issues with at least one assignee.
+            let page = 1;
+            const stale = [];
+            while (true) {
+              const res = await github.rest.issues.listForRepo({
+                ...repo, state: 'open', assignee: '*', per_page: 100, page,
+              });
+              if (res.data.length === 0) break;
+              stale.push(...res.data);
+              if (res.data.length < 100) break;
+              page++;
+            }
+
+            core.info(`scanning ${stale.length} assigned open issues`);
+
+            for (const issue of stale) {
+              if (issue.pull_request) continue; // skip PRs
+              const labels = (issue.labels || []).map(l => typeof l === 'string' ? l : l.name);
+              if (labels.includes('pinned') || labels.includes('long-running')) continue;
+              const assignees = (issue.assignees || []).map(a => a.login);
+              if (assignees.length === 0) continue;
+
+              // Compute "last activity from any assignee".
+              let lastActivity = new Date(issue.updated_at).getTime();
+
+              // Walk recent comments; bump lastActivity on any from an assignee.
+              const comments = await github.rest.issues.listComments({
+                ...repo, issue_number: issue.number, per_page: 100,
+              });
+              let lastWarningTs = 0;
+              for (const c of comments.data) {
+                if (assignees.includes(c.user?.login)) {
+                  const t = new Date(c.created_at).getTime();
+                  if (t > lastActivity) lastActivity = t;
+                }
+                // Track our most recent warning marker so we don't repeat-warn.
+                if (c.user?.type === 'Bot' && c.body && c.body.includes(WARN_MARKER)) {
+                  const t = new Date(c.created_at).getTime();
+                  if (t > lastWarningTs) lastWarningTs = t;
+                }
+              }
+
+              // Walk linked PRs by searching cross-references via the timeline.
+              try {
+                const tl = await github.rest.issues.listEventsForTimeline({
+                  ...repo, issue_number: issue.number, per_page: 100,
+                });
+                for (const ev of tl.data) {
+                  if (ev.event === 'cross-referenced' && ev.source?.issue?.pull_request) {
+                    const prAuthor = ev.source.issue.user?.login;
+                    if (assignees.includes(prAuthor)) {
+                      const t = new Date(ev.source.issue.updated_at).getTime();
+                      if (t > lastActivity) lastActivity = t;
+                    }
+                  }
+                  if (ev.event === 'assigned' && assignees.includes(ev.assignee?.login)) {
+                    const t = new Date(ev.created_at).getTime();
+                    if (t > lastActivity) lastActivity = t;
+                  }
+                }
+              } catch (e) {
+                core.warning(`timeline fetch failed for #${issue.number}: ${e.message}`);
+              }
+
+              const daysIdle = Math.floor((now - lastActivity) / dayMs);
+
+              // ─── Unassign at 10 days ──────────────────────────────────
+              if (daysIdle >= UNASSIGN_DAYS) {
+                core.info(`#${issue.number}: ${daysIdle}d idle → unassigning ${assignees.join(', ')}`);
+                await github.rest.issues.removeAssignees({
+                  ...repo, issue_number: issue.number, assignees,
+                });
+                await github.rest.issues.removeLabel({
+                  ...repo, issue_number: issue.number, name: 'claimed',
+                }).catch(() => {});
+                await github.rest.issues.addLabels({
+                  ...repo, issue_number: issue.number, labels: ['help wanted'],
+                }).catch(() => {});
+                await github.rest.issues.createComment({
+                  ...repo, issue_number: issue.number,
+                  body:
+                    `Auto-released after ${UNASSIGN_DAYS} days of no activity from ${assignees.map(a => '@' + a).join(', ')}. ` +
+                    `\n\nThis issue is open again — anyone may pick it up with \`/assign\`. ` +
+                    `If you were working on it and want to continue, just comment \`/assign\` and you're back on.`,
+                });
+                continue;
+              }
+
+              // ─── Warn at 7 days ───────────────────────────────────────
+              const warnedRecently = lastWarningTs > 0 &&
+                                     Math.floor((now - lastWarningTs) / dayMs) < (UNASSIGN_DAYS - WARN_DAYS);
+              if (daysIdle >= WARN_DAYS && !warnedRecently) {
+                core.info(`#${issue.number}: ${daysIdle}d idle → warning ${assignees.join(', ')}`);
+                const remaining = UNASSIGN_DAYS - daysIdle;
+                await github.rest.issues.createComment({
+                  ...repo, issue_number: issue.number,
+                  body:
+                    `${WARN_MARKER}\n` +
+                    `Hi ${assignees.map(a => '@' + a).join(', ')} — heads up that this issue has had ` +
+                    `no activity from you in **${daysIdle} days**.\n\n` +
+                    `If you're still working on it, leave a comment and the timer resets. ` +
+                    `Otherwise it'll be auto-released in **${remaining} day${remaining === 1 ? '' : 's'}** ` +
+                    `so others can pick it up.\n\n` +
+                    `Need help getting unstuck? Reply here, no judgement.`,
+                });
+              }
+            }

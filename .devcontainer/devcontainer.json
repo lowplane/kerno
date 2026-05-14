@@ -1,0 +1,53 @@
+{
+  "name": "kerno",
+  "image": "mcr.microsoft.com/devcontainers/go:1-1.25-bookworm",
+
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {
+      "version": "latest",
+      "helm": "latest"
+    }
+  },
+
+  "postCreateCommand": "bash -lc 'sudo apt-get update && sudo apt-get install -y --no-install-recommends clang llvm libbpf-dev linux-headers-generic linux-tools-common bpftool jq make && go install github.com/cilium/ebpf/cmd/bpf2go@latest && curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.62.0 || true'",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.go",
+        "ms-vscode.cpptools",
+        "redhat.vscode-yaml",
+        "ms-azuretools.vscode-docker",
+        "GitHub.vscode-pull-request-github",
+        "GitHub.vscode-github-actions",
+        "EditorConfig.EditorConfig",
+        "tamasfe.even-better-toml"
+      ],
+      "settings": {
+        "go.lintTool": "golangci-lint",
+        "go.lintOnSave": "package",
+        "go.formatTool": "gofmt",
+        "go.useLanguageServer": true,
+        "[go]": {
+          "editor.formatOnSave": true,
+          "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+          }
+        },
+        "files.watcherExclude": {
+          "**/bin/**": true,
+          "**/.git/**": true,
+          "**/internal/bpf/c/headers/vmlinux.h": true
+        }
+      }
+    }
+  },
+
+  "remoteUser": "vscode",
+
+  "mounts": [
+    "source=/sys/kernel/btf/vmlinux,target=/sys/kernel/btf/vmlinux,type=bind,readonly,optional=true"
+  ]
+}

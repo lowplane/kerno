@@ -1,0 +1,34 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kerno
+  labels:
+    {{- include "kerno.labels" . | nindent 4 }}
+rules:
+  # ── Pod/Node enrichment (cgroup → pod name, namespace, labels) ──────
+  - apiGroups: [""]
+    resources: ["pods", "nodes"]
+    verbs: ["get", "list", "watch"]
+  # ── Namespace enrichment ────────────────────────────────────────────
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list"]
+  # ── Service name resolution (pod labels → Service name mapping) ─────
+  - apiGroups: [""]
+    resources: ["services", "endpoints"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kerno
+  labels:
+    {{- include "kerno.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kerno
+subjects:
+  - kind: ServiceAccount
+    name: kerno
+    namespace: {{ .Release.Namespace }}

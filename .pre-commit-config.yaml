@@ -1,0 +1,50 @@
+# Copyright 2026 Optiqor contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Run `pre-commit install` once to enable. Hooks run on every `git commit`.
+# To run all hooks against all files: `pre-commit run --all-files`.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^internal/bpf/c/headers/vmlinux\.h$
+      - id: end-of-file-fixer
+        exclude: ^internal/bpf/c/headers/vmlinux\.h$
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=2000]
+        exclude: ^internal/bpf/c/headers/vmlinux\.h$
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+  - repo: https://github.com/dnephin/pre-commit-golang
+    rev: v0.5.1
+    hooks:
+      - id: go-fmt
+      - id: go-vet
+      - id: go-mod-tidy
+
+  - repo: local
+    hooks:
+      - id: golangci-lint
+        name: golangci-lint
+        language: system
+        entry: golangci-lint run --new-from-rev=HEAD~1
+        types: [go]
+        pass_filenames: false
+
+      - id: dco-signoff
+        name: DCO sign-off check
+        language: system
+        entry: scripts/git-hooks/check-dco.sh
+        stages: [commit-msg]
+
+      - id: conventional-commit
+        name: Conventional Commit format
+        language: pygrep
+        entry: "^(feat|fix|docs|test|refactor|build|ci|chore|style|perf|revert)(\\([a-z0-9/-]+\\))?(!)?: [a-z]"
+        args: ["--negate"]
+        stages: [commit-msg]

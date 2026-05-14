@@ -1,0 +1,150 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: kerno
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "kerno.labels" . | nindent 4 }}
+    app.kubernetes.io/component: agent
+spec:
+  selector:
+    matchLabels:
+      {{- include "kerno.selectorLabels" . | nindent 6 }}
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        {{- include "kerno.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: agent
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ .Values.prometheus.port | quote }}
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: kerno
+      hostPID: true
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: kerno
+          image: {{ include "kerno.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - start
+            - --prometheus-addr=:{{ .Values.prometheus.port }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.prometheus.port }}
+              hostPort: {{ .Values.prometheus.port }}
+              protocol: TCP
+          env:
+            - name: KERNO_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: KERNO_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: KERNO_POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: KERNO_LOG_LEVEL
+              value: {{ .Values.log.level }}
+            - name: KERNO_LOG_FORMAT
+              value: {{ .Values.log.format }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: metrics
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+          volumeMounts:
+            # ── eBPF core (6 programs: syscall, tcp, oom, disk, sched, fd) ──
+            - name: sys-kernel-debug
+              mountPath: /sys/kernel/debug
+              readOnly: true
+            - name: sys-kernel-btf
+              mountPath: /sys/kernel/btf
+              readOnly: true
+            - name: sys-fs-bpf
+              mountPath: /sys/fs/bpf
+            # ── procfs (memory, conntrack, cpu stats, network stats) ─────────
+            - name: proc
+              mountPath: /host/proc
+              readOnly: true
+            # ── cgroupfs (cpu_throttled, memory_limit_pressure) ──────────────
+            - name: sys-fs-cgroup
+              mountPath: /host/sys/fs/cgroup
+              readOnly: true
+            # ── NIC stats (nic_errors) ───────────────────────────────────────
+            - name: sys-class-net
+              mountPath: /host/sys/class/net
+              readOnly: true
+            # ── Disk device stats (disk_space_critical, disk_io_bottleneck) ──
+            - name: sys-block
+              mountPath: /host/sys/block
+              readOnly: true
+      volumes:
+        - name: sys-kernel-debug
+          hostPath:
+            path: /sys/kernel/debug
+            type: Directory
+        - name: sys-kernel-btf
+          hostPath:
+            path: /sys/kernel/btf
+            type: Directory
+        - name: sys-fs-bpf
+          hostPath:
+            path: /sys/fs/bpf
+            type: DirectoryOrCreate
+        - name: proc
+          hostPath:
+            path: /proc
+            type: Directory
+        - name: sys-fs-cgroup
+          hostPath:
+            path: /sys/fs/cgroup
+            type: Directory
+        - name: sys-class-net
+          hostPath:
+            path: /sys/class/net
+            type: Directory
+        - name: sys-block
+          hostPath:
+            path: /sys/block
+            type: Directory

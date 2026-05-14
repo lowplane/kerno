@@ -1,0 +1,344 @@
+// Copyright 2026 Optiqor contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package adapter
+
+import (
+	"context"
+	"encoding/json"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+)
+
+// ─── DetectEnvironment ────────────────────────────────────────────────────
+
+func TestDetectEnvironment_DefaultsToBareMetal(t *testing.T) {
+	// In test environments (no K8s token, may or may not have systemd).
+	env := DetectEnvironment()
+	if env != EnvBareMetal && env != EnvSystemd {
+		t.Errorf("expected baremetal or systemd, got %q", env)
+	}
+}
+
+// ─── parseCgroupPath ──────────────────────────────────────────────────────
+
+func TestParseCgroupPath(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		want    string
+	}{
+		{
+			"cgroup v2",
+			"0::/system.slice/nginx.service\n",
+			"/system.slice/nginx.service",
+		},
+		{
+			"cgroup v1 memory",
+			"12:memory:/kubepods/burstable/pod123\n5:cpu:/kubepods/burstable/pod123\n",
+			"/kubepods/burstable/pod123",
+		},
+		{
+			"empty",
+			"",
+			"",
+		},
+		{
+			"cgroup v2 root",
+			"0::/\n",
+			"/",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseCgroupPath(tt.content)
+			if got != tt.want {
+				t.Errorf("parseCgroupPath() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// ─── BareMetalAdapter ─────────────────────────────────────────────────────
+
+func TestBareMetalAdapter(t *testing.T) {
+	a := NewBareMetalAdapter(slog.Default())
+
+	if a.Name() != "baremetal" {
+		t.Errorf("Name() = %q, want %q", a.Name(), "baremetal")
+	}
+
+	if err := a.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+
+	meta := &EventMeta{}
+	a.Enrich(meta)
+	if meta.Hostname == "" {
+		t.Error("expected non-empty hostname after Enrich")
+	}
+
+	a.Stop()
+}
+
+// ─── SystemdAdapter ───────────────────────────────────────────────────────
+
+func TestParseSystemdCgroup(t *testing.T) {
+	tests := []struct {
+		name  string
+		path  string
+		unit  string
+		slice string
+		scope string
+	}{
+		{
+			"nginx service",
+			"/system.slice/nginx.service",
+			"nginx.service", "system.slice", "",
+		},
+		{
+			"user session scope",
+			"/user.slice/user-1000.slice/session-2.scope",
+			"", "user.slice/user-1000.slice", "session-2.scope",
+		},
+		{
+			"docker scope",
+			"/system.slice/docker-abc123.scope",
+			"", "system.slice", "docker-abc123.scope",
+		},
+		{
+			"empty path",
+			"",
+			"", "", "",
+		},
+		{
+			"root",
+			"/",
+			"", "", "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			unit, slice, scope := parseSystemdCgroup(tt.path)
+			if unit != tt.unit {
+				t.Errorf("unit = %q, want %q", unit, tt.unit)
+			}
+			if slice != tt.slice {
+				t.Errorf("slice = %q, want %q", slice, tt.slice)
+			}
+			if scope != tt.scope {
+				t.Errorf("scope = %q, want %q", scope, tt.scope)
+			}
+		})
+	}
+}
+
+func TestSystemdAdapter(t *testing.T) {
+	a := NewSystemdAdapter(slog.Default())
+
+	if a.Name() != "systemd" {
+		t.Errorf("Name() = %q, want %q", a.Name(), "systemd")
+	}
+
+	if err := a.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+
+	meta := &EventMeta{
+		CgroupPath: "/system.slice/nginx.service",
+	}
+	a.Enrich(meta)
+
+	if meta.Unit != "nginx.service" {
+		t.Errorf("Unit = %q, want %q", meta.Unit, "nginx.service")
+	}
+	if meta.Slice != "system.slice" {
+		t.Errorf("Slice = %q, want %q", meta.Slice, "system.slice")
+	}
+
+	a.Stop()
+}
+
+// ─── KubernetesAdapter ────────────────────────────────────────────────────
+
+func TestExtractPodUID(t *testing.T) {
+	tests := []struct {
+		name  string
+		cpath string
+		want  string
+	}{
+		{
+			"cgroup v1",
+			"/kubepods/burstable/pod12345678-1234-1234-1234-123456789abc/abc123",
+			"12345678-1234-1234-1234-123456789abc",
+		},
+		{
+			"cgroup v2 systemd driver",
+			"/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod12345678_1234_1234_1234_123456789abc.slice/cri-containerd-xyz.scope",
+			"12345678-1234-1234-1234-123456789abc",
+		},
+		{
+			"no pod UID",
+			"/system.slice/nginx.service",
+			"",
+		},
+		{
+			"empty",
+			"",
+			"",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := extractPodUID(tt.cpath)
+			if got != tt.want {
+				t.Errorf("extractPodUID(%q) = %q, want %q", tt.cpath, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestExtractDeploymentName(t *testing.T) {
+	tests := []struct {
+		rs   string
+		want string
+	}{
+		{"nginx-deployment-5d8f4c7b9", "nginx-deployment"},
+		{"my-app-7f6b8c9d4", "my-app"},
+		{"simple", "simple"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.rs, func(t *testing.T) {
+			if got := extractDeploymentName(tt.rs); got != tt.want {
+				t.Errorf("extractDeploymentName(%q) = %q, want %q", tt.rs, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIsUIDLike(t *testing.T) {
+	tests := []struct {
+		s    string
+		want bool
+	}{
+		{"12345678-1234-1234-1234-123456789abc", true},
+		{"12345678_1234_1234_1234_123456789abc", true},
+		{"short", false},
+		{"12345678-1234-1234-1234-123456789XYZ", false}, // uppercase
+	}
+	for _, tt := range tests {
+		t.Run(tt.s, func(t *testing.T) {
+			if got := isUIDLike(tt.s); got != tt.want {
+				t.Errorf("isUIDLike(%q) = %v, want %v", tt.s, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestKubernetesAdapter_FetchPods(t *testing.T) {
+	// Mock Kubelet API.
+	podList := kubeletPodList{
+		Items: []kubeletPod{
+			{
+				Metadata: kubeletMeta{
+					Name:      "nginx-abc-123",
+					Namespace: "default",
+					UID:       "12345678-1234-1234-1234-123456789abc",
+					OwnerReferences: []kubeletOwnerRef{
+						{Kind: "ReplicaSet", Name: "nginx-abc"},
+					},
+				},
+				Spec: kubeletSpec{NodeName: "worker-1"},
+			},
+			{
+				Metadata: kubeletMeta{
+					Name:      "redis-0",
+					Namespace: "cache",
+					UID:       "aaaabbbb-cccc-dddd-eeee-ffffffffffff",
+					Labels:    map[string]string{"app": "redis"},
+				},
+				Spec: kubeletSpec{NodeName: "worker-1"},
+			},
+		},
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/pods" {
+			http.NotFound(w, r)
+			return
+		}
+		json.NewEncoder(w).Encode(podList)
+	}))
+	defer server.Close()
+
+	a := NewKubernetesAdapter(slog.Default())
+	a.kubeletURL = server.URL
+
+	pods, err := a.fetchPods(context.Background())
+	if err != nil {
+		t.Fatalf("fetchPods() error: %v", err)
+	}
+
+	if len(pods) != 2 {
+		t.Fatalf("expected 2 pods, got %d", len(pods))
+	}
+
+	// Check first pod (nginx with ReplicaSet owner).
+	if pods[0].Name != "nginx-abc-123" {
+		t.Errorf("pods[0].Name = %q, want %q", pods[0].Name, "nginx-abc-123")
+	}
+	if pods[0].Deployment != "nginx" {
+		t.Errorf("pods[0].Deployment = %q, want %q", pods[0].Deployment, "nginx")
+	}
+	if pods[0].Namespace != "default" {
+		t.Errorf("pods[0].Namespace = %q, want %q", pods[0].Namespace, "default")
+	}
+
+	// Check second pod (redis with app label).
+	if pods[1].Deployment != "redis" {
+		t.Errorf("pods[1].Deployment = %q, want %q", pods[1].Deployment, "redis")
+	}
+}
+
+func TestKubernetesAdapter_Enrich(t *testing.T) {
+	a := NewKubernetesAdapter(slog.Default())
+
+	// Manually populate the index.
+	a.index["12345678-1234-1234-1234-123456789abc"] = &PodInfo{
+		Name:       "nginx-abc-123",
+		Namespace:  "default",
+		Node:       "worker-1",
+		Deployment: "nginx",
+		UID:        "12345678-1234-1234-1234-123456789abc",
+	}
+
+	meta := &EventMeta{
+		CgroupPath: "/kubepods/burstable/pod12345678-1234-1234-1234-123456789abc/container-xyz",
+	}
+	a.Enrich(meta)
+
+	if meta.Pod != "nginx-abc-123" {
+		t.Errorf("Pod = %q, want %q", meta.Pod, "nginx-abc-123")
+	}
+	if meta.Namespace != "default" {
+		t.Errorf("Namespace = %q, want %q", meta.Namespace, "default")
+	}
+	if meta.Deployment != "nginx" {
+		t.Errorf("Deployment = %q, want %q", meta.Deployment, "nginx")
+	}
+}
+
+func TestKubernetesAdapter_EnrichNoMatch(t *testing.T) {
+	a := NewKubernetesAdapter(slog.Default())
+
+	meta := &EventMeta{
+		CgroupPath: "/system.slice/nginx.service",
+	}
+	a.Enrich(meta)
+
+	if meta.Pod != "" {
+		t.Errorf("Pod = %q, want empty", meta.Pod)
+	}
+}

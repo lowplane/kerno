@@ -1,0 +1,97 @@
+name: 🐛 Bug report
+description: Something isn't working — kerno crashes, gives wrong output, or fails to load.
+title: "bug: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Detailed reports help us reproduce and fix issues quickly.
+
+        Before submitting, please **search [existing issues](https://github.com/optiqor/kerno/issues?q=is%3Aissue)** to avoid duplicates.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Concise description of the bug. What did you do? What did you expect? What did you see instead?
+      placeholder: When I run `kerno doctor`, the disk_io rule never fires even though fsync p99 is 200ms.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      description: Minimal steps to reproduce. Code snippets or commands welcome.
+      placeholder: |
+        1. `git clone https://github.com/optiqor/kerno`
+        2. `make build`
+        3. `sudo ./bin/kerno doctor --duration 30s`
+        4. Notice that no disk_io_bottleneck finding appears
+      render: shell
+    validations:
+      required: true
+
+  - type: input
+    id: kerno_version
+    attributes:
+      label: Kerno version
+      description: Output of `kerno version`.
+      placeholder: kerno v0.2.0 (commit abc1234, built 2026-05-10, go1.25.4, linux/amd64)
+    validations:
+      required: true
+
+  - type: input
+    id: kernel_version
+    attributes:
+      label: Linux kernel
+      description: Output of `uname -r`.
+      placeholder: 6.1.0-18-amd64
+    validations:
+      required: true
+
+  - type: input
+    id: distro
+    attributes:
+      label: Distribution
+      description: First three lines of `/etc/os-release`.
+      placeholder: Ubuntu 22.04.4 LTS
+    validations:
+      required: true
+
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Where is kerno running?
+      options:
+        - Bare metal
+        - Virtual machine (EC2/GCE/Azure/Hetzner)
+        - Kubernetes (managed — EKS/GKE/AKS)
+        - Kubernetes (self-managed — kubeadm/kind/kops)
+        - Docker
+        - Other (describe in "What happened?")
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: |
+        Paste kerno output, journalctl excerpts, or BPF verifier errors. Run with `--log-level debug` for more detail.
+        **Do NOT paste secrets** (API keys, JWT tokens). Redact if needed.
+      render: shell
+
+  - type: textarea
+    id: bpf_verifier
+    attributes:
+      label: BPF verifier output (if applicable)
+      description: Run `sudo ./bin/bpf-verify` and paste any verifier-rejection output here.
+      render: shell
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context
+      description: Anything else that might help — Helm values, container runtime, network policies, related PRs.

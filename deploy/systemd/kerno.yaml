@@ -1,0 +1,41 @@
+# Default kerno configuration for bare-metal / VM deployments.
+# Copy to /etc/kerno/config.yaml
+#
+# All values below are defaults — kerno works with zero config.
+# Only uncomment what you need to change.
+
+log_level: info
+log_format: text    # "text" for interactive, "json" for log aggregation
+
+# ── Collectors ───────────────────────────────────────────────────────
+# All collectors are enabled by default. Disable individual ones if
+# your kernel doesn't support them or you want to reduce overhead.
+collectors:
+  syscall_latency: true
+  tcp_monitor: true
+  oom_track: true
+  disk_io: true
+  sched_delay: true
+  fd_track: true
+
+# ── Doctor thresholds ────────────────────────────────────────────────
+# Tune these for your workload. Defaults are reasonable for general use.
+doctor:
+  duration: 30s
+  # thresholds:
+  #   syscall_p99_warning_ns:  100000000   # 100ms
+  #   syscall_p99_critical_ns: 500000000   # 500ms
+  #   tcp_retransmit_pct:      2.0
+  #   disk_p99_critical_ns:    200000000   # 200ms
+  #   sched_delay_warning_ns:  5000000     # 5ms
+
+# ── Prometheus metrics ───────────────────────────────────────────────
+prometheus:
+  enabled: true
+  addr: ":9090"
+
+# ── AI (optional) ────────────────────────────────────────────────────
+# ai:
+#   enabled: false
+#   provider: anthropic    # anthropic, openai, ollama
+#   privacy_mode: summary  # full, redacted, summary

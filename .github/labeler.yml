@@ -1,0 +1,84 @@
+# Copyright 2026 Optiqor contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Auto-label PRs based on changed paths.
+# Used by .github/workflows/labeler.yml via actions/labeler@v5.
+
+"area/bpf":
+  - changed-files:
+      - any-glob-to-any-file:
+          - internal/bpf/**
+          - internal/bpf/c/**
+          - cmd/bpf-verify/**
+
+"area/doctor":
+  - changed-files:
+      - any-glob-to-any-file:
+          - internal/doctor/**
+          - internal/collector/**
+
+"area/k8s":
+  - changed-files:
+      - any-glob-to-any-file:
+          - deploy/k8s/**
+          - deploy/helm/**
+          - internal/adapter/kubernetes.go
+
+"area/release":
+  - changed-files:
+      - any-glob-to-any-file:
+          - .goreleaser.yml
+          - Dockerfile*
+          - .github/workflows/release.yml
+          - scripts/install.sh
+
+"area/security":
+  - changed-files:
+      - any-glob-to-any-file:
+          - SECURITY.md
+          - internal/auth/**
+          - internal/audit/**
+
+"area/perf":
+  - changed-files:
+      - any-glob-to-any-file:
+          - internal/collector/aggregator/**
+
+"area/ops":
+  - changed-files:
+      - any-glob-to-any-file:
+          - deploy/systemd/**
+          - internal/cli/start.go
+          - internal/config/**
+
+"area/integrations":
+  - changed-files:
+      - any-glob-to-any-file:
+          - internal/ai/**
+          - internal/sinks/**
+          - internal/telemetry/**
+
+documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/*.md"
+          - docs/**
+          - .github/ISSUE_TEMPLATE/**
+
+testing:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/*_test.go"
+          - scripts/verify.sh
+          - scripts/demo.sh
+          - .github/workflows/**
+
+"area/community":
+  - changed-files:
+      - any-glob-to-any-file:
+          - CODE_OF_CONDUCT.md
+          - GOVERNANCE.md
+          - CONTRIBUTING.md
+          - .github/ISSUE_TEMPLATE/**
+          - .github/PULL_REQUEST_TEMPLATE.md
+          - .github/CODEOWNERS

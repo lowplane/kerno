@@ -1,0 +1,216 @@
+# Copyright 2026 Optiqor contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Self-service issue assignment.
+#
+# A contributor can claim an open issue by commenting one of:
+#   /assign           → assigns the commenter to the issue
+#   /take             → same as /assign
+#   /assign @someone  → maintainers can assign others
+#   /unassign         → releases the issue (anyone may release themselves)
+#   /unassign @someone → maintainers can release others
+#
+# Behavior:
+#   - Already-assigned issue: replies "already claimed by @X" without stomping.
+#   - Successful assign: 👍 reaction + "claimed" label + friendly comment.
+#   - Successful unassign: removes "claimed" label, posts release confirmation.
+#   - Closed/locked issues: ignored.
+#
+# Note: this workflow uses `issue_comment` which fires for both issues and PRs.
+# We filter to issues only via `github.event.issue.pull_request == null`.
+name: Issue assignment
+
+on:
+  issue_comment:
+    types: [created]
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+  pull-requests: read
+
+jobs:
+  assign:
+    if: github.event.issue.pull_request == null && github.event.issue.state == 'open'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Parse and apply assignment
+        uses: actions/github-script@v9
+        with:
+          script: |
+            // Pick the body to scan: comment body for issue_comment, issue body for issues.opened.
+            const isComment = context.eventName === 'issue_comment';
+            const body = (isComment ? context.payload.comment.body : context.payload.issue.body) || '';
+            const actor = isComment ? context.payload.comment.user.login : context.payload.issue.user.login;
+            const issueNumber = context.payload.issue.number;
+            const repo = { owner: context.repo.owner, repo: context.repo.repo };
+
+            // Extract the first slash command from the body.
+            // Matches: /assign, /take, /assign @user, /unassign, /unassign @user
+            const cmdMatch = body.match(/^\s*\/(assign|take|unassign|release)(?:\s+@([\w-]+))?\s*$/im);
+            if (!cmdMatch) {
+              core.info('no /assign or /unassign command found; ignoring');
+              return;
+            }
+            const verb = cmdMatch[1].toLowerCase();
+            const targetUser = cmdMatch[2] || actor;
+
+            const isAssignAction = verb === 'assign' || verb === 'take';
+            const isUnassignAction = verb === 'unassign' || verb === 'release';
+
+            // Targeting another user: only repo collaborators (write+) may.
+            if (targetUser !== actor) {
+              try {
+                const perm = await github.rest.repos.getCollaboratorPermissionLevel({
+                  ...repo, username: actor,
+                });
+                const lvl = perm.data.permission;
+                if (lvl !== 'admin' && lvl !== 'write' && lvl !== 'maintain') {
+                  await github.rest.issues.createComment({
+                    ...repo, issue_number: issueNumber,
+                    body: `@${actor}, only maintainers can ${verb} other contributors. Use \`/${verb}\` (without a username) to ${verb} yourself.`,
+                  });
+                  return;
+                }
+              } catch (e) {
+                core.warning(`could not check permission for ${actor}: ${e.message}`);
+                return;
+              }
+            }
+
+            // Get current assignees.
+            const issue = await github.rest.issues.get({ ...repo, issue_number: issueNumber });
+            const currentAssignees = (issue.data.assignees || []).map(a => a.login);
+
+            // ─── /assign ─────────────────────────────────────────────────
+            if (isAssignAction) {
+              if (currentAssignees.includes(targetUser)) {
+                await github.rest.reactions.createForIssueComment({
+                  ...repo, comment_id: context.payload.comment?.id || 0, content: '+1',
+                }).catch(() => {});
+                return; // already assigned, no-op
+              }
+
+              if (currentAssignees.length > 0 && targetUser === actor) {
+                // Don't stomp on someone else's claim.
+                await github.rest.issues.createComment({
+                  ...repo, issue_number: issueNumber,
+                  body: `Sorry @${actor}, this is already claimed by ${currentAssignees.map(a => `@${a}`).join(', ')}. ` +
+                        `If they're inactive, this issue is auto-released after 10 days of no activity.`,
+                });
+                return;
+              }
+
+              // ─── Cap each contributor at MAX_ASSIGNMENTS open issues ────
+              // Prevents one keen contributor from claiming everything in
+              // the backlog and then drying up. Maintainers are exempt.
+              const MAX_ASSIGNMENTS = 2;
+              let isMaintainer = false;
+              try {
+                const perm = await github.rest.repos.getCollaboratorPermissionLevel({
+                  ...repo, username: targetUser,
+                });
+                const lvl = perm.data.permission;
+                isMaintainer = (lvl === 'admin' || lvl === 'write' || lvl === 'maintain');
+              } catch (e) {
+                // Not a collaborator — treat as external contributor (capped).
+              }
+
+              if (!isMaintainer) {
+                // Count open issues currently assigned to targetUser in this repo.
+                const assigned = await github.paginate(github.rest.issues.listForRepo, {
+                  ...repo, state: 'open', assignee: targetUser, per_page: 100,
+                });
+                // listForRepo returns issues AND PRs; filter PRs out.
+                const openIssues = assigned.filter(i => !i.pull_request);
+                if (openIssues.length >= MAX_ASSIGNMENTS) {
+                  const links = openIssues
+                    .slice(0, MAX_ASSIGNMENTS)
+                    .map(i => `#${i.number} (${i.title})`)
+                    .join(', ');
+                  await github.rest.issues.createComment({
+                    ...repo, issue_number: issueNumber,
+                    body:
+                      `@${targetUser}, you're already on **${openIssues.length} open issue${openIssues.length === 1 ? '' : 's'}** ` +
+                      `(${links}).\n\n` +
+                      `We cap contributors at ${MAX_ASSIGNMENTS} concurrent issues so the backlog stays available to others. ` +
+                      `Please finish or \`/unassign\` one before claiming another.\n\n` +
+                      `(Maintainers are exempt from this cap.)`,
+                  });
+                  if (isComment) {
+                    await github.rest.reactions.createForIssueComment({
+                      ...repo, comment_id: context.payload.comment.id, content: '-1',
+                    }).catch(() => {});
+                  }
+                  return;
+                }
+              }
+
+              await github.rest.issues.addAssignees({
+                ...repo, issue_number: issueNumber, assignees: [targetUser],
+              });
+
+              await github.rest.issues.addLabels({
+                ...repo, issue_number: issueNumber, labels: ['claimed'],
+              }).catch(() => {});
+
+              if (isComment) {
+                await github.rest.reactions.createForIssueComment({
+                  ...repo, comment_id: context.payload.comment.id, content: '+1',
+                }).catch(() => {});
+              }
+
+              await github.rest.issues.createComment({
+                ...repo, issue_number: issueNumber,
+                body: `Assigned to @${targetUser}. Thanks for picking this up! 🚀\n\n` +
+                      `**Heads-up**: if there's no activity (comment or PR linked here) within **10 days**, ` +
+                      `the issue will be auto-released so others can pick it up. ` +
+                      `Comment any time to reset that timer.\n\n` +
+                      `Need help getting started? Check [CONTRIBUTING.md](https://github.com/${repo.owner}/${repo.repo}/blob/main/CONTRIBUTING.md) ` +
+                      `or ask in the issue thread.`,
+              });
+              return;
+            }
+
+            // ─── /unassign ───────────────────────────────────────────────
+            if (isUnassignAction) {
+              if (currentAssignees.length === 0) {
+                core.info('issue has no assignees; nothing to unassign');
+                return;
+              }
+
+              const toRemove = (targetUser === actor) ? [actor] :
+                               (currentAssignees.includes(targetUser) ? [targetUser] : []);
+
+              if (toRemove.length === 0) {
+                await github.rest.issues.createComment({
+                  ...repo, issue_number: issueNumber,
+                  body: `@${actor}, @${targetUser} is not assigned to this issue.`,
+                });
+                return;
+              }
+
+              await github.rest.issues.removeAssignees({
+                ...repo, issue_number: issueNumber, assignees: toRemove,
+              });
+
+              const remaining = currentAssignees.filter(a => !toRemove.includes(a));
+              if (remaining.length === 0) {
+                await github.rest.issues.removeLabel({
+                  ...repo, issue_number: issueNumber, name: 'claimed',
+                }).catch(() => {});
+              }
+
+              if (isComment) {
+                await github.rest.reactions.createForIssueComment({
+                  ...repo, comment_id: context.payload.comment.id, content: '+1',
+                }).catch(() => {});
+              }
+
+              await github.rest.issues.createComment({
+                ...repo, issue_number: issueNumber,
+                body: `Released by @${actor}. The issue is open again — anyone can claim it with \`/assign\`.`,
+              });
+              return;
+            }

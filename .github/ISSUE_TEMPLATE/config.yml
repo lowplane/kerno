@@ -1,0 +1,17 @@
+# Copyright 2026 Optiqor contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Issue template chooser. Disables the blank "Open a blank issue" link so
+# every report goes through one of the structured templates below.
+blank_issues_enabled: false
+
+contact_links:
+  - name: Question or discussion
+    url: https://github.com/optiqor/kerno/discussions
+    about: Ask the community — usage questions, design discussion, "is this a bug?"
+  - name: Security vulnerability
+    url: https://github.com/optiqor/kerno/security/advisories/new
+    about: Privately report a vulnerability via GitHub Security Advisories — do NOT open a public issue.
+  - name: Documentation
+    url: https://github.com/optiqor/kerno#readme
+    about: Read the README, CONTRIBUTING, and architecture docs before reporting.

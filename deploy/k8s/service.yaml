@@ -1,0 +1,20 @@
+# Copyright 2026 Optiqor contributors
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: v1
+kind: Service
+metadata:
+  name: kerno
+  namespace: kerno-system
+  labels:
+    app.kubernetes.io/name: kerno
+    app.kubernetes.io/component: agent
+spec:
+  type: ClusterIP
+  clusterIP: None  # Headless — each pod scraped individually.
+  selector:
+    app.kubernetes.io/name: kerno
+  ports:
+    - name: metrics
+      port: 9090
+      targetPort: metrics
+      protocol: TCP

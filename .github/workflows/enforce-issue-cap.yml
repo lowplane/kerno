@@ -1,0 +1,119 @@
+# Copyright 2026 Optiqor contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Enforce the 2-issue-per-contributor cap retroactively.
+#
+# The /assign workflow rejects new claims that would exceed the cap, but
+# this won't catch:
+#   - Assignments made directly in the GitHub UI (skipping /assign)
+#   - Assignments made before the cap was introduced
+#   - Maintainer mistakes
+#
+# This workflow runs daily, finds any non-maintainer over the cap, and
+# releases them from the excess issues. It keeps their 2 most-recently-
+# updated issues (presumed actively-worked-on) and unassigns the rest
+# with a friendly comment.
+
+name: Enforce issue cap
+
+on:
+  schedule:
+    - cron: "30 5 * * *"     # daily at 05:30 UTC (30 min after stale sweep)
+  workflow_dispatch:           # allow manual trigger for ops / first run
+  issues:
+    types: [assigned]          # also enforce immediately on every assign event
+
+permissions:
+  issues: write
+  pull-requests: read
+
+env:
+  MAX_ASSIGNMENTS: "2"
+
+jobs:
+  enforce:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Find over-cap contributors and trim
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const repo = { owner: context.repo.owner, repo: context.repo.repo };
+            const MAX = Number(process.env.MAX_ASSIGNMENTS);
+
+            // Walk every open issue (not PR) and group by assignee.
+            const issuesByUser = new Map();
+            for await (const res of github.paginate.iterator(github.rest.issues.listForRepo, {
+              ...repo, state: 'open', assignee: '*', per_page: 100,
+            })) {
+              for (const issue of res.data) {
+                if (issue.pull_request) continue;
+                for (const a of (issue.assignees || [])) {
+                  const list = issuesByUser.get(a.login) || [];
+                  list.push(issue);
+                  issuesByUser.set(a.login, list);
+                }
+              }
+            }
+
+            let trimmed = 0;
+            for (const [user, issues] of issuesByUser.entries()) {
+              if (issues.length <= MAX) continue;
+
+              // Skip maintainers (admin / write / maintain).
+              let isMaintainer = false;
+              try {
+                const perm = await github.rest.repos.getCollaboratorPermissionLevel({
+                  ...repo, username: user,
+                });
+                const lvl = perm.data.permission;
+                isMaintainer = (lvl === 'admin' || lvl === 'write' || lvl === 'maintain');
+              } catch (e) {
+                core.warning(`permission check failed for ${user}: ${e.message}`);
+              }
+              if (isMaintainer) {
+                core.info(`${user} is a maintainer — cap exempt (${issues.length} open)`);
+                continue;
+              }
+
+              // Keep the MAX most-recently-updated issues; release the rest.
+              issues.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+              const keep = issues.slice(0, MAX);
+              const release = issues.slice(MAX);
+
+              core.info(`${user} is over cap: keeping ${keep.length}, releasing ${release.length}`);
+
+              const keepList = keep.map(i => `#${i.number}`).join(', ');
+              for (const issue of release) {
+                await github.rest.issues.removeAssignees({
+                  ...repo, issue_number: issue.number, assignees: [user],
+                });
+
+                // Clean up the 'claimed' label if no assignees remain.
+                const after = await github.rest.issues.get({
+                  ...repo, issue_number: issue.number,
+                });
+                if ((after.data.assignees || []).length === 0) {
+                  await github.rest.issues.removeLabel({
+                    ...repo, issue_number: issue.number, name: 'claimed',
+                  }).catch(() => {});
+                  await github.rest.issues.addLabels({
+                    ...repo, issue_number: issue.number, labels: ['help wanted'],
+                  }).catch(() => {});
+                }
+
+                await github.rest.issues.createComment({
+                  ...repo, issue_number: issue.number,
+                  body:
+                    `Auto-released @${user} from this issue: they were assigned to ` +
+                    `**${issues.length} open issues** (cap is ${MAX}).\n\n` +
+                    `Kept active claims: ${keepList}\n\n` +
+                    `@${user}, please focus on the issues above; once one is done you can ` +
+                    `\`/assign\` back to this one. The cap exists to keep the backlog open to ` +
+                    `all contributors. Maintainers are exempt.`,
+                });
+                trimmed++;
+              }
+            }
+
+            core.notice(`enforce-issue-cap: released ${trimmed} excess assignments`);

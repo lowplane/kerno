@@ -1,0 +1,14 @@
+{{- if .Values.pdb.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: kerno
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "kerno.labels" . | nindent 4 }}
+spec:
+  maxUnavailable: {{ .Values.pdb.maxUnavailable }}
+  selector:
+    matchLabels:
+      {{- include "kerno.selectorLabels" . | nindent 6 }}
+{{- end }}

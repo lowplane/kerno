@@ -1,0 +1,70 @@
+# Copyright 2026 Optiqor contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Systemd unit for kerno daemon mode on bare-metal / VMs.
+#
+# Install:
+#   sudo cp kerno /usr/local/bin/kerno
+#   sudo cp kerno.service /etc/systemd/system/kerno.service
+#   sudo cp kerno.yaml /etc/kerno/config.yaml   (optional)
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now kerno
+#
+# Logs:
+#   journalctl -u kerno -f
+
+[Unit]
+Description=Kerno — eBPF kernel diagnostic engine
+Documentation=https://github.com/optiqor/kerno
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/kerno start
+Restart=on-failure
+RestartSec=5s
+
+# ── Security hardening ───────────────────────────────────────────────
+# Kerno needs elevated privileges for eBPF, but we lock down everything else.
+User=root
+Group=root
+
+# Capabilities required for eBPF program loading and tracepoint attachment.
+# CAP_BPF:       load eBPF programs, create maps
+# CAP_PERFMON:   attach to perf events and tracepoints
+# CAP_SYS_PTRACE: read /proc/<pid>/cgroup for other processes
+# CAP_SYS_ADMIN: fallback for older kernels where CAP_BPF is not sufficient
+# CAP_NET_ADMIN: read conntrack table, network stats
+# CAP_DAC_READ_SEARCH: read cgroup/sysfs files owned by other users
+AmbientCapabilities=CAP_BPF CAP_PERFMON CAP_SYS_PTRACE CAP_SYS_ADMIN CAP_NET_ADMIN CAP_DAC_READ_SEARCH
+
+# Protect the rest of the system from kerno.
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=no
+
+# kerno needs read access to these host paths:
+ReadOnlyPaths=/proc /sys /dev/kmsg /var/log
+
+# Allow writing to BPF filesystem for map pinning.
+ReadWritePaths=/sys/fs/bpf
+
+# ── Resource limits ──────────────────────────────────────────────────
+MemoryMax=512M
+CPUQuota=100%
+TasksMax=256
+
+# ── Logging ──────────────────────────────────────────────────────────
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=kerno
+
+# ── Environment ──────────────────────────────────────────────────────
+# Config file location (optional — kerno works with zero config).
+Environment=KERNO_LOG_FORMAT=json
+EnvironmentFile=-/etc/kerno/env
+
+[Install]
+WantedBy=multi-user.target

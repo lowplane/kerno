@@ -1,0 +1,55 @@
+# Copyright 2026 Optiqor contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Dependabot config — keep deps fresh without flooding the inbox.
+# Group related updates into a single PR per ecosystem per week.
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "08:00"
+      timezone: "Asia/Kolkata"
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - go
+    groups:
+      go-deps:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "github.com/cilium/ebpf"
+      ebpf:
+        patterns:
+          - "github.com/cilium/ebpf*"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "08:00"
+      timezone: "Asia/Kolkata"
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - ci
+    groups:
+      actions:
+        patterns:
+          - "*"
+
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "08:00"
+      timezone: "Asia/Kolkata"
+    open-pull-requests-limit: 2
+    labels:
+      - dependencies
+      - docker

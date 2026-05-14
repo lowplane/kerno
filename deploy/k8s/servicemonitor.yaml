@@ -1,0 +1,20 @@
+# Copyright 2026 Optiqor contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Optional: requires Prometheus Operator CRDs.
+# Apply only if ServiceMonitor CRD is installed.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: kerno
+  namespace: kerno-system
+  labels:
+    app.kubernetes.io/name: kerno
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kerno
+  endpoints:
+    - port: metrics
+      interval: 15s
+      path: /metrics

@@ -1,0 +1,44 @@
+# Copyright 2026 Optiqor contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Welcome first-time contributors.
+name: Welcome
+
+on:
+  issues:
+    types: [opened]
+  pull_request_target:
+    types: [opened]
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  welcome:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/first-interaction@v3
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          issue_message: |
+            Welcome to **Kerno**, and thanks for opening your first issue! 🎉
+
+            A maintainer will triage this within 48 hours. While you wait:
+
+            - 📖 Read [CONTRIBUTING.md](https://github.com/optiqor/kerno/blob/main/CONTRIBUTING.md) if you'd like to send a fix
+            - 🩺 Try `kerno doctor` on your own host (the [README quickstart](https://github.com/optiqor/kerno#quickstart) takes < 60 s)
+            - 💬 [Discussions](https://github.com/optiqor/kerno/discussions) for questions and design talk
+
+            Tip: if you can paste output of `sudo ./bin/bpf-verify` (or `kerno preflight` when it ships) we'll diagnose 90% faster.
+          pr_message: |
+            🚀 **First PR — welcome aboard!**
+
+            A few things to expect:
+
+            1. **CI**: every PR runs build + race tests + lint + (eventually) the kernel matrix. If something fails, the log will tell you exactly which gate.
+            2. **DCO**: every commit needs `Signed-off-by:` — `git commit -s` adds it automatically.
+            3. **Conventional Commits**: PR titles like `feat(doctor): add new rule` or `fix(bpf): handle X`. We squash-merge by default.
+            4. **Review**: a maintainer will review within 72 hours. Suggestions are conversations, not orders — push back if something doesn't fit your context.
+
+            If you get stuck, reply here or jump to [Discussions](https://github.com/optiqor/kerno/discussions). We want this PR to land.

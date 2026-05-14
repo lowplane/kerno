@@ -1,0 +1,9 @@
+# Copyright 2026 Optiqor contributors
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kerno-system
+  labels:
+    app.kubernetes.io/name: kerno
+    app.kubernetes.io/part-of: kerno

@@ -1,0 +1,92 @@
+name: 🐧 Kernel / distro support issue
+description: Kerno fails to load eBPF programs on a specific kernel or distribution.
+title: "bpf: load failure on "
+labels: ["bug", "area/bpf", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        eBPF behavior varies dramatically across kernels. Tell us exactly what we need to reproduce.
+
+        **Before submitting**, run `sudo ./bin/bpf-verify` (or `sudo ./bin/kerno preflight` once #44 lands) and paste the output.
+
+  - type: input
+    id: kernel
+    attributes:
+      label: Kernel version
+      description: Full output of `uname -r`.
+      placeholder: 5.15.0-91-generic
+    validations:
+      required: true
+
+  - type: input
+    id: distro
+    attributes:
+      label: Distribution
+      description: Output of `cat /etc/os-release`.
+      placeholder: Ubuntu 22.04.4 LTS
+    validations:
+      required: true
+
+  - type: input
+    id: arch
+    attributes:
+      label: Architecture
+      placeholder: x86_64
+    validations:
+      required: true
+
+  - type: dropdown
+    id: btf
+    attributes:
+      label: Is BTF available?
+      description: Check `ls /sys/kernel/btf/vmlinux`.
+      options:
+        - "Yes — file exists"
+        - "No — file missing"
+        - "Unsure"
+    validations:
+      required: true
+
+  - type: textarea
+    id: bpf_verify_output
+    attributes:
+      label: Output of `sudo ./bin/bpf-verify`
+      description: Paste the **full** output. Include the verifier reject log if any program fails.
+      render: shell
+    validations:
+      required: true
+
+  - type: dropdown
+    id: which_programs
+    attributes:
+      label: Which programs fail?
+      multiple: true
+      options:
+        - syscall_latency
+        - tcp_monitor
+        - oom_track
+        - disk_io
+        - sched_delay
+        - fd_track
+        - "All of them"
+    validations:
+      required: true
+
+  - type: textarea
+    id: capabilities
+    attributes:
+      label: Capabilities granted
+      description: |
+        Output of `getpcaps $$` (your shell PID) or `getcap ./bin/kerno`. Are CAP_BPF, CAP_PERFMON, CAP_SYS_ADMIN present?
+      render: shell
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: |
+        - Custom kernel build? CONFIG flags?
+        - SELinux/AppArmor enforcing?
+        - GRSEC/STACKLEAK patches?
+        - Cloud provider lockdown (e.g. GKE COS, Bottlerocket)?

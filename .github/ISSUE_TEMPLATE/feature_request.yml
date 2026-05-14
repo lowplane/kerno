@@ -1,0 +1,73 @@
+name: ✨ Feature request
+description: Propose a new feature, enhancement, or behavior change.
+title: "feat: "
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for proposing a feature! Please describe the problem before the solution — it helps us understand the actual need.
+
+        For new diagnostic rules, use the **"New doctor rule"** template instead.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What's the problem you're trying to solve? Lead with user impact, not implementation.
+      placeholder: |
+        When CoreDNS is slow, kerno doesn't detect it. Application logs say "connection refused" which is misleading.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: What should kerno do? Be specific — flags, output format, config keys.
+      placeholder: |
+        Add a `dns_failure_rate` rule that detects DNS timeouts via UDP/53 monitoring.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What other approaches did you think about? Why this one?
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - New CLI subcommand or flag
+        - New eBPF program / collector
+        - New Helm value or config option
+        - New Prometheus metric
+        - New integration (sink, exporter)
+        - Performance / reliability improvement
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kubernetes
+    attributes:
+      label: Affects Kubernetes deployment?
+      options:
+        - "Yes — K8s-specific feature"
+        - "Yes — needs Helm chart update"
+        - "No — works the same on bare metal"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Are you willing to contribute?
+      options:
+        - label: I can implement this if guidance is provided
+        - label: I can test this once it's built
+        - label: I'm just suggesting the idea
