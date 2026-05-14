@@ -126,15 +126,11 @@ install_completion() {
             echo "    Restart shell or run: source ${bash_dir}/kerno"
             ;;
         zsh)
-            local zsh_dir="${ZDOTDIR:-$HOME}"
-            local comp_file="${zsh_dir}/completions/_kerno"
-            mkdir -p "${zsh_dir}/completions"
-            kerno completion zsh > "$comp_file"
-            chmod 644 "$comp_file"
-            echo "    Installed to $comp_file"
-            if ! grep -q "autoload -U compinit" "${zsh_dir}/.zshrc" 2>/dev/null; then
-                echo 'autoload -U compinit && compinit' >> "${zsh_dir}/.zshrc"
-            fi
+            local zsh_dir="/usr/local/share/zsh/site-functions"
+            mkdir -p "$zsh_dir"
+            kerno completion zsh > "${zsh_dir}/_kerno"
+            chmod 644 "${zsh_dir}/_kerno"
+            echo "    Installed to ${zsh_dir}/_kerno"
             echo "    Restart shell or run: autoload -U compinit && compinit"
             ;;
         fish)
