@@ -20,6 +20,7 @@ import (
 var (
 	cfgFile string
 	cfg     *config.Config
+	verbose bool
 )
 
 // New creates the root command and registers all sub-commands.
@@ -71,6 +72,7 @@ and copy-paste fix steps.`,
 	pf.String("log-format", "auto", "log encoding: auto (detect TTY), text (human), json (structured)")
 	pf.String("output", "pretty", "output format: pretty (terminal), json (machine)")
 	pf.Bool("no-color", false, "disable colored output (also honors $NO_COLOR)")
+	pf.BoolVarP(&verbose, "verbose", "v", false, "enable verbose (debug-level) logging; shorthand for --log-level=debug")
 
 	// Group sub-commands by purpose so --help reads as a workflow,
 	// not an alphabetic dump.
@@ -157,6 +159,12 @@ func initConfig(cmd *cobra.Command) error {
 
 	if err := cfg.Validate(); err != nil {
 		return fmt.Errorf("invalid configuration: %w", err)
+	}
+
+	// --verbose / -v is a convenience shorthand for --log-level=debug.
+	// It takes highest precedence: overrides config file and --log-level.
+	if verbose {
+		cfg.LogLevel = "debug"
 	}
 
 	// Initialize the global logger.
