@@ -134,12 +134,12 @@ install_completion() {
             echo "    Restart shell or run: autoload -U compinit && compinit"
             ;;
         fish)
-            local fish_dir="${HOME}/.config/fish/completions"
+            local fish_dir="/usr/share/fish/vendor_completions.d"
             mkdir -p "$fish_dir"
             kerno completion fish > "${fish_dir}/kerno.fish"
             chmod 644 "${fish_dir}/kerno.fish"
             echo "    Installed to ${fish_dir}/kerno.fish"
-            echo "    Restart fish or run: source ${fish_dir}/kerno.fish"
+            echo "    Restart fish to load the new completion"
             ;;
     esac
 }
