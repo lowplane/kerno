@@ -1,4 +1,4 @@
-// Copyright 2026 Optiqor contributors
+﻿// Copyright 2026 Optiqor contributors
 // SPDX-License-Identifier: Apache-2.0
 
 package ai
@@ -22,7 +22,7 @@ const (
 	// PrivacyRedacted strips hostnames, IPs, and PIDs but keeps metrics.
 	PrivacyRedacted PrivacyMode = "redacted"
 
-	// PrivacySummary sends only aggregated numbers — no identifying info.
+	// PrivacySummary sends only aggregated numbers â€” no identifying info.
 	PrivacySummary PrivacyMode = "summary"
 )
 
@@ -43,7 +43,8 @@ Rules:
 - Correlate signals when multiple subsystems show problems
 - Use concrete numbers from the data provided
 - If not confident in a root cause, say so and lower the confidence score
-- Never hallucinate metrics — only reference data provided
+- When a finding includes a baseline annotation (e.g. "9.2x the 30-min baseline"), always reference this ratio in your summary and root cause analysis. Explain WHY the workload deviated from its own normal behavior, not just that a threshold was crossed.
+- Never hallucinate metrics â€” only reference data provided
 - Keep the summary concise (under 200 words)
 - Return ONLY valid JSON, no markdown or extra text`
 
@@ -79,7 +80,7 @@ func BuildUserPrompt(signals *collector.Signals, findings []doctor.Finding, hist
 		for _, f := range findings {
 			process := ""
 			if f.Process != "" && privacy == PrivacyFull {
-				process = fmt.Sprintf(" — process: %s", f.Process)
+				process = fmt.Sprintf(" â€” process: %s", f.Process)
 			}
 			fmt.Fprintf(&b, "[%-8s] %s: %s%s\n", f.Severity, f.Signal, f.Title, process)
 			if f.Evidence != "" {
@@ -178,3 +179,4 @@ func writeSignalMetricsSummary(b *strings.Builder, s *collector.Signals) {
 		fmt.Fprintf(b, "    sched: runq_p99=%s\n", s.Sched.RunqDelay.P99)
 	}
 }
+

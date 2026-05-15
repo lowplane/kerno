@@ -1,4 +1,4 @@
-// Copyright 2026 Optiqor contributors
+﻿// Copyright 2026 Optiqor contributors
 // SPDX-License-Identifier: Apache-2.0
 
 // Package doctor implements the kerno doctor diagnostic engine.
@@ -78,6 +78,11 @@ type Finding struct {
 	// Evidence provides the raw metric data supporting the finding.
 	Evidence string
 
+	// BaselineAnnotation is set when adaptive baselines are enabled.
+	// It contains a human-readable comparison like "9.2Ã— the 30-min baseline of 9ms".
+	// The renderer displays it in a highlighted "Baseline:" line.
+	BaselineAnnotation string
+
 	// Fix contains actionable remediation steps.
 	Fix []string
 
@@ -136,7 +141,7 @@ type Report struct {
 	Analysis any
 
 	// Signals is the raw signal snapshot the rules were evaluated against.
-	// Populated for debug/observability — JSON renderer emits it under
+	// Populated for debug/observability â€” JSON renderer emits it under
 	// the "signals" key so operators can verify thresholds against
 	// observed values. Pretty renderer ignores it.
 	Signals any `json:"-"`
@@ -161,8 +166,8 @@ type LoadFailure struct {
 	Program string `json:"program"`
 	Error   string `json:"error"`
 	// Hint is a one-line "what to fix" suggestion derived from the
-	// error class (permission denied → "re-run with sudo", missing BTF
-	// → "kernel needs CONFIG_DEBUG_INFO_BTF", …).
+	// error class (permission denied -> "re-run with sudo", missing BTF
+	// -> "kernel needs CONFIG_DEBUG_INFO_BTF", ...).
 	Hint string `json:"hint,omitempty"`
 }
 

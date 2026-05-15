@@ -1,4 +1,4 @@
-// Copyright 2026 Optiqor contributors
+﻿// Copyright 2026 Optiqor contributors
 // SPDX-License-Identifier: Apache-2.0
 
 // Package config defines the global configuration for Kerno.
@@ -39,7 +39,7 @@ type Config struct {
 }
 
 // AIConfig controls the optional AI analysis layer.
-// AI is disabled by default — kerno works without an API key.
+// AI is disabled by default â€” kerno works without an API key.
 type AIConfig struct {
 	// Enabled turns on AI-powered analysis enrichment.
 	Enabled bool `mapstructure:"enabled" json:"enabled"`
@@ -59,7 +59,7 @@ type AIConfig struct {
 	// MaxTokens caps the LLM response length.
 	MaxTokens int `mapstructure:"max_tokens" json:"maxTokens"`
 
-	// Temperature controls response randomness (0.0–1.0).
+	// Temperature controls response randomness (0.0â€“1.0).
 	Temperature float64 `mapstructure:"temperature" json:"temperature"`
 
 	// CacheTTL is how long to cache AI responses (e.g., "5m").
@@ -238,3 +238,4 @@ func (c *Config) Validate() error {
 
 	return nil
 }
+

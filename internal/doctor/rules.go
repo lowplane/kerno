@@ -1,4 +1,4 @@
-// Copyright 2026 Optiqor contributors
+﻿// Copyright 2026 Optiqor contributors
 // SPDX-License-Identifier: Apache-2.0
 
 package doctor
@@ -14,7 +14,7 @@ import (
 )
 
 // Evaluate runs all diagnostic rules against the collected signals and returns
-// findings sorted by severity. This is the deterministic core of kerno doctor —
+// findings sorted by severity. This is the deterministic core of kerno doctor â€”
 // no AI, no network calls, always available.
 func Evaluate(signals *collector.Signals, thresholds config.DoctorThresholds) []Finding {
 	var findings []Finding
@@ -40,7 +40,7 @@ func Evaluate(signals *collector.Signals, thresholds config.DoctorThresholds) []
 	return findings
 }
 
-// ── Rule 1: Disk I/O Bottleneck ─────────────────────────────────────────────
+// â”€â”€ Rule 1: Disk I/O Bottleneck â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 func evalDiskIOBottleneck(s *collector.Signals, t config.DoctorThresholds) []Finding {
 	if s.DiskIO == nil {
@@ -51,7 +51,7 @@ func evalDiskIOBottleneck(s *collector.Signals, t config.DoctorThresholds) []Fin
 	warningNs := time.Duration(t.DiskP99WarningNs)
 	criticalNs := time.Duration(t.DiskP99CriticalNs)
 
-	// Check sync latency (fsync — most impactful for databases).
+	// Check sync latency (fsync â€” most impactful for databases).
 	if syncP99 := s.DiskIO.SyncLatency.P99; syncP99 > 0 {
 		if syncP99 >= criticalNs {
 			findings = append(findings, Finding{
@@ -59,7 +59,7 @@ func evalDiskIOBottleneck(s *collector.Signals, t config.DoctorThresholds) []Fin
 				Rule:      "disk_io_bottleneck",
 				Title:     "Disk I/O Bottleneck Detected",
 				Signal:    "diskio",
-				Cause:     "Storage device is saturated — sync/fsync operations are blocking",
+				Cause:     "Storage device is saturated â€” sync/fsync operations are blocking",
 				Impact:    "Database writes and file syncs are delayed, causing cascade latency",
 				Evidence:  fmt.Sprintf("sync P99=%s (threshold: %s), %d sync ops in window", syncP99, criticalNs, s.DiskIO.TotalSyncs),
 				Fix:       []string{"Check disk IOPS: iostat -x 1 5", "Check write queue depth", "Consider faster storage or async fsync"},
@@ -92,7 +92,7 @@ func evalDiskIOBottleneck(s *collector.Signals, t config.DoctorThresholds) []Fin
 			Title:     "Critical Disk Write Latency",
 			Signal:    "diskio",
 			Cause:     "Block-level write operations are critically slow",
-			Impact:    "All write I/O is affected — applications may hang or timeout",
+			Impact:    "All write I/O is affected â€” applications may hang or timeout",
 			Evidence:  fmt.Sprintf("write P99=%s (threshold: %s), %d writes", writeP99, criticalNs, s.DiskIO.TotalWrites),
 			Fix:       []string{"Check device health: smartctl -a /dev/sdX", "Check for I/O scheduler issues"},
 			Metric:    "disk_write_p99",
@@ -104,7 +104,7 @@ func evalDiskIOBottleneck(s *collector.Signals, t config.DoctorThresholds) []Fin
 	return findings
 }
 
-// ── Rule 2/3: OOM Kill ──────────────────────────────────────────────────────
+// â”€â”€ Rule 2/3: OOM Kill â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 func evalOOMKillOccurred(s *collector.Signals) []Finding {
 	if s.OOM == nil || s.OOM.Count == 0 {
@@ -119,7 +119,7 @@ func evalOOMKillOccurred(s *collector.Signals) []Finding {
 			Title:    "OOM Kill Detected",
 			Signal:   "oom",
 			Cause:    fmt.Sprintf("Process %s (pid %d) was killed by the OOM killer", evt.Comm, evt.PID),
-			Impact:   "Process was terminated — service disruption likely",
+			Impact:   "Process was terminated â€” service disruption likely",
 			Evidence: fmt.Sprintf("OOM score: %d, RSS pages: %d, total pages: %d", evt.OOMScore, evt.RSSPages, evt.TotalPages),
 			Fix: []string{
 				fmt.Sprintf("Check memory limits for process: cat /proc/%d/cgroup", evt.PID),
@@ -135,7 +135,7 @@ func evalOOMKillOccurred(s *collector.Signals) []Finding {
 	return findings
 }
 
-// ── Rule 4: TCP Retransmit Storm ────────────────────────────────────────────
+// â”€â”€ Rule 4: TCP Retransmit Storm â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 func evalTCPRetransmitStorm(s *collector.Signals, t config.DoctorThresholds) []Finding {
 	if s.TCP == nil {
@@ -153,7 +153,7 @@ func evalTCPRetransmitStorm(s *collector.Signals, t config.DoctorThresholds) []F
 		Title:     "TCP Retransmit Storm",
 		Signal:    "tcp",
 		Cause:     "Network path degradation causing excessive retransmissions",
-		Impact:    fmt.Sprintf("%.1f%% of TCP segments are being retransmitted — every connection has a chance of latency spike", rate),
+		Impact:    fmt.Sprintf("%.1f%% of TCP segments are being retransmitted â€” every connection has a chance of latency spike", rate),
 		Evidence:  fmt.Sprintf("retransmit rate=%.1f%% (threshold: %.1f%%), %d total retransmits, %d active connections", rate, t.TCPRetransmitPct, s.TCP.TotalRetransmits, s.TCP.ActiveConnections),
 		Fix:       []string{"Check network errors: ethtool -S eth0 | grep -i error", "Check for packet loss: ping -c 100 <gateway>", "Consider pod/service placement (cross-AZ traffic)"},
 		Metric:    "tcp_retransmit_pct",
@@ -164,14 +164,14 @@ func evalTCPRetransmitStorm(s *collector.Signals, t config.DoctorThresholds) []F
 	// Add top retransmitter info if available.
 	if len(s.TCP.TopRetransmitters) > 0 {
 		top := s.TCP.TopRetransmitters[0]
-		f.Evidence += fmt.Sprintf(", top: %s:%d → %s:%d (%d retransmits)",
+		f.Evidence += fmt.Sprintf(", top: %s:%d â†’ %s:%d (%d retransmits)",
 			top.SrcAddr, top.SrcPort, top.DstAddr, top.DstPort, top.Retransmits)
 	}
 
 	return []Finding{f}
 }
 
-// ── Rule 5: TCP RTT Degradation ─────────────────────────────────────────────
+// â”€â”€ Rule 5: TCP RTT Degradation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 func evalTCPRTTDegradation(s *collector.Signals, _ config.DoctorThresholds) []Finding {
 	if s.TCP == nil {
@@ -190,7 +190,7 @@ func evalTCPRTTDegradation(s *collector.Signals, _ config.DoctorThresholds) []Fi
 		Title:     "Elevated TCP Round-Trip Time",
 		Signal:    "tcp",
 		Cause:     "Network latency is higher than expected",
-		Impact:    fmt.Sprintf("Every TCP round-trip adds %s of latency — impacts all network-dependent operations", s.TCP.RTT.P99),
+		Impact:    fmt.Sprintf("Every TCP round-trip adds %s of latency â€” impacts all network-dependent operations", s.TCP.RTT.P99),
 		Evidence:  fmt.Sprintf("RTT P99=%s, P50=%s (threshold: %s)", s.TCP.RTT.P99, s.TCP.RTT.P50, rttThreshold),
 		Fix:       []string{"Check network path: traceroute <destination>", "Check for congestion: ss -ti", "Consider co-locating services to reduce hops"},
 		Metric:    "tcp_rtt_p99",
@@ -199,7 +199,7 @@ func evalTCPRTTDegradation(s *collector.Signals, _ config.DoctorThresholds) []Fi
 	}}
 }
 
-// ── Rule 6: Scheduler Contention ────────────────────────────────────────────
+// â”€â”€ Rule 6: Scheduler Contention â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 func evalSchedulerContention(s *collector.Signals, t config.DoctorThresholds) []Finding {
 	if s.Sched == nil {
@@ -225,7 +225,7 @@ func evalSchedulerContention(s *collector.Signals, t config.DoctorThresholds) []
 		Title:     "CPU Scheduler Contention",
 		Signal:    "sched",
 		Cause:     "Processes are waiting in the CPU run queue longer than expected",
-		Impact:    fmt.Sprintf("Every context switch adds ~%s of delay — compounds with I/O latency", delay),
+		Impact:    fmt.Sprintf("Every context switch adds ~%s of delay â€” compounds with I/O latency", delay),
 		Evidence:  fmt.Sprintf("runqueue P99=%s, P50=%s (warning: %s, critical: %s)", delay, s.Sched.RunqDelay.P50, warningNs, criticalNs),
 		Fix:       []string{"Check CPU usage: top -H", "Consider increasing CPU count or reducing worker threads", "Check for noisy neighbors on shared nodes"},
 		Metric:    "sched_runq_p99",
@@ -243,7 +243,7 @@ func evalSchedulerContention(s *collector.Signals, t config.DoctorThresholds) []
 	return []Finding{f}
 }
 
-// ── Rule 7: FD Leak ─────────────────────────────────────────────────────────
+// â”€â”€ Rule 7: FD Leak â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 func evalFDLeak(s *collector.Signals, t config.DoctorThresholds) []Finding {
 	if s.FD == nil {
@@ -290,7 +290,7 @@ func evalFDLeak(s *collector.Signals, t config.DoctorThresholds) []Finding {
 	return []Finding{f}
 }
 
-// ── Rule 8: Syscall Latency High ────────────────────────────────────────────
+// â”€â”€ Rule 8: Syscall Latency High â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // evalSyscallLatencyHigh emits at most one finding per run, even when many
 // (syscall, comm) pairs cross the threshold. The worst pair drives severity
@@ -309,7 +309,7 @@ func evalSyscallLatencyHigh(s *collector.Signals, t config.DoctorThresholds) []F
 	for _, entry := range s.Syscall.Entries {
 		// Voluntary-blocking syscalls (futex, epoll_wait, poll, ...)
 		// have latency dominated by userspace wait time, not by the
-		// kernel — flagging them produces false positives on idle hosts.
+		// kernel â€” flagging them produces false positives on idle hosts.
 		if bpf.IsBlockingSyscall(entry.SyscallNr) {
 			continue
 		}
@@ -371,7 +371,7 @@ func evalSyscallLatencyHigh(s *collector.Signals, t config.DoctorThresholds) []F
 	}}
 }
 
-// ── Rule 9: OOM Imminent ─────────────────────────────────────────────────────
+// â”€â”€ Rule 9: OOM Imminent â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 func evalOOMImminent(s *collector.Signals, t config.DoctorThresholds) []Finding {
 	if s.Memory == nil {
@@ -380,7 +380,7 @@ func evalOOMImminent(s *collector.Signals, t config.DoctorThresholds) []Finding 
 
 	threshold := t.OOMMemoryPct
 	// Negative threshold disables the rule. Zero is treated literally
-	// (fires on any non-zero usage) — useful for tests; default config
+	// (fires on any non-zero usage) â€” useful for tests; default config
 	// supplies 90.0 for production.
 	if threshold < 0 {
 		return nil
@@ -391,12 +391,12 @@ func evalOOMImminent(s *collector.Signals, t config.DoctorThresholds) []Finding 
 	}
 
 	sev := SeverityWarning
-	title := "Memory Pressure — OOM Risk"
+	title := "Memory Pressure â€” OOM Risk"
 
 	// If memory is >95% AND growing, it's critical.
 	if s.Memory.UsedPct > 95.0 && s.Memory.GrowthRateBytesPerSec > 0 {
 		sev = SeverityCritical
-		title = "OOM Imminent — Memory Nearly Exhausted"
+		title = "OOM Imminent â€” Memory Nearly Exhausted"
 	}
 
 	f := Finding{
@@ -424,7 +424,7 @@ func evalOOMImminent(s *collector.Signals, t config.DoctorThresholds) []Finding 
 	return []Finding{f}
 }
 
-// ── Rule 10: Syscall Error Rate ──────────────────────────────────────────────
+// â”€â”€ Rule 10: Syscall Error Rate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // evalSyscallErrorRate emits at most one finding per run. See the same
 // invariant note on evalSyscallLatencyHigh.
@@ -475,7 +475,7 @@ func evalSyscallErrorRate(s *collector.Signals) []Finding {
 	}
 
 	var ev strings.Builder
-	fmt.Fprintf(&ev, "%d syscalls have error rate ≥ 1%%. Worst: %s(%s)=%.1f%% (%d/%d).",
+	fmt.Fprintf(&ev, "%d syscalls have error rate â‰¥ 1%%. Worst: %s(%s)=%.1f%% (%d/%d).",
 		len(entries), name, top.entry.Comm, top.rate, top.entry.ErrorCount, top.entry.Count)
 
 	title := fmt.Sprintf("High Syscall Error Rate (%d affected)", len(entries))
@@ -499,7 +499,7 @@ func evalSyscallErrorRate(s *collector.Signals) []Finding {
 	}}
 }
 
-// ── Rule 12: Memory Limit Pressure ──────────────────────────────────────────
+// â”€â”€ Rule 12: Memory Limit Pressure â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // evalMemoryLimitPressure fires for each container that is close to its
 // cgroup v2 memory.max limit. WARNING at >85 %; CRITICAL at >95 % with
@@ -581,7 +581,7 @@ func evalMemoryLimitPressure(s *collector.Signals) []Finding {
 	return findings
 }
 
-// ── Rule 13: Memory High Throttling ─────────────────────────────────────────
+// â”€â”€ Rule 13: Memory High Throttling â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // evalMemoryHighThrottling fires when the kernel is reclaiming memory under
 // the memory.high soft limit at a sustained rate of more than 1 event/sec.
@@ -646,7 +646,7 @@ func formatBytes(b uint64) string {
 	}
 }
 
-// ── Rule 11: Healthy System ─────────────────────────────────────────────────
+// â”€â”€ Rule 11: Healthy System â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 func evalHealthySystem(s *collector.Signals) Finding {
 	evidence := "All kernel signals within normal thresholds"
@@ -663,8 +663,9 @@ func evalHealthySystem(s *collector.Signals) Finding {
 		Title:    "System Healthy",
 		Signal:   "all",
 		Cause:    "No issues detected during the analysis window",
-		Impact:   "None — all signals are within configured thresholds",
+		Impact:   "None â€” all signals are within configured thresholds",
 		Evidence: evidence,
 		Fix:      []string{"Run kerno doctor --continuous for ongoing monitoring"},
 	}
 }
+

@@ -1,4 +1,4 @@
-// Copyright 2026 Optiqor contributors
+﻿// Copyright 2026 Optiqor contributors
 // SPDX-License-Identifier: Apache-2.0
 
 package doctor
@@ -77,13 +77,14 @@ type Anomaly struct {
 }
 
 // Engine orchestrates the full doctor diagnostic pipeline:
-// collect signals → evaluate rules → (optional AI) → render report.
+// collect signals -> evaluate rules -> (optional AI) -> render report.
 type Engine struct {
 	thresholds config.DoctorThresholds
 	analyzer   Analyzer
 	logger     *slog.Logger
 	history    []*collector.Signals
 	maxHistory int
+	baselines  *Tracker
 }
 
 // NewEngine creates a new diagnostic engine.
@@ -97,12 +98,19 @@ func NewEngine(thresholds config.DoctorThresholds, analyzer Analyzer, logger *sl
 	}
 }
 
+// WithBaselines attaches an adaptive baseline Tracker to the engine.
+// Call this after NewEngine if baselines are enabled in config.
+func (e *Engine) WithBaselines(tr *Tracker) *Engine {
+	e.baselines = tr
+	return e
+}
+
 // Diagnose runs the full diagnostic pipeline against collected signals.
 func (e *Engine) Diagnose(ctx context.Context, signals *collector.Signals) (*Report, error) {
 	start := time.Now()
 
-	// Phase 1: Evaluate deterministic rules.
-	findings := Evaluate(signals, e.thresholds)
+	// Phase 1: Evaluate deterministic rules (with optional baseline overlays).
+	findings := EvaluateWithBaselines(signals, e.thresholds, e.baselines)
 	e.logger.Debug("rules evaluated",
 		"findings", len(findings),
 		"duration_ms", time.Since(start).Milliseconds(),
@@ -119,7 +127,7 @@ func (e *Engine) Diagnose(ctx context.Context, signals *collector.Signals) (*Rep
 			History:  e.history,
 		})
 		if err != nil {
-			// AI failure is non-fatal — log and continue with deterministic results.
+			// AI failure is non-fatal - log and continue with deterministic results.
 			e.logger.Warn("AI analysis failed, continuing with rule-based results", "error", err)
 		}
 	}
@@ -136,7 +144,7 @@ func (e *Engine) Diagnose(ctx context.Context, signals *collector.Signals) (*Rep
 		Findings:  findings,
 		Analysis:  analysis,
 		// Carry the raw signals through so the JSON renderer can
-		// surface them for debugging — the pretty renderer ignores it.
+		// surface them for debugging - the pretty renderer ignores it.
 		Signals: signals,
 	}
 

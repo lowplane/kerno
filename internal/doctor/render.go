@@ -1,4 +1,4 @@
-// Copyright 2026 Optiqor contributors
+﻿// Copyright 2026 Optiqor contributors
 // SPDX-License-Identifier: Apache-2.0
 
 package doctor
@@ -17,7 +17,7 @@ type Renderer interface {
 	Render(w io.Writer, report *Report) error
 }
 
-// ── Pretty Renderer (production-grade terminal output) ──────────────────────
+// â”€â”€ Pretty Renderer (production-grade terminal output) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // PrettyRenderer outputs a human-readable incident report with ANSI colors,
 // box-drawn finding cards, and bar-chart signal visualizations.
@@ -34,12 +34,12 @@ const (
 )
 
 var prKernoLogo = []string{
-	" ██╗  ██╗███████╗██████╗ ███╗   ██╗ ██████╗",
-	" ██║ ██╔╝██╔════╝██╔══██╗████╗  ██║██╔═══██╗",
-	" █████╔╝ █████╗  ██████╔╝██╔██╗ ██║██║   ██║",
-	" ██╔═██╗ ██╔══╝  ██╔══██╗██║╚██╗██║██║   ██║",
-	" ██║  ██╗███████╗██║  ██║██║ ╚████║╚██████╔╝",
-	" ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝",
+	" â–ˆâ–ˆâ•—  â–ˆâ–ˆâ•—â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ•—â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ•— â–ˆâ–ˆâ–ˆâ•—   â–ˆâ–ˆâ•— â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ•—",
+	" â–ˆâ–ˆâ•‘ â–ˆâ–ˆâ•”â•â–ˆâ–ˆâ•”â•â•â•â•â•â–ˆâ–ˆâ•”â•â•â–ˆâ–ˆâ•—â–ˆâ–ˆâ–ˆâ–ˆâ•—  â–ˆâ–ˆâ•‘â–ˆâ–ˆâ•”â•â•â•â–ˆâ–ˆâ•—",
+	" â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ•”â• â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ•—  â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ•”â•â–ˆâ–ˆâ•”â–ˆâ–ˆâ•— â–ˆâ–ˆâ•‘â–ˆâ–ˆâ•‘   â–ˆâ–ˆâ•‘",
+	" â–ˆâ–ˆâ•”â•â–ˆâ–ˆâ•— â–ˆâ–ˆâ•”â•â•â•  â–ˆâ–ˆâ•”â•â•â–ˆâ–ˆâ•—â–ˆâ–ˆâ•‘â•šâ–ˆâ–ˆâ•—â–ˆâ–ˆâ•‘â–ˆâ–ˆâ•‘   â–ˆâ–ˆâ•‘",
+	" â–ˆâ–ˆâ•‘  â–ˆâ–ˆâ•—â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ•—â–ˆâ–ˆâ•‘  â–ˆâ–ˆâ•‘â–ˆâ–ˆâ•‘ â•šâ–ˆâ–ˆâ–ˆâ–ˆâ•‘â•šâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ•”â•",
+	" â•šâ•â•  â•šâ•â•â•šâ•â•â•â•â•â•â•â•šâ•â•  â•šâ•â•â•šâ•â•  â•šâ•â•â•â• â•šâ•â•â•â•â•â•",
 }
 
 type palette struct {
@@ -83,7 +83,7 @@ func (r *PrettyRenderer) Render(w io.Writer, report *Report) error {
 
 // renderDegradation surfaces eBPF-load failures as a single visible
 // panel directly under the header. Without this they show up only as
-// scattered WARN log lines on stderr — a poor signal for "your report
+// scattered WARN log lines on stderr â€” a poor signal for "your report
 // is missing data and here is exactly how to fix it".
 func (r *PrettyRenderer) renderDegradation(w io.Writer, report *Report, p palette) {
 	if len(report.LoadFailures) == 0 {
@@ -113,8 +113,8 @@ func (r *PrettyRenderer) renderDegradation(w io.Writer, report *Report, p palett
 		progs[i] = f.Program
 	}
 
-	fmt.Fprintf(w, "\n %s%s%s ─────────────────────────────────────── %sdegraded%s\n",
-		p.yellow, "▲ EBPF DEGRADATION", p.reset, p.dim, p.reset)
+	fmt.Fprintf(w, "\n %s%s%s â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ %sdegraded%s\n",
+		p.yellow, "â–² EBPF DEGRADATION", p.reset, p.dim, p.reset)
 	fmt.Fprintf(w, "   %s%d/%d eBPF programs failed to load%s: %s\n",
 		p.bold, len(report.LoadFailures), len(report.LoadFailures)+report.ProgramsLoaded, p.reset,
 		strings.Join(progs, ", "))
@@ -124,7 +124,7 @@ func (r *PrettyRenderer) renderDegradation(w io.Writer, report *Report, p palett
 	fmt.Fprintln(w)
 }
 
-// ── Header ──────────────────────────────────────────────────────────────────
+// â”€â”€ Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 func (r *PrettyRenderer) renderHeader(w io.Writer, report *Report, p palette) {
 	title := "KERNO DOCTOR"
@@ -132,7 +132,7 @@ func (r *PrettyRenderer) renderHeader(w io.Writer, report *Report, p palette) {
 
 	meta := []string{
 		p.bold + title + p.reset,
-		p.dim + strings.Repeat("─", utf8.RuneCountInString(title)) + p.reset,
+		p.dim + strings.Repeat("â”€", utf8.RuneCountInString(title)) + p.reset,
 		p.dim + subtitle + p.reset,
 		"",
 	}
@@ -144,7 +144,7 @@ func (r *PrettyRenderer) renderHeader(w io.Writer, report *Report, p palette) {
 	}
 	kernel := report.KernelVer
 	if kernel != "" && report.Arch != "" {
-		kernel += " · " + report.Arch
+		kernel += " Â· " + report.Arch
 	}
 	if kernel != "" {
 		meta = append(meta, metaField(p, "Kernel", kernel))
@@ -152,7 +152,7 @@ func (r *PrettyRenderer) renderHeader(w io.Writer, report *Report, p palette) {
 	windowText := formatDuration(report.Duration)
 	if report.EventsCollected > 0 {
 		if windowText != "" {
-			windowText += " · "
+			windowText += " Â· "
 		}
 		windowText += formatUint(report.EventsCollected) + " events"
 	}
@@ -190,16 +190,16 @@ func metaField(p palette, label, value string) string {
 	return fmt.Sprintf("%s%-7s%s  %s", p.gray, label, p.reset, value)
 }
 
-// ── Triage banner ───────────────────────────────────────────────────────────
+// â”€â”€ Triage banner â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 func (r *PrettyRenderer) renderTriage(w io.Writer, report *Report, p palette) {
 	crit, warn, info := report.CountBySeverity()
 	duration := formatDuration(report.Duration)
 
 	label := " FINDINGS "
-	rule := strings.Repeat("─", prBoxWidth-utf8.RuneCountInString(label)-utf8.RuneCountInString(duration)-2)
+	rule := strings.Repeat("â”€", prBoxWidth-utf8.RuneCountInString(label)-utf8.RuneCountInString(duration)-2)
 	if rule == "" {
-		rule = strings.Repeat("─", 4)
+		rule = strings.Repeat("â”€", 4)
 	}
 	fmt.Fprintf(w, "%s%s%s%s%s %s%s%s\n",
 		p.bold, label, p.reset,
@@ -207,7 +207,7 @@ func (r *PrettyRenderer) renderTriage(w io.Writer, report *Report, p palette) {
 		p.gray, duration, p.reset)
 
 	dots := severityDots(p, crit, warn, info)
-	counts := fmt.Sprintf("%d critical · %d warning · %d info", crit, warn, info)
+	counts := fmt.Sprintf("%d critical Â· %d warning Â· %d info", crit, warn, info)
 	fmt.Fprintf(w, "   %s   %s%s%s\n", dots, p.dim, counts, p.reset)
 	fmt.Fprintln(w)
 }
@@ -215,31 +215,31 @@ func (r *PrettyRenderer) renderTriage(w io.Writer, report *Report, p palette) {
 func severityDots(p palette, crit, warn, info int) string {
 	var b strings.Builder
 	for i := 0; i < crit; i++ {
-		b.WriteString(p.red + "●" + p.reset + " ")
+		b.WriteString(p.red + "â—" + p.reset + " ")
 	}
 	for i := 0; i < warn; i++ {
-		b.WriteString(p.yellow + "▲" + p.reset + " ")
+		b.WriteString(p.yellow + "â–²" + p.reset + " ")
 	}
 	for i := 0; i < info; i++ {
-		b.WriteString(p.blue + "•" + p.reset + " ")
+		b.WriteString(p.blue + "â€¢" + p.reset + " ")
 	}
 	if crit+warn+info == 0 {
-		b.WriteString(p.green + "✓" + p.reset)
+		b.WriteString(p.green + "âœ“" + p.reset)
 	}
 	return strings.TrimRight(b.String(), " ")
 }
 
-// ── Finding card ────────────────────────────────────────────────────────────
+// â”€â”€ Finding card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 func (r *PrettyRenderer) renderFinding(w io.Writer, f *Finding, p palette) {
 	sevColor, bullet := severityStyle(f.Severity, p)
 
 	// Boxed title.
-	top := p.dim + sevColor + "┏" + strings.Repeat("━", prBoxWidth-2) + "┓" + p.reset
-	bot := p.dim + sevColor + "┗" + strings.Repeat("━", prBoxWidth-2) + "┛" + p.reset
+	top := p.dim + sevColor + "â”" + strings.Repeat("â”", prBoxWidth-2) + "â”“" + p.reset
+	bot := p.dim + sevColor + "â”—" + strings.Repeat("â”", prBoxWidth-2) + "â”›" + p.reset
 	fmt.Fprintln(w, top)
 
-	left := fmt.Sprintf(" %s  %s%s%s  ·  %s%s%s",
+	left := fmt.Sprintf(" %s  %s%s%s  Â·  %s%s%s",
 		bullet,
 		sevColor+p.bold, f.Severity.String(), p.reset,
 		p.bold, f.Title, p.reset)
@@ -253,7 +253,7 @@ func (r *PrettyRenderer) renderFinding(w io.Writer, f *Finding, p palette) {
 	if pad < 1 {
 		pad = 1
 	}
-	fmt.Fprintf(w, "%s┃%s%s%s%s%s%s┃%s\n",
+	fmt.Fprintf(w, "%sâ”ƒ%s%s%s%s%s%sâ”ƒ%s\n",
 		p.dim+sevColor, p.reset,
 		left,
 		strings.Repeat(" ", pad),
@@ -278,6 +278,9 @@ func (r *PrettyRenderer) renderFinding(w io.Writer, f *Finding, p palette) {
 			r.kv(w, p, label, strings.TrimSpace(line))
 		}
 	}
+	if f.BaselineAnnotation != "" {
+		r.kv(w, p, "Baseline", p.yellow+f.BaselineAnnotation+p.reset)
+	}
 	if f.Value > 0 && f.Threshold > 0 {
 		r.renderBar(w, p, f, sevColor)
 	}
@@ -293,7 +296,7 @@ func (r *PrettyRenderer) renderFinding(w io.Writer, f *Finding, p palette) {
 			if i == 0 {
 				label = "Fix"
 			}
-			fmt.Fprintf(w, "     %s%-*s%s  %s→%s %s\n",
+			fmt.Fprintf(w, "     %s%-*s%s  %sâ†’%s %s\n",
 				p.gray, prLabelColumn, label, p.reset,
 				p.green, p.reset, fx)
 		}
@@ -309,17 +312,17 @@ func (r *PrettyRenderer) kv(w io.Writer, p palette, label, value string) {
 func severityStyle(s Severity, p palette) (color, bullet string) {
 	switch s {
 	case SeverityCritical:
-		return p.red, p.red + "●" + p.reset
+		return p.red, p.red + "â—" + p.reset
 	case SeverityWarning:
-		return p.yellow, p.yellow + "▲" + p.reset
+		return p.yellow, p.yellow + "â–²" + p.reset
 	case SeverityInfo:
-		return p.blue, p.blue + "•" + p.reset
+		return p.blue, p.blue + "â€¢" + p.reset
 	default:
-		return p.gray, p.gray + "·" + p.reset
+		return p.gray, p.gray + "Â·" + p.reset
 	}
 }
 
-// ── Signal bar chart ────────────────────────────────────────────────────────
+// â”€â”€ Signal bar chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 func (r *PrettyRenderer) renderBar(w io.Writer, p palette, f *Finding, sevColor string) {
 	ratio := f.Value / f.Threshold
@@ -341,8 +344,8 @@ func (r *PrettyRenderer) renderBar(w io.Writer, p palette, f *Finding, sevColor 
 	valueStr := formatMetricValue(f.Metric, f.Value)
 	threshStr := formatMetricValue(f.Metric, f.Threshold)
 
-	valBar := strings.Repeat("▇", valCells) + strings.Repeat("·", prBarWidth-valCells)
-	thBar := strings.Repeat("▇", prThreshBar) + strings.Repeat("·", prBarWidth-prThreshBar)
+	valBar := strings.Repeat("â–‡", valCells) + strings.Repeat("Â·", prBarWidth-valCells)
+	thBar := strings.Repeat("â–‡", prThreshBar) + strings.Repeat("Â·", prBarWidth-prThreshBar)
 
 	fmt.Fprintf(w, "     %s%-*s%s  %s%s%s  %s\n",
 		p.gray, prLabelColumn, "Value", p.reset,
@@ -357,7 +360,7 @@ func (r *PrettyRenderer) renderBar(w io.Writer, p palette, f *Finding, sevColor 
 // units from the metric name suffix: *_p99 (ns), *_pct, *_per_sec.
 func formatMetricValue(metric string, v float64) string {
 	if v == 0 {
-		return "—"
+		return "â€”"
 	}
 	m := strings.ToLower(metric)
 	switch {
@@ -385,7 +388,7 @@ func formatNanos(ns float64) string {
 	case ns >= 1e6:
 		return fmt.Sprintf("%.1f ms", ns/1e6)
 	case ns >= 1e3:
-		return fmt.Sprintf("%.0f µs", ns/1e3)
+		return fmt.Sprintf("%.0f Âµs", ns/1e3)
 	default:
 		return fmt.Sprintf("%.0f ns", ns)
 	}
@@ -423,11 +426,11 @@ func formatUint(n uint64) string {
 	return b.String()
 }
 
-// ── AI analysis ─────────────────────────────────────────────────────────────
+// â”€â”€ AI analysis â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 func (r *PrettyRenderer) renderAIAnalysis(w io.Writer, analysis *AnalysisResponse, p palette) {
 	label := " AI ANALYSIS "
-	rule := strings.Repeat("─", prBoxWidth-utf8.RuneCountInString(label)-2)
+	rule := strings.Repeat("â”€", prBoxWidth-utf8.RuneCountInString(label)-2)
 	fmt.Fprintf(w, "%s%s%s%s%s%s\n",
 		p.bold+p.magenta, label, p.reset,
 		p.gray, rule, p.reset)
@@ -443,7 +446,7 @@ func (r *PrettyRenderer) renderAIAnalysis(w io.Writer, analysis *AnalysisRespons
 	if len(analysis.Correlations) > 0 {
 		fmt.Fprintf(w, "   %sCross-Signal Correlations%s\n", p.bold, p.reset)
 		for _, c := range analysis.Correlations {
-			fmt.Fprintf(w, "     %s•%s %s[%s]%s %s %s(confidence: %.0f%%)%s\n",
+			fmt.Fprintf(w, "     %sâ€¢%s %s[%s]%s %s %s(confidence: %.0f%%)%s\n",
 				p.cyan, p.reset,
 				p.cyan, strings.Join(c.Signals, " + "), p.reset,
 				c.Description,
@@ -457,7 +460,7 @@ func (r *PrettyRenderer) renderAIAnalysis(w io.Writer, analysis *AnalysisRespons
 		for i, rc := range analysis.RootCauses {
 			fmt.Fprintf(w, "     %s%d.%s %s\n", p.magenta, i+1, p.reset, rc.Description)
 			if rc.Fix != "" {
-				fmt.Fprintf(w, "        %s→%s %s\n", p.green, p.reset, rc.Fix)
+				fmt.Fprintf(w, "        %sâ†’%s %s\n", p.green, p.reset, rc.Fix)
 			}
 		}
 		fmt.Fprintln(w)
@@ -483,7 +486,7 @@ func wrapText(s string, width int) []string {
 	return lines
 }
 
-// ── Recommended order ───────────────────────────────────────────────────────
+// â”€â”€ Recommended order â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 func (r *PrettyRenderer) renderRecommendedOrder(w io.Writer, report *Report, p palette) {
 	actionFindings := filterActionable(report.Findings)
@@ -491,7 +494,7 @@ func (r *PrettyRenderer) renderRecommendedOrder(w io.Writer, report *Report, p p
 		return
 	}
 	label := " RECOMMENDED ACTION ORDER "
-	rule := strings.Repeat("─", prBoxWidth-utf8.RuneCountInString(label)-2)
+	rule := strings.Repeat("â”€", prBoxWidth-utf8.RuneCountInString(label)-2)
 	fmt.Fprintf(w, "%s%s%s%s%s%s\n",
 		p.bold, label, p.reset,
 		p.gray, rule, p.reset)
@@ -518,11 +521,11 @@ func (r *PrettyRenderer) renderRecommendedOrder(w io.Writer, report *Report, p p
 	fmt.Fprintln(w)
 }
 
-// ── System summary ──────────────────────────────────────────────────────────
+// â”€â”€ System summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 func (r *PrettyRenderer) renderSummary(w io.Writer, report *Report, p palette) {
 	label := " SYSTEM SUMMARY "
-	rule := strings.Repeat("─", prBoxWidth-utf8.RuneCountInString(label)-2)
+	rule := strings.Repeat("â”€", prBoxWidth-utf8.RuneCountInString(label)-2)
 	fmt.Fprintf(w, "%s%s%s%s%s%s\n",
 		p.bold, label, p.reset,
 		p.gray, rule, p.reset)
@@ -540,10 +543,10 @@ func (r *PrettyRenderer) renderSummary(w io.Writer, report *Report, p palette) {
 	fmt.Fprintf(w, "   %skerno doctor --output json%s    for runbooks and Slack bots\n", p.dim, p.reset)
 	fmt.Fprintf(w, "   %skerno predict%s                 to surface failures before they page you\n", p.dim, p.reset)
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, p.gray+strings.Repeat("═", prBoxWidth)+p.reset)
+	fmt.Fprintln(w, p.gray+strings.Repeat("â•", prBoxWidth)+p.reset)
 }
 
-// ── helpers ─────────────────────────────────────────────────────────────────
+// â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 func filterActionable(findings []Finding) []Finding {
 	result := make([]Finding, 0, len(findings))
@@ -578,7 +581,7 @@ func visibleLen(s string) int {
 	return utf8.RuneCountInString(stripANSI(s))
 }
 
-// ── JSON Renderer ───────────────────────────────────────────────────────────
+// â”€â”€ JSON Renderer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // JSONRenderer outputs a machine-readable JSON report.
 type JSONRenderer struct {
@@ -675,3 +678,4 @@ func (r *JSONRenderer) Render(w io.Writer, report *Report) error {
 	}
 	return enc.Encode(jr)
 }
+
