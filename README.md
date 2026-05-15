@@ -598,6 +598,7 @@ make test-race      # Run with race detector
 make lint           # golangci-lint
 make check          # vet + test + lint
 make verify         # Comprehensive 13-phase production-readiness check
+make manpage        # Generate man pages for all CLI commands
 make demo           # Record demo.gif via vhs (needs vhs + ttyd + ffmpeg)
 make demo-cast      # Record demo.cast via asciinema (alternative to vhs)
 make docker         # Build Docker image

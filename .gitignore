@@ -35,6 +35,9 @@ Thumbs.db
 # Debug
 __debug_bin*
 
+# Man pages (generatable via make manpage)
+docs/man/*.1
+
 # Environment
 .env
 .env.local
