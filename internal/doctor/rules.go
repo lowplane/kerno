@@ -13,6 +13,85 @@ import (
 	"github.com/optiqor/kerno/internal/config"
 )
 
+// RuleInfo contains metadata about a diagnostic rule.
+type RuleInfo struct {
+	Name      string
+	Severity  Severity
+	Threshold string
+}
+
+// ListRules returns a static catalog of all possible rules that can be
+// emitted by the diagnostic engine, in the same order they are evaluated.
+func ListRules() []RuleInfo {
+	return []RuleInfo{
+		{
+			Name:      "disk_io_bottleneck",
+			Severity:  SeverityCritical,
+			Threshold: "fsync p99 > 50ms OR queue > 8",
+		},
+		{
+			Name:      "disk_io_write_high",
+			Severity:  SeverityCritical,
+			Threshold: "write p99 > 200ms",
+		},
+		{
+			Name:      "oom_kill_occurred",
+			Severity:  SeverityCritical,
+			Threshold: "OOM kill detected",
+		},
+		{
+			Name:      "tcp_retransmit_storm",
+			Severity:  SeverityCritical,
+			Threshold: "retransmit rate > 2%",
+		},
+		{
+			Name:      "tcp_rtt_degradation",
+			Severity:  SeverityWarning,
+			Threshold: "RTT p99 elevated",
+		},
+		{
+			Name:      "scheduler_contention",
+			Severity:  SeverityCritical,
+			Threshold: "runqueue latency elevated",
+		},
+		{
+			Name:      "fd_leak",
+			Severity:  SeverityWarning,
+			Threshold: "FD growth exceeds threshold",
+		},
+		{
+			Name:      "syscall_latency_high",
+			Severity:  SeverityWarning,
+			Threshold: "syscall p99 latency elevated",
+		},
+		{
+			Name:      "oom_imminent",
+			Severity:  SeverityCritical,
+			Threshold: "memory > 90% with positive growth",
+		},
+		{
+			Name:      "syscall_error_rate",
+			Severity:  SeverityWarning,
+			Threshold: "syscall error rate elevated",
+		},
+		{
+			Name:      "memory_limit_pressure",
+			Severity:  SeverityWarning,
+			Threshold: "container nearing memory limit",
+		},
+		{
+			Name:      "memory_high_throttling",
+			Severity:  SeverityWarning,
+			Threshold: "memory reclaim pressure detected",
+		},
+		{
+			Name:      "healthy_system",
+			Severity:  SeverityInfo,
+			Threshold: "no abnormal kernel signals detected",
+		},
+	}
+}
+
 // Evaluate runs all diagnostic rules against the collected signals and returns
 // findings sorted by severity. This is the deterministic core of kerno doctor —
 // no AI, no network calls, always available.
