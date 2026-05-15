@@ -82,6 +82,20 @@ spec:
               value: {{ .Values.log.level }}
             - name: KERNO_LOG_FORMAT
               value: {{ .Values.log.format }}
+            - name: KERNO_PROMETHEUS_AUTH_MODE
+              value: {{ .Values.prometheus.auth.mode | quote }}
+            {{- if eq .Values.prometheus.auth.mode "bearer" }}
+            - name: KERNO_PROMETHEUS_AUTH_TOKEN_FILE
+              value: "/etc/kerno/auth/token/{{ .Values.prometheus.auth.tokenSecretKey }}"
+            {{- end }}
+            {{- if eq .Values.prometheus.auth.mode "mtls" }}
+            - name: KERNO_PROMETHEUS_AUTH_CERT_FILE
+              value: "/etc/kerno/auth/tls/tls.crt"
+            - name: KERNO_PROMETHEUS_AUTH_KEY_FILE
+              value: "/etc/kerno/auth/tls/tls.key"
+            - name: KERNO_PROMETHEUS_AUTH_CA_CERT_FILE
+              value: "/etc/kerno/auth/tls/ca.crt"
+            {{- end }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -145,6 +159,16 @@ spec:
             - name: sys-block
               mountPath: /host/sys/block
               readOnly: true
+            {{- if eq .Values.prometheus.auth.mode "bearer" }}
+            - name: auth-token
+              mountPath: /etc/kerno/auth/token
+              readOnly: true
+            {{- end }}
+            {{- if eq .Values.prometheus.auth.mode "mtls" }}
+            - name: auth-tls
+              mountPath: /etc/kerno/auth/tls
+              readOnly: true
+            {{- end }}
       volumes:
         - name: sys-kernel-debug
           hostPath:
@@ -174,4 +198,13 @@ spec:
           hostPath:
             path: /sys/block
             type: Directory
-            
+        {{- if eq .Values.prometheus.auth.mode "bearer" }}
+        - name: auth-token
+          secret:
+            secretName: {{ .Values.prometheus.auth.tokenSecretName }}
+        {{- end }}
+        {{- if eq .Values.prometheus.auth.mode "mtls" }}
+        - name: auth-tls
+          secret:
+            secretName: {{ .Values.prometheus.auth.tlsSecretName }}
+        {{- end }}
