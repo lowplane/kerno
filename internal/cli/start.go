@@ -5,6 +5,7 @@ package cli
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,6 +20,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/optiqor/kerno/internal/adapter"
+	"github.com/optiqor/kerno/internal/auth"
 	"github.com/optiqor/kerno/internal/bpf"
 	"github.com/optiqor/kerno/internal/metrics"
 	"github.com/optiqor/kerno/internal/version"
@@ -154,17 +156,61 @@ func runStart(ctx context.Context, opts startOpts) error {
 		mux := http.NewServeMux()
 		mux.HandleFunc("/healthz", healthzHandler(loadedCount, len(loaders)))
 		mux.HandleFunc("/readyz", readyzHandler(loadedCount, len(loaders)))
-		mux.Handle("/metrics", promhttp.HandlerFor(metrics.Registry, promhttp.HandlerOpts{}))
+
+		var metricsHandler http.Handler = promhttp.HandlerFor(metrics.Registry, promhttp.HandlerOpts{})
+
+		if cfg.Prometheus.Auth.Mode == "bearer" {
+			guard, err := auth.NewBearerGuard(cfg.Prometheus.Auth.TokenFile, logger)
+			if err != nil {
+				return fmt.Errorf("failed to initialize bearer auth: %w", err)
+			}
+			metricsHandler = guard.Wrap(metricsHandler)
+
+			// Setup SIGHUP listener for hot-reloading the token without restart.
+			sighupCh := make(chan os.Signal, 1)
+			signal.Notify(sighupCh, syscall.SIGHUP)
+			go func() {
+				for {
+					select {
+					case <-ctx.Done():
+						return
+					case <-sighupCh:
+						if err := guard.Reload(cfg.Prometheus.Auth.TokenFile); err != nil {
+							logger.Error("failed to reload bearer token", "error", err)
+						}
+					}
+				}
+			}()
+		}
+
+		mux.Handle("/metrics", metricsHandler)
+
+		var tlsCfg *tls.Config
+		if cfg.Prometheus.Auth.Mode == "mtls" {
+			var err error
+			tlsCfg, err = auth.TLSConfig(cfg.Prometheus.Auth.CertFile, cfg.Prometheus.Auth.KeyFile, cfg.Prometheus.Auth.CACertFile)
+			if err != nil {
+				return fmt.Errorf("failed to initialize mtls: %w", err)
+			}
+		}
 
 		httpServer = &http.Server{
 			Addr:              promAddr,
 			Handler:           mux,
 			ReadHeaderTimeout: 10 * time.Second,
+			TLSConfig:         tlsCfg,
 		}
 
 		go func() {
-			logger.Info("starting HTTP server", "addr", promAddr)
-			if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.Info("starting HTTP server", "addr", promAddr, "auth_mode", cfg.Prometheus.Auth.Mode)
+			var err error
+			if tlsCfg != nil {
+				// Certs are already loaded into TLSConfig
+				err = httpServer.ListenAndServeTLS("", "")
+			} else {
+				err = httpServer.ListenAndServe()
+			}
+			if err != nil && !errors.Is(err, http.ErrServerClosed) {
 				logger.Error("HTTP server error", "error", err)
 			}
 		}()

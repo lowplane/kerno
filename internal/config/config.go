@@ -107,8 +107,18 @@ type DoctorThresholds struct {
 
 // PrometheusConfig controls the Prometheus metrics exporter.
 type PrometheusConfig struct {
-	Enabled bool   `mapstructure:"enabled" json:"enabled"`
-	Addr    string `mapstructure:"addr" json:"addr"`
+	Enabled bool           `mapstructure:"enabled" json:"enabled"`
+	Addr    string         `mapstructure:"addr" json:"addr"`
+	Auth    PrometheusAuth `mapstructure:"auth" json:"auth"`
+}
+
+// PrometheusAuth defines authentication settings for the metrics endpoint.
+type PrometheusAuth struct {
+	Mode       string `mapstructure:"mode" json:"mode"`
+	TokenFile  string `mapstructure:"token_file" json:"tokenFile"`
+	CACertFile string `mapstructure:"ca_cert_file" json:"caCertFile"`
+	CertFile   string `mapstructure:"cert_file" json:"certFile"`
+	KeyFile    string `mapstructure:"key_file" json:"keyFile"`
 }
 
 // DashboardConfig controls the embedded web dashboard.
@@ -166,6 +176,9 @@ func Default() *Config {
 		Prometheus: PrometheusConfig{
 			Enabled: true,
 			Addr:    ":9090",
+			Auth: PrometheusAuth{
+				Mode: "none",
+			},
 		},
 		Dashboard: DashboardConfig{
 			Enabled: false,
@@ -224,8 +237,21 @@ func (c *Config) Validate() error {
 		}
 	}
 
-	if c.Prometheus.Enabled && c.Prometheus.Addr == "" {
-		return fmt.Errorf("prometheus.addr must be set when prometheus is enabled")
+	if c.Prometheus.Enabled {
+		if c.Prometheus.Addr == "" {
+			return fmt.Errorf("prometheus.addr must be set when prometheus is enabled")
+		}
+		switch c.Prometheus.Auth.Mode {
+		case "none", "bearer", "mtls", "":
+		default:
+			return fmt.Errorf("invalid prometheus.auth.mode %q: must be none, bearer, or mtls", c.Prometheus.Auth.Mode)
+		}
+		if c.Prometheus.Auth.Mode == "bearer" && c.Prometheus.Auth.TokenFile == "" {
+			return fmt.Errorf("prometheus.auth.token_file is required when auth mode is bearer")
+		}
+		if c.Prometheus.Auth.Mode == "mtls" && (c.Prometheus.Auth.CertFile == "" || c.Prometheus.Auth.KeyFile == "") {
+			return fmt.Errorf("prometheus.auth.cert_file and prometheus.auth.key_file are required when auth mode is mtls")
+		}
 	}
 
 	if c.Dashboard.Enabled && c.Dashboard.Addr == "" {
