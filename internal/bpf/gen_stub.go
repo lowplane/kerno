@@ -16,7 +16,7 @@
 // _bpfel.go files (on amd64/arm64/...), those provide the real
 // definitions and this file is excluded.
 
-//go:build !386 && !amd64 && !arm && !arm64 && !loong64 && !mips64le && !mipsle && !ppc64le && !riscv64 && !wasm
+//go:build !ebpf
 
 package bpf
 
