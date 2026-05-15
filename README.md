@@ -170,6 +170,61 @@ docker run --rm --privileged --pid=host \
 Multi-arch (`linux/amd64`, `linux/arm64`) images published to GHCR on every release.
 
 ---
+## Chaos Engineering
+
+Kerno ships with built-in chaos scenarios that intentionally stress the kernel to simulate real production incidents. This makes it easy to test the full "induce → detect → explain" workflow locally or inside Kubernetes without external tooling.
+
+Each scenario is paired with a diagnostic rule, so you can immediately verify that `kerno doctor` detects and explains the problem correctly.
+
+### Available Scenarios
+
+```bash
+$ kerno chaos --list
+
+SCENARIO   PAIRED RULE            DESCRIPTION
+cascade    multiple               Disk → TCP → memory → CPU cascade simulating a real incident
+cpu        scheduler_contention   Pin N goroutines on tight CPU loops
+disk-sat   disk_io_bottleneck     Write+fsync in a tight loop
+fd-leak    fd_leak                Open file descriptors at a steady rate without closing them
+memory     oom_imminent           Grow resident memory steadily
+tcp-churn  tcp_connection_churn   Open and close localhost TCP connections at high rate
+tcp-loss   tcp_retransmit_storm   Drive bulk TCP retransmits via tc netem
+```
+
+### Example Workflow
+
+Terminal 1 — induce memory pressure:
+
+```bash
+sudo kerno chaos --induce memory --duration 30s
+```
+
+Terminal 2 — run diagnosis:
+
+```bash
+sudo kerno doctor
+```
+
+Expected finding:
+
+```text
+🔴 CRITICAL · OOM Imminent
+
+Memory pressure is increasing rapidly and the system is approaching OOM conditions.
+
+Evidence:
+- Memory usage above threshold
+- Positive growth trend detected
+- Estimated exhaustion window detected
+```
+
+This workflow is the fastest way to evaluate Kerno end-to-end: induce a failure, observe kernel signals through eBPF, and verify the diagnostic engine explains the root cause correctly.
+
+### Creating Custom Scenarios
+
+Custom chaos scenarios live in [`internal/chaos/`](internal/chaos/). Use the existing scenarios as references for building new incident simulations and validating additional diagnostic rules.
+
+---
 
 ## Kubernetes Deployment
 
