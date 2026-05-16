@@ -53,9 +53,9 @@ func formatLatency(d time.Duration) string {
 func formatBytes(b uint64) string {
 	switch {
 	case b >= 1<<50:
-        return fmt.Sprintf("%.1fPB", float64(b)/(1<<50))
-    case b >= 1<<40:
-        return fmt.Sprintf("%.1fTB", float64(b)/(1<<40))
+		return fmt.Sprintf("%.1fPB", float64(b)/(1<<50))
+	case b >= 1<<40:
+		return fmt.Sprintf("%.1fTB", float64(b)/(1<<40))
 	case b >= 1<<30:
 		return fmt.Sprintf("%.1fGB", float64(b)/(1<<30))
 	case b >= 1<<20:
