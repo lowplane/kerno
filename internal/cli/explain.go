@@ -16,6 +16,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/optiqor/kerno/internal/ai"
+	"github.com/optiqor/kerno/internal/doctor"
 )
 
 const explainSystemPrompt = `You are Kerno, a Linux kernel expert. The user will paste a kernel error message, log line, or stack trace. Your job is to:
@@ -29,6 +30,8 @@ Be concise. Use concrete technical details. If you're not sure about the root ca
 Format your response as clear sections with headers.`
 
 func newExplainCmd() *cobra.Command {
+	var ruleName string
+
 	cmd := &cobra.Command{
 		Use:   "explain [error message]",
 		Short: "Explain a kernel error or log message using AI",
@@ -36,21 +39,54 @@ func newExplainCmd() *cobra.Command {
 explains it in plain English with root cause analysis and fix suggestions.
 
 No eBPF or root access required — just paste your error and get answers.
-Requires an AI provider to be configured (--ai-provider or KERNO_AI_PROVIDER).`,
+Requires an AI provider to be configured (--ai-provider or KERNO_AI_PROVIDER).
+
+Use --rule <name> to print documentation for a specific rule without any AI call.`,
 		Example: `  # Explain a kernel error from argument
   kerno explain "BUG: kernel NULL pointer dereference, address: 0000000000000040"
 
   # Explain from stdin (pipe dmesg, journalctl, etc.)
   dmesg | tail -5 | kerno explain
 
-  # Explain a specific log line
-  kerno explain "Out of memory: Killed process 1234 (postgres)"`,
+  # Print documentation for a specific rule (no AI needed)
+  kerno explain --rule oom_imminent
+
+  # List all available rules
+  kerno explain --rule`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// --rule flag path: no AI call.
+			if cmd.Flags().Changed("rule") {
+				return runExplainRule(ruleName)
+			}
 			return runExplain(cmd.Context(), args)
 		},
 	}
 
+	cmd.Flags().StringVar(&ruleName, "rule", "", "Print documentation for a specific rule (no AI call). Omit the value to list all rules.")
+
 	return cmd
+}
+
+// runExplainRule handles the --rule flag path.
+func runExplainRule(name string) error {
+	// No argument → list all rules.
+	if name == "" {
+		fmt.Println("Available rules:")
+		for _, n := range doctor.RuleNames() {
+			fmt.Printf("  %s\n", n)
+		}
+		fmt.Println("\nRun `kerno explain --rule <name>` to see documentation for a specific rule.")
+		return nil
+	}
+
+	info, err := doctor.LookupRule(name)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	fmt.Print(doctor.PrintRuleDoc(info))
+	return nil
 }
 
 func runExplain(ctx context.Context, args []string) error {
