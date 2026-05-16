@@ -1,0 +1,204 @@
+﻿# Copyright 2026 Optiqor contributors
+# SPDX-License-Identifier: Apache-2.0
+
+name: Soak Test (24h)
+
+on:
+  schedule:
+    - cron: '0 2 * * *'   # nightly at 02:00 UTC
+  workflow_dispatch:       # allow manual trigger
+
+concurrency:
+  group: soak
+  cancel-in-progress: false   # never cancel a running soak
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: "1.25"
+  SOAK_DURATION: 86400        # 24 h in seconds
+  POLL_INTERVAL: 300          # scrape every 5 min
+  METRICS_PORT: 9090
+  PPROF_PORT: 6060
+  CSV: soak-results/metrics.csv
+
+jobs:
+  soak:
+    name: 24-hour soak
+    runs-on: ubuntu-22.04
+    timeout-minutes: 1500     # 25 h hard ceiling
+
+    steps:
+      # ── Checkout ────────────────────────────────────────────────────────
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      # ── System deps ─────────────────────────────────────────────────────
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            clang llvm libbpf-dev linux-headers-generic \
+            linux-tools-common bpftool jq make bc
+
+      # ── Build ───────────────────────────────────────────────────────────
+      - name: Build kerno
+        run: make build
+
+      - name: Grant BPF capabilities
+        run: |
+          sudo setcap \
+            'cap_bpf,cap_perfmon,cap_sys_ptrace,cap_sys_admin,cap_net_admin,cap_dac_read_search+ep' \
+            ./bin/kerno
+
+      # ── Prepare output dirs ─────────────────────────────────────────────
+      - name: Prepare output directories
+        run: |
+          mkdir -p soak-results/pprof
+          echo "ts_unix,rss_kb,goroutines,fds,bpf_maps,throughput_eps,doctor_p99_ms" \
+            > ${{ env.CSV }}
+
+      # ── Launch kerno ────────────────────────────────────────────────────
+      - name: Start kerno daemon
+        run: |
+          ./bin/kerno start \
+            --metrics-addr :${{ env.METRICS_PORT }} \
+            --pprof-addr   :${{ env.PPROF_PORT }} \
+            --log-level    info \
+            > soak-results/kerno.log 2>&1 &
+          echo "KERNO_PID=$!" >> $GITHUB_ENV
+          sleep 5
+          kill -0 $KERNO_PID || (echo "kerno failed to start"; cat soak-results/kerno.log; exit 1)
+
+      # ── Launch chaos ────────────────────────────────────────────────────
+      - name: Start chaos load
+        run: |
+          ./bin/kerno chaos \
+            --induce cascade \
+            --duration ${{ env.SOAK_DURATION }}s \
+            > soak-results/chaos.log 2>&1 &
+          echo "CHAOS_PID=$!" >> $GITHUB_ENV
+          sleep 3
+
+      # ── Monitoring loop ─────────────────────────────────────────────────
+      - name: Run monitoring loop
+        run: |
+          bash scripts/soak-watch.sh \
+            --duration  ${{ env.SOAK_DURATION }} \
+            --interval  ${{ env.POLL_INTERVAL }} \
+            --csv       ${{ env.CSV }} \
+            --pprof-port ${{ env.PPROF_PORT }} \
+            --metrics-port ${{ env.METRICS_PORT }} \
+            --pprof-dir soak-results/pprof \
+            --pid       ${{ env.KERNO_PID }}
+
+      # ── Stop processes ───────────────────────────────────────────────────
+      - name: Stop kerno and chaos
+        if: always()
+        run: |
+          kill ${{ env.KERNO_PID }}  2>/dev/null || true
+          kill ${{ env.CHAOS_PID }}  2>/dev/null || true
+          sleep 2
+
+      # ── Panic / Fatal check ──────────────────────────────────────────────
+      - name: Check for panics and fatals
+        run: |
+          echo "=== Scanning logs for panics/fatals ==="
+          PANIC_COUNT=$(grep -cEi 'panic|fatal|deadline exceeded' soak-results/kerno.log || true)
+          echo "panic/fatal count: $PANIC_COUNT"
+          if [ "$PANIC_COUNT" -gt 0 ]; then
+            echo "FAIL: $PANIC_COUNT panic/fatal/deadline-exceeded lines found"
+            grep -Ei 'panic|fatal|deadline exceeded' soak-results/kerno.log | tail -40
+            exit 1
+          fi
+          echo "PASS: No panics or fatals"
+
+      # ── Assert pass criteria ─────────────────────────────────────────────
+      - name: Assert soak pass criteria
+        run: |
+          python3 - <<'PYEOF'
+          import csv, sys
+
+          rows = []
+          with open("${{ env.CSV }}") as f:
+              for r in csv.DictReader(f):
+                  rows.append(r)
+
+          if len(rows) < 13:   # need at least hour-1 + hour-24 data points
+              print(f"Only {len(rows)} rows — soak may not have run long enough")
+              sys.exit(1)
+
+          def v(row, key):
+              return float(row[key]) if row[key] not in ('', 'N/A') else None
+
+          # Hour-1 baseline = row 12 (index 12, ~60 min at 5-min intervals)
+          baseline = rows[12]
+          final    = rows[-1]
+
+          failures = []
+
+          # RSS: final < 1.5x hour-1
+          rss_base  = v(baseline, 'rss_kb')
+          rss_final = v(final,    'rss_kb')
+          if rss_base and rss_final:
+              ratio = rss_final / rss_base
+              print(f"RSS ratio final/hour1: {ratio:.3f} (limit 1.5)")
+              if ratio >= 1.5:
+                  failures.append(f"RSS leak: {rss_final:.0f} KB final vs {rss_base:.0f} KB at hour-1 (ratio {ratio:.2f})")
+
+          # Goroutines: final <= hour-1 + 50
+          gor_base  = v(baseline, 'goroutines')
+          gor_final = v(final,    'goroutines')
+          if gor_base and gor_final:
+              delta = gor_final - gor_base
+              print(f"Goroutine delta: {delta:.0f} (limit +50)")
+              if delta > 50:
+                  failures.append(f"Goroutine leak: {gor_final:.0f} final vs {gor_base:.0f} at hour-1 (delta {delta:.0f})")
+
+          # FD: compare warm-up end (row 6, ~30 min) to final
+          warmup   = rows[6]
+          fd_warm  = v(warmup, 'fds')
+          fd_final = v(final,  'fds')
+          if fd_warm and fd_final:
+              fd_delta = fd_final - fd_warm
+              print(f"FD delta post-warmup: {fd_delta:.0f} (limit 50)")
+              if fd_delta > 50:
+                  failures.append(f"FD leak: {fd_final:.0f} final vs {fd_warm:.0f} post-warmup (delta {fd_delta:.0f})")
+
+          # Throughput stability: stdev/mean <= 0.20 across all rows
+          tps = [v(r, 'throughput_eps') for r in rows if v(r, 'throughput_eps') is not None]
+          if len(tps) > 5:
+              mean = sum(tps) / len(tps)
+              variance = sum((x - mean)**2 for x in tps) / len(tps)
+              stdev = variance ** 0.5
+              cv = stdev / mean if mean > 0 else 0
+              print(f"Throughput CV: {cv:.3f} (limit 0.20), mean={mean:.1f} eps")
+              if cv > 0.20:
+                  failures.append(f"Throughput unstable: CV={cv:.3f} > 0.20")
+
+          if failures:
+              print("\nSOAK FAILED:")
+              for f in failures:
+                  print(f"  FAIL: {f}")
+              sys.exit(1)
+
+          print("\nSOAK PASSED: All criteria met.")
+          PYEOF
+
+      # ── Upload artifacts ─────────────────────────────────────────────────
+      - name: Upload soak artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: soak-report-${{ github.run_id }}
+          retention-days: 30
+          path: |
+            soak-results/metrics.csv
+            soak-results/kerno.log
+            soak-results/chaos.log
+            soak-results/pprof/

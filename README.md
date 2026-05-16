@@ -1,4 +1,4 @@
-<div align="center">
+﻿<div align="center">
 
 # KERNO
 
@@ -10,13 +10,14 @@
 <sub>Same single binary runs on bare metal, VMs, EC2, GCE - wherever Linux lives.</sub>
 
 [![CI](https://github.com/optiqor/kerno/actions/workflows/ci.yml/badge.svg)](https://github.com/optiqor/kerno/actions/workflows/ci.yml)
+[![Soak](https://github.com/optiqor/kerno/actions/workflows/soak.yml/badge.svg)](https://github.com/optiqor/kerno/actions/workflows/soak.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/optiqor/kerno)](https://goreportcard.com/report/github.com/optiqor/kerno)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/optiqor/kerno?include_prereleases)](https://github.com/optiqor/kerno/releases)
 [![GHCR](https://img.shields.io/badge/ghcr.io-optiqor%2Fkerno-blue?logo=docker)](https://github.com/optiqor/kerno/pkgs/container/kerno)
 ![Go Version](https://img.shields.io/github/go-mod/go-version/optiqor/kerno)
 
-[**Quick Start**](#quick-start) · [**How It Works**](#how-it-works) · [**Features**](#features) · [**Kubernetes**](#kubernetes-deployment) · [**Docs**](docs/architecture.md)
+[**Quick Start**](#quick-start) Â· [**How It Works**](#how-it-works) Â· [**Features**](#features) Â· [**Kubernetes**](#kubernetes-deployment) Â· [**Docs**](docs/architecture.md)
 
 <img src="demo.gif" alt="kerno doctor demo" width="900" />
 
@@ -61,8 +62,8 @@ flowchart TB
     end
 
     subgraph Tools["WHO WATCHES WHAT"]
-        APM["Datadog · New Relic<br/>Prometheus · Grafana"]
-        CRun["Pixie · Tetragon<br/>Inspektor Gadget"]
+        APM["Datadog Â· New Relic<br/>Prometheus Â· Grafana"]
+        CRun["Pixie Â· Tetragon<br/>Inspektor Gadget"]
         Kerno["<b>KERNO</b><br/><i>eBPF kernel tracing</i>"]
         Bare["(nobody)"]
     end
@@ -115,7 +116,7 @@ Kerno is the only eBPF tool in the Kubernetes ecosystem that produces a ranked, 
 
 > **Requires:** kernel **5.8+** with BTF (every major managed K8s qualifies: EKS, GKE, AKS, DOKS, Linode, Civo). For raw manifests/Helm you'll need cluster-admin.
 
-### 1 · Kubernetes (primary)
+### 1 Â· Kubernetes (primary)
 
 ```bash
 helm install kerno ./deploy/helm/kerno \
@@ -140,7 +141,7 @@ ServiceMonitor for the Prometheus Operator is built-in. Raw manifests live at [`
 
 ---
 
-### 2 · Bare metal · VMs · EC2 · GCE
+### 2 Â· Bare metal Â· VMs Â· EC2 Â· GCE
 
 The same binary, the same command. No Kubernetes required.
 
@@ -156,7 +157,7 @@ curl -sfL https://raw.githubusercontent.com/optiqor/kerno/main/scripts/install.s
 journalctl -u kerno -f
 ```
 
-### 3 · Docker (ad-hoc, any host with a privileged daemon)
+### 3 Â· Docker (ad-hoc, any host with a privileged daemon)
 
 ```bash
 docker run --rm --privileged --pid=host \
@@ -223,7 +224,7 @@ Kerno tags every finding with pod, namespace, node, and workload labels. No `cli
 | `/sys/kernel/debug` | tracepoints, kprobes |
 | `/sys/kernel/btf` | CO-RE type resolution |
 | `/sys/fs/bpf` | BPF map pinning |
-| `/proc` | PID → cgroup → pod resolution |
+| `/proc` | PID â†’ cgroup â†’ pod resolution |
 | `/sys/fs/cgroup` | container resource accounting |
 | `/sys/class/net` | per-interface TCP counters |
 | `/sys/block` | per-device disk stats |
@@ -316,7 +317,7 @@ Kerno runs as a lightweight Go agent with six tiny eBPF programs attached to sta
 
 ```mermaid
 flowchart TB
-    subgraph Kernel["KERNEL SPACE · eBPF Programs"]
+    subgraph Kernel["KERNEL SPACE Â· eBPF Programs"]
         direction LR
         P1["syscall<br/>latency"]
         P2["tcp<br/>monitor"]
@@ -328,12 +329,12 @@ flowchart TB
 
     RB[("Ring Buffers<br/>256KB per program<br/>zero-copy mmap")]
 
-    subgraph UserSpace["USER SPACE · Go"]
+    subgraph UserSpace["USER SPACE Â· Go"]
         direction TB
         Loader["BPF Loaders<br/>cilium/ebpf"]
         Collector["Collectors<br/>percentile aggregation"]
         Signals[("Signals Snapshot<br/>single source of truth")]
-        Adapter["Environment Adapter<br/>k8s · systemd · bare metal"]
+        Adapter["Environment Adapter<br/>k8s Â· systemd Â· bare metal"]
     end
 
     subgraph Outputs["OUTPUTS"]
@@ -341,7 +342,7 @@ flowchart TB
         Doctor["Doctor Engine<br/>11 diagnostic rules"]
         AI["AI Layer <i>(optional)</i><br/>root cause analysis"]
         Prom["Prometheus<br/>/metrics :9090"]
-        CLI["Terminal<br/>pretty · JSON"]
+        CLI["Terminal<br/>pretty Â· JSON"]
     end
 
     P1 & P2 & P3 & P4 & P5 & P6 --> RB
@@ -465,7 +466,7 @@ kubectl -n kerno-system exec ds/kerno -- kerno trace disk --process postgres --o
 kubectl -n kerno-system exec ds/kerno -- kerno trace sched --threshold 10ms
 ```
 
-### Continuous monitoring - "alert me when…"
+### Continuous monitoring - "alert me whenâ€¦"
 
 ```bash
 # TCP connections with retransmits
@@ -515,9 +516,9 @@ Health endpoints: `/healthz` and `/readyz` return JSON status.
 
 **Environment auto-detection.** Kerno picks one of three adapters and enriches every event - no configuration required:
 
-- **Kubernetes** (in-cluster token present) → pod, namespace, node, deployment
-- **Systemd** (PID 1 is systemd) → unit, slice, scope
-- **Bare metal** → hostname, cgroup path
+- **Kubernetes** (in-cluster token present) â†’ pod, namespace, node, deployment
+- **Systemd** (PID 1 is systemd) â†’ unit, slice, scope
+- **Bare metal** â†’ hostname, cgroup path
 
 **AI (optional).** The AI layer runs **after** the deterministic rule engine - it correlates cross-signals and explains root causes, it never replaces rules. Three providers (**Anthropic**, **OpenAI**, **Ollama** for air-gapped), three privacy modes (`full` / `redacted` / `summary`), TTL cache + token-bucket rate limiting, graceful fallback to a deterministic template on failure. No LLM SDK dependencies - pure `net/http`.
 
@@ -654,6 +655,7 @@ Apache License 2.0 - see [LICENSE](LICENSE).
 
 ---
 
-If Kerno saved your on-call shift, consider leaving a **⭐**  it helps other engineers find the project.
+If Kerno saved your on-call shift, consider leaving a **â­**  it helps other engineers find the project.
 
 </div>
+
