@@ -1,4 +1,4 @@
-﻿// Copyright 2026 Optiqor contributors
+// Copyright 2026 Optiqor contributors
 // SPDX-License-Identifier: Apache-2.0
 
 // Package config defines the global configuration for Kerno.
@@ -103,6 +103,9 @@ type DoctorConfig struct {
 
 	// Thresholds for diagnostic rules.
 	Thresholds DoctorThresholds `mapstructure:"thresholds" json:"thresholds"`
+
+	// Baselines configures adaptive anomaly detection.
+	Baselines BaselinesConfig `mapstructure:"baselines" json:"baselines"`
 }
 
 // DoctorThresholds defines the trigger thresholds for diagnostic rules.
@@ -239,3 +242,13 @@ func (c *Config) Validate() error {
 	return nil
 }
 
+
+
+// BaselinesConfig holds the adaptive-baseline sub-section of kerno.yaml.
+// Add `baselines:` under `doctor:` in your config file to enable it.
+type BaselinesConfig struct {
+Enabled        bool    `mapstructure:"enabled"         json:"enabled"`
+WarmupMinutes  int     `mapstructure:"warmup_minutes"  json:"warmupMinutes"`
+HistoryMinutes int     `mapstructure:"history_minutes" json:"historyMinutes"`
+Sensitivity    float64 `mapstructure:"sensitivity"     json:"sensitivity"`
+}

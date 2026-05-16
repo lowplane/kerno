@@ -1,4 +1,4 @@
-﻿// Copyright 2026 Optiqor contributors
+// Copyright 2026 Optiqor contributors
 // SPDX-License-Identifier: Apache-2.0
 
 package doctor
@@ -228,4 +228,16 @@ func fmtNsDuration(ns float64) string {
 	default:
 		return fmt.Sprintf("%.0fns", ns)
 	}
+}
+
+
+// EvaluateWithBaselines satisfies the call in engine.go (line 113).
+// It delegates to Check so all baseline logic stays in one place.
+func (t *BaselineTracker) EvaluateWithBaselines(
+rule, key string,
+now time.Time,
+value float64,
+logDistributed bool,
+) BaselineResult {
+return t.Check(rule, key, now, value, logDistributed)
 }
