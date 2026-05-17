@@ -128,9 +128,6 @@ func initConfig(cmd *cobra.Command) error {
 	v.SetEnvPrefix("KERNO")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_", "-", "_"))
 	v.AutomaticEnv()
-	if os.Getenv("NO_COLOR") != "" {
-		v.Set("no_color", true)
-	}
 
 	// Bind CLI flags to viper.
 	if err := v.BindPFlag("log_level", cmd.Root().PersistentFlags().Lookup("log-level")); err != nil {
