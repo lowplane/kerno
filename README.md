@@ -530,6 +530,40 @@ kubectl -n kerno-system exec ds/kerno -- kerno doctor --ai
 
 ---
 
+### Enterprise Deployments
+
+Kerno supports enterprise proxy environments and custom CA certificates for AI providers.
+
+Example configuration:
+
+```yaml
+ai:
+  proxy: http://corp-proxy.internal:8080
+  ca_cert_file: /etc/kerno/corp-ca.crt
+  insecure_skip_verify: false
+  timeout: 30s
+```
+
+#### Proxy Support
+
+If `ai.proxy` is not configured, Kerno automatically honors:
+
+- `HTTPS_PROXY`
+- `HTTP_PROXY`
+- `NO_PROXY`
+
+#### Custom CA Certificates
+
+Use `ai.ca_cert_file` to append additional CA certificates without replacing the system trust store.
+
+This is commonly required in enterprise environments using TLS-inspecting corporate proxies.
+
+#### TLS Verification Errors
+
+Kerno returns actionable TLS verification errors including hostname and certificate verification details to simplify debugging enterprise proxy and CA configurations.
+
+---
+
 ## Configuration
 
 Kerno works with **zero configuration**. For custom setups, mount a `config.yaml` or use `KERNO_*` env vars:

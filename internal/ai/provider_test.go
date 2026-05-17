@@ -297,7 +297,7 @@ func TestOllamaProviderConnectionRefused(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected connection error")
 	}
-	if !strings.Contains(err.Error(), "Ollama") {
+	if !strings.Contains(strings.ToLower(err.Error()), "ollama") {
 		t.Errorf("error should mention Ollama (helpful hint); got: %v", err)
 	}
 }

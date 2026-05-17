@@ -51,7 +51,12 @@ func NewOllamaProvider(cfg ProviderConfig) *OllamaProvider {
 		model:       model,
 		maxTokens:   maxTokens,
 		temperature: temp,
-		client:      &http.Client{},
+		client: NewHTTPClient(
+			cfg.Timeout,
+			cfg.Proxy,
+			cfg.CACertFile,
+			cfg.InsecureSkipVerify,
+		),
 	}
 }
 
@@ -91,7 +96,7 @@ func (p *OllamaProvider) Complete(ctx context.Context, req CompletionRequest) (*
 
 	resp, err := p.client.Do(httpReq)
 	if err != nil {
-		return nil, fmt.Errorf("ollama API call failed (is Ollama running at %s?): %w", p.endpoint, err)
+		return nil, fmt.Errorf("ollama request failed: %w", formatHTTPError(err))
 	}
 	defer resp.Body.Close()
 
