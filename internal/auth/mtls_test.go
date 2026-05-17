@@ -216,7 +216,7 @@ func TestMTLSEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to load client keypair: %v", err)
 	}
-	
+
 	caCert, err := os.ReadFile(caPath)
 	if err != nil {
 		t.Fatalf("failed to read ca cert: %v", err)
