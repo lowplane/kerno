@@ -471,6 +471,23 @@ perf(collector): reduce syscall aggregation allocations by 40%
 - At least one maintainer approval is required.
 - Squash-merge is preferred for clean history.
 
+### PR Slash Commands
+
+Drive review and merge from PR comments. A bot picks them up within seconds.
+
+| Command | Who | Effect |
+|---|---|---|
+| `/help` | anyone | List available commands |
+| `/retest` | anyone | Re-run any failed CI checks on the current commit |
+| `/close` | author or maintainer | Close the PR |
+| `/reopen` | author or maintainer | Re-open a closed PR |
+| `/lgtm` or `/approve` | maintainer | Record approval, add `lgtm` label |
+| `/lgtm cancel` | maintainer | Withdraw approval, remove label |
+| `/merge` | maintainer | Squash-merge if green and not held |
+| `/hold` | maintainer | Block `/merge` (adds `do-not-merge/hold`) |
+| `/unhold` | maintainer | Release the hold |
+| `/ok-to-test` | maintainer | Allow CI to run on an external contributor's PR |
+
 ## Claiming an Issue
 
 Before starting work, claim the issue so two people don't duplicate effort:

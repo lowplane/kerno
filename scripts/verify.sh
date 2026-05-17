@@ -74,23 +74,28 @@ phase_build() {
     echo "==> 2. build pipeline"
     local n=$1
 
-    if go generate ./internal/bpf/... >/tmp/verify-generate.log 2>&1; then
+    # `make generate` runs bpf2go AND post-processes the build tags so
+    # generated files are gated behind `ebpf`. Using `go generate` directly
+    # would skip the post-processing and conflict with the stubs.
+    if make generate >/tmp/verify-generate.log 2>&1; then
         local count
         count=$(ls internal/bpf/*_bpfel.go 2>/dev/null | wc -l)
         if [[ "$count" -eq 6 ]]; then
-            phase_pass "$n" "go generate produced 6/6 *_bpfel.go files"
+            phase_pass "$n" "make generate produced 6/6 *_bpfel.go files"
         else
-            phase_fail "$n" "go generate produced $count/6 *_bpfel.go files"
+            phase_fail "$n" "make generate produced $count/6 *_bpfel.go files"
         fi
     else
-        phase_fail "$n" "go generate failed (see /tmp/verify-generate.log)"
+        phase_fail "$n" "make generate failed (see /tmp/verify-generate.log)"
         return 1
     fi
 
-    if make build >/tmp/verify-build.log 2>&1; then
-        phase_pass "$n" "make build succeeded → $($KERNO version | head -1)"
+    # `make build-ebpf` selects the generated bindings (ebpf tag) so the
+    # binary can actually load BPF programs in the doctor/daemon phases.
+    if make build-ebpf >/tmp/verify-build.log 2>&1; then
+        phase_pass "$n" "make build-ebpf succeeded → $($KERNO version | head -1)"
     else
-        phase_fail "$n" "make build failed"
+        phase_fail "$n" "make build-ebpf failed (see /tmp/verify-build.log)"
     fi
 
     if go build -o "$BPF_VERIFY" ./cmd/bpf-verify >/dev/null 2>&1; then
@@ -289,23 +294,32 @@ phase_induce_detect() {
     echo "==> 9. induce → detect pairings"
     local n=$1
 
+    # Format: "scenario:rule" or "scenario:rule:ENV=val" when the doctor
+    # invocation needs an extra environment variable (e.g. cgroup-memory
+    # writes to /tmp and requires KERNO_CGROUP_ROOT to be pointed there).
     local pairings=(
         "disk-sat:disk_io_bottleneck"
         "fd-leak:fd_leak"
         "cpu:scheduler_contention"
         "tcp-churn:scheduler_contention"
+        "cgroup-memory:memory_limit_pressure:KERNO_CGROUP_ROOT=/tmp/kerno-chaos-cgroup"
     )
 
     for p in "${pairings[@]}"; do
-        local scenario="${p%%:*}"
-        local expected="${p##*:}"
+        local scenario expected doctor_env
+        scenario="${p%%:*}"
+        rest="${p#*:}"
+        expected="${rest%%:*}"
+        doctor_env="${rest#*:}"
+        # doctor_env equals expected when there is no third field.
+        [[ "$doctor_env" == "$expected" ]] && doctor_env=""
 
         "$KERNO" chaos --induce "$scenario" --duration 12s --intensity high --yes \
             >/tmp/verify-chaos-"$scenario"-id.log 2>&1 &
         local cpid=$!
         sleep 1
 
-        sudo "$KERNO" --config scripts/verify-config.yaml \
+        env $doctor_env sudo -E "$KERNO" --config scripts/verify-config.yaml \
             doctor --duration 10s --output json \
             >/tmp/verify-doctor-"$scenario".json 2>/tmp/verify-doctor-"$scenario".log
 

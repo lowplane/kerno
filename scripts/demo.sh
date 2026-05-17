@@ -15,8 +15,10 @@ cd "$(dirname "$0")/.."
 KERNO=${KERNO:-bin/kerno}
 
 if [[ ! -x "$KERNO" ]]; then
-    echo "Building kerno..."
-    make build >/dev/null
+    # The demo loads real BPF programs, so build with the ebpf tag.
+    # `make build` (default) produces stubs that can't actually trace.
+    echo "Building kerno (real BPF mode)..."
+    make build-ebpf >/dev/null
 fi
 
 clear

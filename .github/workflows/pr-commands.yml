@@ -1,0 +1,338 @@
+# Copyright 2026 Optiqor contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Slash-command driver for PRs.
+#
+# Available commands (post any of these as a PR comment):
+#
+#   Anyone:
+#     /help            show available commands
+#     /retest          re-run failed CI on this PR
+#     /close           close the PR (author or maintainer)
+#     /reopen          re-open the PR (author or maintainer)
+#
+#   Maintainers only:
+#     /lgtm            approve and add `lgtm` label
+#     /lgtm cancel     remove approval and `lgtm` label
+#     /approve         alias for /lgtm
+#     /merge           squash-merge if green
+#     /hold            block auto-merge (adds `do-not-merge/hold` label)
+#     /unhold          release the hold
+#     /ok-to-test      mark external PR as safe to run CI on (adds `ok-to-test` label)
+#
+# Maintainers = anyone with admin / write / maintain on the repo.
+# Author-or-maintainer = the PR author OR a maintainer.
+
+name: PR commands
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: write
+  checks: write
+
+jobs:
+  dispatch:
+    if: github.event.issue.pull_request != null
+    runs-on: ubuntu-latest
+    steps:
+      - name: Parse and dispatch
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.comment.body || '';
+            const actor = context.payload.comment.user.login;
+            const prNumber = context.payload.issue.number;
+            const repo = { owner: context.repo.owner, repo: context.repo.repo };
+            const commentId = context.payload.comment.id;
+
+            // Match the first slash command on its own line (lenient about whitespace).
+            const m = body.match(/^\s*\/(lgtm|approve|merge|hold|unhold|ok-to-test|retest|close|reopen|help)(?:\s+(.+))?\s*$/im);
+            if (!m) {
+              core.info('no PR slash command found; ignoring');
+              return;
+            }
+            const cmd = m[1].toLowerCase();
+            const arg = (m[2] || '').trim().toLowerCase();
+
+            // ─── helpers ─────────────────────────────────────────────
+            const isMaintainer = async (user) => {
+              try {
+                const perm = await github.rest.repos.getCollaboratorPermissionLevel({
+                  ...repo, username: user,
+                });
+                return ['admin', 'write', 'maintain'].includes(perm.data.permission);
+              } catch (e) {
+                return false;
+              }
+            };
+
+            const react = (content) =>
+              github.rest.reactions.createForIssueComment({
+                ...repo, comment_id: commentId, content,
+              }).catch(() => {});
+
+            const reply = (body) =>
+              github.rest.issues.createComment({
+                ...repo, issue_number: prNumber, body,
+              });
+
+            const requireMaintainer = async () => {
+              if (await isMaintainer(actor)) return true;
+              await react('-1');
+              await reply(`@${actor}, \`/${cmd}\` is a maintainer-only command.`);
+              return false;
+            };
+
+            // ─── load PR state ───────────────────────────────────────
+            const pr = (await github.rest.pulls.get({
+              ...repo, pull_number: prNumber,
+            })).data;
+            const isAuthor = pr.user.login === actor;
+            const hasLabel = (name) => (pr.labels || []).some(l => l.name === name);
+
+            // ─── command handlers ────────────────────────────────────
+            switch (cmd) {
+
+              case 'help': {
+                await reply(
+                  `**PR commands**\n\n` +
+                  `**Anyone**\n` +
+                  `- \`/help\` — show this list\n` +
+                  `- \`/retest\` — re-run failed CI on this PR\n` +
+                  `- \`/close\` — close the PR (author or maintainer)\n` +
+                  `- \`/reopen\` — re-open the PR (author or maintainer)\n\n` +
+                  `**Maintainers only**\n` +
+                  `- \`/lgtm\` or \`/approve\` — approve and add \`lgtm\` label (\`/lgtm cancel\` removes)\n` +
+                  `- \`/merge\` — squash-merge if green\n` +
+                  `- \`/hold\` — block auto-merge (\`/unhold\` to release)\n` +
+                  `- \`/ok-to-test\` — mark external PR as safe to run CI on`
+                );
+                break;
+              }
+
+              case 'lgtm':
+              case 'approve': {
+                if (!(await requireMaintainer())) break;
+                if (arg === 'cancel') {
+                  await github.rest.issues.removeLabel({
+                    ...repo, issue_number: prNumber, name: 'lgtm',
+                  }).catch(() => {});
+                  // Dismiss prior approvals from this actor on this commit.
+                  const reviews = await github.paginate(github.rest.pulls.listReviews, {
+                    ...repo, pull_number: prNumber, per_page: 100,
+                  });
+                  for (const r of reviews) {
+                    if (r.user?.login === actor && r.state === 'APPROVED') {
+                      await github.rest.pulls.dismissReview({
+                        ...repo, pull_number: prNumber, review_id: r.id,
+                        message: `dismissed by /${cmd} cancel from @${actor}`,
+                      }).catch(() => {});
+                    }
+                  }
+                  await react('+1');
+                  break;
+                }
+                await github.rest.pulls.createReview({
+                  ...repo, pull_number: prNumber, event: 'APPROVE',
+                  body: `approved via \`/${cmd}\` from @${actor}.`,
+                });
+                await github.rest.issues.addLabels({
+                  ...repo, issue_number: prNumber, labels: ['lgtm'],
+                }).catch(() => {});
+                await react('+1');
+                break;
+              }
+
+              case 'hold': {
+                if (!(await requireMaintainer())) break;
+                await github.rest.issues.addLabels({
+                  ...repo, issue_number: prNumber, labels: ['do-not-merge/hold'],
+                });
+                await react('+1');
+                await reply(`PR is on hold. \`/unhold\` releases it.`);
+                break;
+              }
+
+              case 'unhold': {
+                if (!(await requireMaintainer())) break;
+                await github.rest.issues.removeLabel({
+                  ...repo, issue_number: prNumber, name: 'do-not-merge/hold',
+                }).catch(() => {});
+                await react('+1');
+                break;
+              }
+
+              case 'ok-to-test': {
+                if (!(await requireMaintainer())) break;
+
+                // 1. Apply the documentary label so it's visible in the UI.
+                await github.rest.issues.addLabels({
+                  ...repo, issue_number: prNumber, labels: ['ok-to-test'],
+                });
+
+                // 2. Approve any workflow runs waiting on first-time-contributor
+                //    review. GitHub's default policy gates these regardless of any
+                //    label, so we have to call the approve endpoint explicitly.
+                const sha = pr.head.sha;
+                const runs = await github.paginate(github.rest.actions.listWorkflowRunsForRepo, {
+                  ...repo, head_sha: sha, per_page: 100,
+                });
+
+                let approved = 0;
+                let alreadyRunning = 0;
+                for (const r of runs) {
+                  // "action_required" / "waiting" → gated on us.
+                  if (r.status === 'action_required' || r.status === 'waiting') {
+                    try {
+                      await github.rest.actions.approveWorkflowRun({
+                        ...repo, run_id: r.id,
+                      });
+                      approved++;
+                    } catch (e) {
+                      core.warning(`approve failed for run ${r.id}: ${e.message}`);
+                    }
+                  } else if (r.status === 'queued' || r.status === 'in_progress') {
+                    alreadyRunning++;
+                  }
+                }
+
+                await react('+1');
+
+                let msg;
+                if (approved > 0) {
+                  msg =
+                    `Approved ${approved} pending workflow run${approved === 1 ? '' : 's'} ` +
+                    `on \`${sha.slice(0, 7)}\`. CI should start within a minute.`;
+                } else if (alreadyRunning > 0) {
+                  msg =
+                    `No runs were waiting for approval (${alreadyRunning} already running). ` +
+                    `Label applied for future reference.`;
+                } else {
+                  msg =
+                    `No pending workflow runs found on \`${sha.slice(0, 7)}\`. ` +
+                    `Label applied. If CI should be running but isn't, push a fresh commit.`;
+                }
+                await reply(msg);
+                break;
+              }
+
+              case 'merge': {
+                if (!(await requireMaintainer())) break;
+
+                // Block if held.
+                if (hasLabel('do-not-merge/hold')) {
+                  await react('-1');
+                  await reply(`Cannot merge while \`do-not-merge/hold\` is set. \`/unhold\` first.`);
+                  break;
+                }
+
+                // Refuse merge conflicts. mergeable_state may be: clean, dirty, blocked,
+                // behind, unstable, has_hooks, draft, unknown.
+                if (pr.mergeable === false || pr.mergeable_state === 'dirty') {
+                  await react('-1');
+                  await reply(`Cannot merge: conflicts. Rebase first.`);
+                  break;
+                }
+                if (pr.draft) {
+                  await react('-1');
+                  await reply(`Cannot merge a draft PR. Mark ready first.`);
+                  break;
+                }
+
+                // Allow "clean" (all green + approved) or "unstable" (non-required failures).
+                // Block "blocked" (required check failing) and others.
+                if (!['clean', 'unstable', 'has_hooks'].includes(pr.mergeable_state)) {
+                  await react('-1');
+                  await reply(
+                    `Cannot merge: \`mergeable_state=${pr.mergeable_state}\`. ` +
+                    `Required checks must pass and approvals (if any) must be in place.`
+                  );
+                  break;
+                }
+
+                try {
+                  await github.rest.pulls.merge({
+                    ...repo, pull_number: prNumber,
+                    merge_method: 'squash',
+                    commit_title: pr.title,
+                    commit_message: '',
+                  });
+                  await react('+1');
+                } catch (e) {
+                  await react('-1');
+                  await reply(`Merge failed: ${e.message}`);
+                }
+                break;
+              }
+
+              case 'retest': {
+                const sha = pr.head.sha;
+                const runs = await github.paginate(github.rest.actions.listWorkflowRunsForRepo, {
+                  ...repo, head_sha: sha, per_page: 100,
+                });
+                const failed = runs.filter(r =>
+                  r.conclusion === 'failure' ||
+                  r.conclusion === 'cancelled' ||
+                  r.conclusion === 'timed_out'
+                );
+                if (failed.length === 0) {
+                  await react('-1');
+                  await reply(
+                    `No failed runs to retest on commit \`${sha.slice(0, 7)}\`. ` +
+                    `If you want to force a fresh run, push an empty commit.`
+                  );
+                  break;
+                }
+                let kicked = 0;
+                for (const r of failed) {
+                  try {
+                    await github.rest.actions.reRunWorkflowFailedJobs({
+                      ...repo, run_id: r.id,
+                    });
+                    kicked++;
+                  } catch (e) {
+                    core.warning(`re-run failed for run ${r.id}: ${e.message}`);
+                  }
+                }
+                await react('+1');
+                await reply(`Re-running ${kicked} failed workflow run(s) on \`${sha.slice(0, 7)}\`.`);
+                break;
+              }
+
+              case 'close': {
+                if (!isAuthor && !(await isMaintainer(actor))) {
+                  await react('-1');
+                  await reply(`@${actor}, only the PR author or a maintainer can \`/close\`.`);
+                  break;
+                }
+                await github.rest.pulls.update({
+                  ...repo, pull_number: prNumber, state: 'closed',
+                });
+                await react('+1');
+                break;
+              }
+
+              case 'reopen': {
+                if (!isAuthor && !(await isMaintainer(actor))) {
+                  await react('-1');
+                  await reply(`@${actor}, only the PR author or a maintainer can \`/reopen\`.`);
+                  break;
+                }
+                if (pr.state !== 'closed') {
+                  await react('-1');
+                  await reply(`PR is already open.`);
+                  break;
+                }
+                await github.rest.pulls.update({
+                  ...repo, pull_number: prNumber, state: 'open',
+                });
+                await react('+1');
+                break;
+              }
+            }

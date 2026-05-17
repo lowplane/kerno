@@ -332,7 +332,7 @@ func TestFileEventStrings(t *testing.T) {
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 // marshalLE serializes v into a byte slice using little-endian encoding.
-func marshalLE(t *testing.T, v interface{}) []byte {
+func marshalLE(t *testing.T, v any) []byte {
 	t.Helper()
 	size := binary.Size(v)
 	if size < 0 {
@@ -347,7 +347,7 @@ func marshalLE(t *testing.T, v interface{}) []byte {
 }
 
 // unmarshalLE deserializes buf into v using little-endian encoding.
-func unmarshalLE(t *testing.T, buf []byte, v interface{}) {
+func unmarshalLE(t *testing.T, buf []byte, v any) {
 	t.Helper()
 	_, err := binary.Decode(buf, binary.LittleEndian, v)
 	if err != nil {

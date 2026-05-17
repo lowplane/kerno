@@ -60,7 +60,8 @@ build:
 	@echo "Built $(BIN_DIR)/$(BIN_NAME) ($(VERSION))"
 
 ## build-ebpf: Full build with eBPF code generation (requires clang + libbpf)
-build-ebpf: generate build
+build-ebpf: generate
+	@$(MAKE) build GOTAGS=ebpf
 
 ## build-debug: Compile with debug symbols (for dlv)
 build-debug:
@@ -85,10 +86,21 @@ bpf:
 	@echo "eBPF compilation complete."
 
 ## generate: Run go generate (bpf2go code generation)
+##
+## After bpf2go runs we rewrite the build tag on each generated *_bpfel.go
+## so they only compile when the `ebpf` tag is set. Without this step,
+## the generated files and the gen_stub.go fallback would both compile on
+## amd64/arm64 and cause duplicate-declaration errors.
 generate:
 	@if ls internal/bpf/c/*.c 1>/dev/null 2>&1; then \
 		echo "Running go generate..."; \
 		$(GO) generate ./internal/bpf/...; \
+		echo "Gating generated files behind '-tags ebpf'..."; \
+		for f in internal/bpf/*_bpfel.go internal/bpf/*_bpfeb.go; do \
+			[ -f "$$f" ] || continue; \
+			sed -i.bak -E 's|^//go:build ([^ ].*)$$|//go:build ebpf \&\& (\1)|' "$$f"; \
+			rm -f "$$f.bak"; \
+		done; \
 	fi
 
 # ─── Quality ─────────────────────────────────────────────────────────────────
@@ -230,7 +242,7 @@ bpf-verify:
 	@echo "Built $(BIN_DIR)/bpf-verify (run with sudo)"
 
 ## verify: Run the comprehensive 14-phase production-readiness check
-verify: build bpf-verify
+verify: build-ebpf bpf-verify
 	@./scripts/verify.sh
 
 ## demo: Record demo.gif via vhs (https://github.com/charmbracelet/vhs)
@@ -244,7 +256,7 @@ verify: build bpf-verify
 ## We resolve vhs from $PATH first, then $(go env GOBIN), then
 ## $HOME/go/bin — Go-installed binaries often aren't on PATH inside
 ## make's stripped environment.
-demo: build bpf-verify
+demo: build-ebpf bpf-verify
 	@VHS=$$(command -v vhs 2>/dev/null); \
 	if [ -z "$$VHS" ]; then VHS=$$(go env GOBIN 2>/dev/null)/vhs; fi; \
 	if [ ! -x "$$VHS" ]; then VHS="$$HOME/go/bin/vhs"; fi; \
@@ -271,7 +283,7 @@ demo: build bpf-verify
 	fi
 
 ## demo-cast: Record an asciinema cast (alternative to vhs)
-demo-cast: build bpf-verify
+demo-cast: build-ebpf bpf-verify
 	@if ! command -v asciinema >/dev/null; then \
 		echo "asciinema not installed: apt install asciinema"; \
 		exit 1; \

@@ -138,7 +138,7 @@ func (c *FDCollector) record(event *bpf.FDEvent) {
 }
 
 // Snapshot implements Collector. Returns *FDSnapshot.
-func (c *FDCollector) Snapshot() interface{} {
+func (c *FDCollector) Snapshot() any {
 	c.mu.Lock()
 	totalOpens := c.totalOpens
 	totalCloses := c.totalCloses

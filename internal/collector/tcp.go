@@ -166,7 +166,7 @@ func (c *TCPCollector) record(event *bpf.TCPEvent) {
 }
 
 // Snapshot implements Collector. Returns *TCPSnapshot.
-func (c *TCPCollector) Snapshot() interface{} {
+func (c *TCPCollector) Snapshot() any {
 	c.mu.Lock()
 	totalEvents := c.totalEvents
 	totalRetransmits := c.totalRetransmits

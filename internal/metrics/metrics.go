@@ -114,6 +114,17 @@ var FDCloseTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Help:      "Total file descriptor close operations.",
 }, []string{"process"})
 
+// ─── Cgroup Memory Metrics ────────────────────────────────────────────────
+
+// CgroupMemoryPressurePct tracks per-container memory usage as a percentage
+// of the cgroup memory limit. Labeled by pod only; namespace label will be
+// added once the Kubernetes enrichment path lands end-to-end.
+var CgroupMemoryPressurePct = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	Namespace: Namespace,
+	Name:      "cgroup_memory_pressure_pct",
+	Help:      "Per-container memory usage as a percentage of the cgroup memory.max limit.",
+}, []string{"pod"})
+
 // ─── Self-Monitoring Metrics ──────────────────────────────────────────────
 
 // CollectorEventsTotal counts events processed per collector.
@@ -163,6 +174,8 @@ func init() {
 		// FD
 		FDOpenTotal,
 		FDCloseTotal,
+		// Cgroup memory
+		CgroupMemoryPressurePct,
 		// Self-monitoring
 		CollectorEventsTotal,
 		CollectorErrorsTotal,

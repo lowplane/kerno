@@ -133,13 +133,13 @@ type Report struct {
 	ProgramsLoaded  int
 
 	// Analysis is the optional AI-enhanced analysis (nil if AI disabled).
-	Analysis interface{}
+	Analysis any
 
 	// Signals is the raw signal snapshot the rules were evaluated against.
 	// Populated for debug/observability — JSON renderer emits it under
 	// the "signals" key so operators can verify thresholds against
 	// observed values. Pretty renderer ignores it.
-	Signals interface{} `json:"-"`
+	Signals any `json:"-"`
 
 	// Environment describes how kerno is running (kubernetes, systemd,
 	// baremetal). Used by the pretty renderer to add context to the

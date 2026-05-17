@@ -10,17 +10,19 @@ import "testing"
 // here to keep chaos a leaf — so this list must stay in sync with
 // rules.go. The test below enforces the invariant.
 var validDoctorRules = map[string]bool{
-	"disk_io_bottleneck":   true,
-	"disk_io_write_high":   true,
-	"oom_kill_occurred":    true,
-	"oom_imminent":         true,
-	"tcp_retransmit_storm": true,
-	"tcp_rtt_degradation":  true,
-	"scheduler_contention": true,
-	"fd_leak":              true,
-	"syscall_latency_high": true,
-	"syscall_error_rate":   true,
-	"healthy_system":       true,
+	"disk_io_bottleneck":     true,
+	"disk_io_write_high":     true,
+	"oom_kill_occurred":      true,
+	"oom_imminent":           true,
+	"tcp_retransmit_storm":   true,
+	"tcp_rtt_degradation":    true,
+	"scheduler_contention":   true,
+	"fd_leak":                true,
+	"syscall_latency_high":   true,
+	"syscall_error_rate":     true,
+	"memory_limit_pressure":  true,
+	"memory_high_throttling": true,
+	"healthy_system":         true,
 	// "multiple" is a sentinel used by cascade — not a real rule but a
 	// recognized placeholder.
 	"multiple": true,

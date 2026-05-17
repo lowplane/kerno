@@ -1,0 +1,52 @@
+# Copyright 2026 Optiqor contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Welcomes a contributor on their first issue comment. Sister to
+# welcome.yml, which only fires on issue/PR open.
+
+name: Welcome first-time commenters
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  issues: write
+
+jobs:
+  welcome:
+    if: |
+      github.event.comment.user.type != 'Bot' &&
+      github.event.comment.user.login != github.repository_owner &&
+      github.event.comment.user.login != github.event.issue.user.login &&
+      !github.event.issue.pull_request
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v9
+        with:
+          script: |
+            const repo = { owner: context.repo.owner, repo: context.repo.repo };
+            const commenter = context.payload.comment.user.login;
+            const issueNumber = context.payload.issue.number;
+
+            // Skip if the user has already commented on a different issue.
+            const res = await github.rest.search.issuesAndPullRequests({
+              q: `repo:${repo.owner}/${repo.repo} commenter:${commenter} is:issue`,
+              per_page: 10,
+            });
+            if ((res.data.items || []).some(i => i.number !== issueNumber)) {
+              core.info(`@${commenter} is not a first-time commenter; skipping`);
+              return;
+            }
+
+            const body =
+              `Hey @${commenter}, welcome. Looks like this is your first comment in the repo.\n\n` +
+              `Want to work on this issue? Reply with \`/assign\` or \`/take\` to claim it.\n\n` +
+              `If the work's been useful, two quick ways to help:\n\n` +
+              `⭐ [Star kerno](https://github.com/optiqor/kerno): eBPF kernel diagnosis engine\n` +
+              `⭐ [Star optiqor-cli](https://github.com/optiqor/optiqor-cli): Kubernetes cost remediation that lives in the pull request\n\n` +
+              `Thanks for showing up.`;
+
+            await github.rest.issues.createComment({
+              ...repo, issue_number: issueNumber, body,
+            });

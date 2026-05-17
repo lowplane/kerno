@@ -36,7 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Parse and apply assignment
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             // Pick the body to scan: comment body for issue_comment, issue body for issues.opened.
@@ -100,6 +100,51 @@ jobs:
                         `If they're inactive, this issue is auto-released after 10 days of no activity.`,
                 });
                 return;
+              }
+
+              // ─── Cap each contributor at MAX_ASSIGNMENTS open issues ────
+              // Prevents one keen contributor from claiming everything in
+              // the backlog and then drying up. Maintainers are exempt.
+              const MAX_ASSIGNMENTS = 2;
+              let isMaintainer = false;
+              try {
+                const perm = await github.rest.repos.getCollaboratorPermissionLevel({
+                  ...repo, username: targetUser,
+                });
+                const lvl = perm.data.permission;
+                isMaintainer = (lvl === 'admin' || lvl === 'write' || lvl === 'maintain');
+              } catch (e) {
+                // Not a collaborator — treat as external contributor (capped).
+              }
+
+              if (!isMaintainer) {
+                // Count open issues currently assigned to targetUser in this repo.
+                const assigned = await github.paginate(github.rest.issues.listForRepo, {
+                  ...repo, state: 'open', assignee: targetUser, per_page: 100,
+                });
+                // listForRepo returns issues AND PRs; filter PRs out.
+                const openIssues = assigned.filter(i => !i.pull_request);
+                if (openIssues.length >= MAX_ASSIGNMENTS) {
+                  const links = openIssues
+                    .slice(0, MAX_ASSIGNMENTS)
+                    .map(i => `#${i.number} (${i.title})`)
+                    .join(', ');
+                  await github.rest.issues.createComment({
+                    ...repo, issue_number: issueNumber,
+                    body:
+                      `@${targetUser}, you're already on **${openIssues.length} open issue${openIssues.length === 1 ? '' : 's'}** ` +
+                      `(${links}).\n\n` +
+                      `We cap contributors at ${MAX_ASSIGNMENTS} concurrent issues so the backlog stays available to others. ` +
+                      `Please finish or \`/unassign\` one before claiming another.\n\n` +
+                      `(Maintainers are exempt from this cap.)`,
+                  });
+                  if (isComment) {
+                    await github.rest.reactions.createForIssueComment({
+                      ...repo, comment_id: context.payload.comment.id, content: '-1',
+                    }).catch(() => {});
+                  }
+                  return;
+                }
               }
 
               await github.rest.issues.addAssignees({

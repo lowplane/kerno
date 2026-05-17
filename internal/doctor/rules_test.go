@@ -446,6 +446,261 @@ func TestEvaluate_SyscallErrorRate_BelowThreshold(t *testing.T) {
 	}
 }
 
+func TestEvaluate_MemoryLimitPressure_Warning(t *testing.T) {
+	limitBytes := uint64(4 << 30)
+	currentBytes := uint64(float64(limitBytes) * 0.88)
+	signals := &collector.Signals{
+		CgroupMemory: &collector.CgroupMemorySnapshot{
+			Containers: []collector.CgroupMemoryEntry{
+				{
+					CgroupPath:   "/sys/fs/cgroup/kubepods/burstable/pod-redis/ctr0",
+					Pod:          "pod-redis",
+					LimitBytes:   limitBytes,
+					CurrentBytes: currentBytes,
+					UsedPct:      88.0,
+				},
+			},
+		},
+	}
+
+	findings := Evaluate(signals, defaultThresholds())
+	found := false
+	for _, f := range findings {
+		if f.Rule == "memory_limit_pressure" && f.Severity == SeverityWarning {
+			found = true
+			if f.Process != "pod-redis" {
+				t.Errorf("expected Process=pod-redis, got %q", f.Process)
+			}
+			break
+		}
+	}
+	if !found {
+		t.Error("expected WARNING memory_limit_pressure at 88%")
+	}
+}
+
+func TestEvaluate_MemoryLimitPressure_CriticalWithETA(t *testing.T) {
+	limit := uint64(4 << 30) // 4 GiB
+	signals := &collector.Signals{
+		CgroupMemory: &collector.CgroupMemorySnapshot{
+			Containers: []collector.CgroupMemoryEntry{
+				{
+					CgroupPath:            "/sys/fs/cgroup/kubepods/burstable/pod-kafka/ctr0",
+					Pod:                   "pod-kafka",
+					LimitBytes:            limit,
+					CurrentBytes:          uint64(float64(limit) * 0.96),
+					UsedPct:               96.0,
+					GrowthRateBytesPerSec: 7.2 * 1024 * 1024, // 7.2 MB/s
+				},
+			},
+		},
+	}
+
+	findings := Evaluate(signals, defaultThresholds())
+	found := false
+	for _, f := range findings {
+		if f.Rule == "memory_limit_pressure" && f.Severity == SeverityCritical {
+			found = true
+			if f.ETA == nil {
+				t.Error("expected ETA for critical memory_limit_pressure with growth > 1 MB/s")
+			}
+			if f.Process != "pod-kafka" {
+				t.Errorf("expected Process=pod-kafka, got %q", f.Process)
+			}
+			break
+		}
+	}
+	if !found {
+		t.Error("expected CRITICAL memory_limit_pressure at 96% + growing")
+	}
+}
+
+func TestEvaluate_MemoryLimitPressure_CriticalNoETA(t *testing.T) {
+	limit := uint64(4 << 30)
+	signals := &collector.Signals{
+		CgroupMemory: &collector.CgroupMemorySnapshot{
+			Containers: []collector.CgroupMemoryEntry{
+				{
+					Pod:                   "pod-slow",
+					LimitBytes:            limit,
+					CurrentBytes:          uint64(float64(limit) * 0.97),
+					UsedPct:               97.0,
+					GrowthRateBytesPerSec: 500 * 1024, // 500 KB/s — below 1 MB/s threshold
+				},
+			},
+		},
+	}
+
+	findings := Evaluate(signals, defaultThresholds())
+	for _, f := range findings {
+		if f.Rule == "memory_limit_pressure" && f.Severity == SeverityCritical {
+			if f.ETA != nil {
+				t.Error("should not compute ETA when growth rate < 1 MB/s")
+			}
+			return
+		}
+	}
+	t.Error("expected CRITICAL memory_limit_pressure finding")
+}
+
+func TestEvaluate_MemoryLimitPressure_ExactlyAt95(t *testing.T) {
+	limit := uint64(4 << 30)
+	signals := &collector.Signals{
+		CgroupMemory: &collector.CgroupMemorySnapshot{
+			Containers: []collector.CgroupMemoryEntry{
+				{
+					Pod:                   "pod-boundary",
+					LimitBytes:            limit,
+					CurrentBytes:          uint64(float64(limit) * 0.95),
+					UsedPct:               95.0,
+					GrowthRateBytesPerSec: 2 * 1024 * 1024, // 2 MB/s — growing
+				},
+			},
+		},
+	}
+
+	findings := Evaluate(signals, defaultThresholds())
+	for _, f := range findings {
+		if f.Rule == "memory_limit_pressure" {
+			if f.Severity != SeverityCritical {
+				t.Errorf("expected CRITICAL at exactly 95%%, got %s", f.Severity)
+			}
+			return
+		}
+	}
+	t.Error("expected memory_limit_pressure finding at exactly 95%")
+}
+
+func TestEvaluate_MemoryLimitPressure_BelowThreshold(t *testing.T) {
+	limit := uint64(4 << 30)
+	signals := &collector.Signals{
+		CgroupMemory: &collector.CgroupMemorySnapshot{
+			Containers: []collector.CgroupMemoryEntry{
+				{
+					Pod:          "pod-ok",
+					LimitBytes:   limit,
+					CurrentBytes: uint64(float64(limit) * 0.70),
+					UsedPct:      70.0,
+				},
+			},
+		},
+	}
+
+	findings := Evaluate(signals, defaultThresholds())
+	for _, f := range findings {
+		if f.Rule == "memory_limit_pressure" {
+			t.Error("should not fire memory_limit_pressure at 70%")
+		}
+	}
+}
+
+func TestEvaluate_MemoryLimitPressure_NilCgroupMemory(t *testing.T) {
+	signals := &collector.Signals{}
+	findings := Evaluate(signals, defaultThresholds())
+	for _, f := range findings {
+		if f.Rule == "memory_limit_pressure" {
+			t.Error("should not fire memory_limit_pressure when CgroupMemory is nil")
+		}
+	}
+}
+
+func TestEvaluate_MemoryHighThrottling_Warning(t *testing.T) {
+	limit := uint64(2 << 30)
+	signals := &collector.Signals{
+		CgroupMemory: &collector.CgroupMemorySnapshot{
+			Containers: []collector.CgroupMemoryEntry{
+				{
+					Pod:           "pod-throttled",
+					LimitBytes:    limit,
+					CurrentBytes:  uint64(float64(limit) * 0.82),
+					UsedPct:       82.0,
+					HighBytes:     uint64(float64(limit) * 0.80),
+					HighEventRate: 3.5, // 3.5 events/sec > 1/sec threshold
+				},
+			},
+		},
+	}
+
+	findings := Evaluate(signals, defaultThresholds())
+	found := false
+	for _, f := range findings {
+		if f.Rule == "memory_high_throttling" && f.Severity == SeverityWarning {
+			found = true
+			if f.Process != "pod-throttled" {
+				t.Errorf("expected Process=pod-throttled, got %q", f.Process)
+			}
+			break
+		}
+	}
+	if !found {
+		t.Error("expected WARNING memory_high_throttling at 3.5 events/sec")
+	}
+}
+
+func TestEvaluate_MemoryHighThrottling_BelowThreshold(t *testing.T) {
+	signals := &collector.Signals{
+		CgroupMemory: &collector.CgroupMemorySnapshot{
+			Containers: []collector.CgroupMemoryEntry{
+				{
+					Pod:           "pod-ok",
+					LimitBytes:    2 << 30,
+					CurrentBytes:  1 << 29,
+					UsedPct:       25.0,
+					HighEventRate: 0.5, // < 1/sec
+				},
+			},
+		},
+	}
+
+	findings := Evaluate(signals, defaultThresholds())
+	for _, f := range findings {
+		if f.Rule == "memory_high_throttling" {
+			t.Error("should not fire memory_high_throttling at 0.5 events/sec")
+		}
+	}
+}
+
+func TestEvaluate_MemoryLimitPressure_WithNamespace(t *testing.T) {
+	limit := uint64(4 << 30)
+	signals := &collector.Signals{
+		CgroupMemory: &collector.CgroupMemorySnapshot{
+			Containers: []collector.CgroupMemoryEntry{
+				{
+					Pod:                   "kafka-broker-2",
+					Namespace:             "production",
+					LimitBytes:            limit,
+					CurrentBytes:          uint64(float64(limit) * 0.96),
+					UsedPct:               96.0,
+					GrowthRateBytesPerSec: 7.2 * 1024 * 1024,
+				},
+			},
+		},
+	}
+
+	findings := Evaluate(signals, defaultThresholds())
+	for _, f := range findings {
+		if f.Rule == "memory_limit_pressure" {
+			if !containsString(f.Title, "production/kafka-broker-2") {
+				t.Errorf("expected namespace/pod in title, got: %q", f.Title)
+			}
+			return
+		}
+	}
+	t.Error("expected memory_limit_pressure finding")
+}
+
+func containsString(s, sub string) bool {
+	return len(s) >= len(sub) && (s == sub || len(sub) == 0 ||
+		func() bool {
+			for i := 0; i <= len(s)-len(sub); i++ {
+				if s[i:i+len(sub)] == sub {
+					return true
+				}
+			}
+			return false
+		}())
+}
+
 func TestEvaluate_MultipleFindings(t *testing.T) {
 	signals := &collector.Signals{
 		DiskIO: &collector.DiskIOSnapshot{

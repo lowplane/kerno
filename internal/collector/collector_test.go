@@ -16,7 +16,7 @@ type fakeCollector struct {
 	name    string
 	started bool
 	stopped bool
-	snap    interface{}
+	snap    any
 	startFn func() error
 }
 
@@ -32,7 +32,7 @@ func (f *fakeCollector) Start(_ context.Context) error {
 
 func (f *fakeCollector) Stop() { f.stopped = true }
 
-func (f *fakeCollector) Snapshot() interface{} { return f.snap }
+func (f *fakeCollector) Snapshot() any { return f.snap }
 
 // ─── Registry Tests ─────────────────────────────────────────────────────────
 

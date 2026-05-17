@@ -53,6 +53,7 @@ dist/
 ebpf-guide.md
 BUSINESS-STRATEGY.md
 idea.md
+CLAUDE.md
 # Temporary
 tmp/
 *.tmp

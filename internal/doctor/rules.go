@@ -28,6 +28,8 @@ func Evaluate(signals *collector.Signals, thresholds config.DoctorThresholds) []
 	findings = append(findings, evalSyscallLatencyHigh(signals, thresholds)...)
 	findings = append(findings, evalOOMImminent(signals, thresholds)...)
 	findings = append(findings, evalSyscallErrorRate(signals)...)
+	findings = append(findings, evalMemoryLimitPressure(signals)...)
+	findings = append(findings, evalMemoryHighThrottling(signals)...)
 
 	// If nothing found, emit "healthy system" info.
 	if len(findings) == 0 {
@@ -495,6 +497,134 @@ func evalSyscallErrorRate(s *collector.Signals) []Finding {
 		Threshold: 1.0,
 		Process:   top.entry.Comm,
 	}}
+}
+
+// ── Rule 12: Memory Limit Pressure ──────────────────────────────────────────
+
+// evalMemoryLimitPressure fires for each container that is close to its
+// cgroup v2 memory.max limit. WARNING at >85 %; CRITICAL at >95 % with
+// positive growth rate. Includes an ETA when growth rate exceeds 1 MB/s.
+func evalMemoryLimitPressure(s *collector.Signals) []Finding {
+	if s.CgroupMemory == nil {
+		return nil
+	}
+
+	findings := make([]Finding, 0, len(s.CgroupMemory.Containers))
+	for _, c := range s.CgroupMemory.Containers {
+		if c.LimitBytes == 0 || c.UsedPct < 85.0 {
+			continue
+		}
+
+		sev := SeverityWarning
+		threshold := 85.0
+		if c.UsedPct >= 95.0 && c.GrowthRateBytesPerSec > 0 {
+			sev = SeverityCritical
+			threshold = 95.0
+		}
+
+		label := c.Pod
+		if c.Namespace != "" {
+			label = c.Namespace + "/" + c.Pod
+		}
+
+		growthMBs := c.GrowthRateBytesPerSec / (1024 * 1024)
+
+		title := fmt.Sprintf("%s is %.0f%% of its memory limit (%s / %s)",
+			label, c.UsedPct, formatBytes(c.CurrentBytes), formatBytes(c.LimitBytes))
+
+		impact := fmt.Sprintf("OOM kill will terminate container %s if usage reaches the limit", label)
+
+		f := Finding{
+			Severity: sev,
+			Rule:     "memory_limit_pressure",
+			Title:    title,
+			Signal:   "cgroup_memory",
+			Cause:    fmt.Sprintf("Container memory usage is at %.1f%% of its cgroup limit", c.UsedPct),
+			Impact:   impact,
+			Evidence: fmt.Sprintf(
+				"current=%s limit=%s used=%.1f%% growth=%.1f MB/s events(high=%d oom=%d oom_kill=%d)",
+				formatBytes(c.CurrentBytes), formatBytes(c.LimitBytes), c.UsedPct,
+				growthMBs, c.EventsHigh, c.EventsOOM, c.EventsOOMKill),
+			Fix: []string{
+				fmt.Sprintf("Increase the memory limit for pod %s", c.Pod),
+				"Profile heap usage: kubectl exec ... -- pprof / jmap / go tool pprof",
+				"Consider setting memory.high to enable soft throttling before OOM",
+			},
+			Metric:    "cgroup_memory_used_pct",
+			Value:     c.UsedPct,
+			Threshold: threshold,
+			Process:   c.Pod,
+		}
+
+		// ETA is only meaningful when growth rate is significant (>1 MB/s).
+		if sev == SeverityCritical {
+			const minGrowthForETA = 1 << 20 // 1 MB/s
+			if c.GrowthRateBytesPerSec >= minGrowthForETA && c.LimitBytes > c.CurrentBytes {
+				remaining := c.LimitBytes - c.CurrentBytes
+				etaSecs := float64(remaining) / c.GrowthRateBytesPerSec
+				eta := time.Duration(etaSecs) * time.Second
+				f.ETA = &eta
+				f.Impact = fmt.Sprintf(
+					"%s is %.0f%% of its memory limit (%s / %s) and growing %.1f MB/s. OOMKill expected in %s.",
+					label, c.UsedPct,
+					formatBytes(c.CurrentBytes), formatBytes(c.LimitBytes),
+					growthMBs, f.ETAString())
+			} else {
+				f.Impact = fmt.Sprintf(
+					"%s is %.0f%% of its memory limit (%s / %s) and trending up, but no reliable ETA available (growth rate < 1 MB/s).",
+					label, c.UsedPct, formatBytes(c.CurrentBytes), formatBytes(c.LimitBytes))
+			}
+		}
+
+		findings = append(findings, f)
+	}
+	return findings
+}
+
+// ── Rule 13: Memory High Throttling ─────────────────────────────────────────
+
+// evalMemoryHighThrottling fires when the kernel is reclaiming memory under
+// the memory.high soft limit at a sustained rate of more than 1 event/sec.
+// This is an early warning before any OOM kill.
+func evalMemoryHighThrottling(s *collector.Signals) []Finding {
+	if s.CgroupMemory == nil {
+		return nil
+	}
+
+	findings := make([]Finding, 0, len(s.CgroupMemory.Containers))
+	for _, c := range s.CgroupMemory.Containers {
+		if c.HighEventRate < 1.0 {
+			continue
+		}
+
+		label := c.Pod
+		if c.Namespace != "" {
+			label = c.Namespace + "/" + c.Pod
+		}
+
+		findings = append(findings, Finding{
+			Severity: SeverityWarning,
+			Rule:     "memory_high_throttling",
+			Title:    fmt.Sprintf("Memory High Throttling: %s", label),
+			Signal:   "cgroup_memory",
+			Cause: fmt.Sprintf(
+				"Kernel is reclaiming memory under memory.high pressure at %.1f events/sec", c.HighEventRate),
+			Impact: "Container throughput is being throttled; risk of OOMKill increases if usage continues to rise",
+			Evidence: fmt.Sprintf(
+				"high_event_rate=%.1f/sec high_limit=%s current=%s max=%s",
+				c.HighEventRate, formatBytes(c.HighBytes), formatBytes(c.CurrentBytes), formatBytes(c.LimitBytes)),
+			Fix: []string{
+				fmt.Sprintf("Increase the memory limit or memory.high setting for pod %s", c.Pod),
+				"Review memory allocation patterns and look for unexpected growth",
+				"Check for memory leaks: heap profile or smem",
+			},
+			Metric:    "cgroup_memory_high_event_rate",
+			Value:     c.HighEventRate,
+			Threshold: 1.0,
+			Process:   c.Pod,
+		})
+	}
+	return findings
 }
 
 // formatBytes returns a human-readable byte size.

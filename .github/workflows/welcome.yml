@@ -18,10 +18,10 @@ jobs:
   welcome:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/first-interaction@v1
+      - uses: actions/first-interaction@v3
         with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          issue-message: |
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          issue_message: |
             Welcome to **Kerno**, and thanks for opening your first issue! 🎉
 
             A maintainer will triage this within 48 hours. While you wait:
@@ -31,7 +31,7 @@ jobs:
             - 💬 [Discussions](https://github.com/optiqor/kerno/discussions) for questions and design talk
 
             Tip: if you can paste output of `sudo ./bin/bpf-verify` (or `kerno preflight` when it ships) we'll diagnose 90% faster.
-          pr-message: |
+          pr_message: |
             🚀 **First PR — welcome aboard!**
 
             A few things to expect:

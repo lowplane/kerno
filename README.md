@@ -654,8 +654,6 @@ Apache License 2.0 - see [LICENSE](LICENSE).
 
 ---
 
-**Kerno** is built by [Shivam](https://github.com/btwshivam) at [Optiqor](https://github.com/optiqor).
-
-If Kerno saved your on-call shift, consider leaving a **star** - it helps other engineers find the project.
+If Kerno saved your on-call shift, consider leaving a **⭐**  it helps other engineers find the project.
 
 </div>

@@ -21,13 +21,14 @@ type Signals struct {
 	Host HostInfo `json:"host"`
 
 	// Per-signal snapshots (nil if collector is disabled or has no data).
-	Syscall *SyscallSnapshot `json:"syscall,omitempty"`
-	TCP     *TCPSnapshot     `json:"tcp,omitempty"`
-	OOM     *OOMSnapshot     `json:"oom,omitempty"`
-	DiskIO  *DiskIOSnapshot  `json:"diskIO,omitempty"`
-	Sched   *SchedSnapshot   `json:"sched,omitempty"`
-	FD      *FDSnapshot      `json:"fd,omitempty"`
-	Memory  *MemorySnapshot  `json:"memory,omitempty"`
+	Syscall      *SyscallSnapshot      `json:"syscall,omitempty"`
+	TCP          *TCPSnapshot          `json:"tcp,omitempty"`
+	OOM          *OOMSnapshot          `json:"oom,omitempty"`
+	DiskIO       *DiskIOSnapshot       `json:"diskIO,omitempty"`
+	Sched        *SchedSnapshot        `json:"sched,omitempty"`
+	FD           *FDSnapshot           `json:"fd,omitempty"`
+	Memory       *MemorySnapshot       `json:"memory,omitempty"`
+	CgroupMemory *CgroupMemorySnapshot `json:"cgroupMemory,omitempty"`
 }
 
 // HostInfo identifies the machine being observed.
@@ -182,6 +183,45 @@ type FDEntry struct {
 	Closes     uint64  `json:"closes"`
 	NetDelta   int64   `json:"netDelta"`
 	GrowthRate float64 `json:"growthRate"` // FDs per second
+}
+
+// ─── Cgroup Memory Snapshot ──────────────────────────────────────────────────
+
+// CgroupMemorySnapshot holds per-container cgroup v2 memory state, populated
+// by the CgroupMemoryCollector. On systems without cgroup v2 limits this will
+// be nil or contain an empty Containers slice.
+type CgroupMemorySnapshot struct {
+	Containers []CgroupMemoryEntry `json:"containers"`
+}
+
+// CgroupMemoryEntry is the memory state for a single cgroup (container).
+type CgroupMemoryEntry struct {
+	// CgroupPath is the absolute path of the cgroup directory.
+	CgroupPath string `json:"cgroupPath"`
+	// Pod is the pod name or UID extracted from the cgroup path.
+	Pod string `json:"pod"`
+	// Namespace is the Kubernetes namespace (empty when enrichment is not available).
+	Namespace string `json:"namespace"`
+
+	// CurrentBytes is the value of memory.current.
+	CurrentBytes uint64 `json:"currentBytes"`
+	// LimitBytes is the value of memory.max.
+	LimitBytes uint64 `json:"limitBytes"`
+	// HighBytes is the value of memory.high (0 = not set).
+	HighBytes uint64 `json:"highBytes"`
+	// UsedPct is CurrentBytes / LimitBytes * 100.
+	UsedPct float64 `json:"usedPct"`
+
+	// GrowthRateBytesPerSec is the rate of change of CurrentBytes between polls.
+	GrowthRateBytesPerSec float64 `json:"growthRateBytesPerSec"`
+	// HighEventRate is the rate of memory.events.high increments per second.
+	HighEventRate float64 `json:"highEventRate"`
+
+	// Event counters from memory.events.
+	EventsHigh    uint64 `json:"eventsHigh"`
+	EventsMax     uint64 `json:"eventsMax"`
+	EventsOOM     uint64 `json:"eventsOOM"`
+	EventsOOMKill uint64 `json:"eventsOOMKill"`
 }
 
 // ─── Memory Snapshot ─────────────────────────────────────────────────────────

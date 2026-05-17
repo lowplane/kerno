@@ -31,7 +31,7 @@ type Collector interface {
 
 	// Snapshot returns a point-in-time copy of the aggregated signals.
 	// The returned value is safe for concurrent read by other goroutines.
-	Snapshot() interface{}
+	Snapshot() any
 }
 
 // Registry manages the lifecycle of multiple collectors.
@@ -142,6 +142,8 @@ func (r *Registry) Signals(duration time.Duration) *Signals {
 			s.FD = v
 		case *MemorySnapshot:
 			s.Memory = v
+		case *CgroupMemorySnapshot:
+			s.CgroupMemory = v
 		}
 	}
 

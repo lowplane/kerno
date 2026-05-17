@@ -9,10 +9,10 @@ project_name: kerno
 before:
   hooks:
     - go mod tidy
-    # Generate bpf2go bindings (*_bpfel.go) so amd64/arm64 builds can
-    # resolve diskIOObjects, syscallLatencyObjects, etc. The release
-    # workflow installs clang+libbpf-dev before invoking goreleaser.
-    - go generate ./internal/bpf/...
+    # Generate bpf2go bindings (*_bpfel.go) and rewrite their build tag
+    # so the `ebpf` tag selects them over the no-clang stubs in gen_stub.go.
+    # The release workflow installs clang + libbpf-dev before invoking goreleaser.
+    - make generate
 
 builds:
   - id: kerno
@@ -27,6 +27,9 @@ builds:
       - arm64
     flags:
       - -trimpath
+    # `ebpf` tag selects the bpf2go-generated bindings over the no-clang stubs.
+    tags:
+      - ebpf
     ldflags:
       - -s -w
       - -X github.com/optiqor/kerno/internal/version.Version={{ .Version }}
