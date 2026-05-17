@@ -128,3 +128,60 @@ func TestInfoMetric(t *testing.T) {
 		t.Errorf("InfoMetric = %v, want 1", got)
 	}
 }
+
+func TestBPFProgramLoadedGaugeVec(t *testing.T) {
+	// Set loaded=1 for a program and verify.
+	BPFProgramLoaded.WithLabelValues("syscall_latency").Set(1)
+	if got := testutil.ToFloat64(BPFProgramLoaded.WithLabelValues("syscall_latency")); got != 1 {
+		t.Errorf("BPFProgramLoaded{syscall_latency} = %v, want 1", got)
+	}
+
+	// Set loaded=0 for a failed program and verify.
+	BPFProgramLoaded.WithLabelValues("tcp_monitor").Set(0)
+	if got := testutil.ToFloat64(BPFProgramLoaded.WithLabelValues("tcp_monitor")); got != 0 {
+		t.Errorf("BPFProgramLoaded{tcp_monitor} = %v, want 0", got)
+	}
+
+	// Verify both are present in the registry after observation.
+	families, err := Registry.Gather()
+	if err != nil {
+		t.Fatalf("failed to gather metrics: %v", err)
+	}
+	found := false
+	for _, f := range families {
+		if f.GetName() == "kerno_bpf_program_loaded" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected kerno_bpf_program_loaded in registry after Set()")
+	}
+}
+
+func TestBPFProgramLoadErrorsTotal(t *testing.T) {
+	before := testutil.ToFloat64(BPFProgramLoadErrorsTotal.WithLabelValues("oom_track", "operation not permitted"))
+	BPFProgramLoadErrorsTotal.WithLabelValues("oom_track", "operation not permitted").Inc()
+	BPFProgramLoadErrorsTotal.WithLabelValues("oom_track", "operation not permitted").Inc()
+	after := testutil.ToFloat64(BPFProgramLoadErrorsTotal.WithLabelValues("oom_track", "operation not permitted"))
+
+	if got := after - before; got != 2 {
+		t.Errorf("BPFProgramLoadErrorsTotal delta = %v, want 2", got)
+	}
+
+	// Verify metric is present in registry.
+	families, err := Registry.Gather()
+	if err != nil {
+		t.Fatalf("failed to gather metrics: %v", err)
+	}
+	found := false
+	for _, f := range families {
+		if f.GetName() == "kerno_bpf_program_load_errors_total" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected kerno_bpf_program_load_errors_total in registry after Inc()")
+	}
+}

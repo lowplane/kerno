@@ -142,7 +142,7 @@ func runDoctor(ctx context.Context, opts doctorOpts) error {
 		var err error
 		analyzer, err = buildAnalyzer(cfg, logger)
 		if err != nil {
-			// AI setup failure is non-fatal ??? warn and continue without AI.
+			// AI setup failure is non-fatal — warn and continue without AI.
 			logger.Warn("AI analysis unavailable, continuing with rule-based diagnostics", "error", err)
 		}
 	}
@@ -163,7 +163,7 @@ func runDoctor(ctx context.Context, opts doctorOpts) error {
 	}
 
 	// Build the eBPF loader set + collector registry. Loader failures are
-	// non-fatal ??? we degrade gracefully and surface the gap in the report
+	// non-fatal — we degrade gracefully and surface the gap in the report
 	// via a single DEGRADATION panel.
 	build := buildCollectors(ctx, logger)
 	defer func() {
@@ -306,7 +306,7 @@ func buildCollectors(ctx context.Context, logger *slog.Logger) collectorBuildRes
 			},
 		},
 		{
-			// Memory collector polls /proc/meminfo ??? it doesn't load
+			// Memory collector polls /proc/meminfo — it doesn't load
 			// any eBPF program, so the build closure returns a no-op
 			// io.Closer.
 			name:    "memory",
@@ -406,9 +406,9 @@ func classifyLoadError(err error) string {
 	case strings.Contains(msg, "btf") || strings.Contains(msg, "vmlinux"):
 		return "kernel needs CONFIG_DEBUG_INFO_BTF (kernel >= 5.8 with BTF)"
 	case strings.Contains(msg, "verifier") || strings.Contains(msg, "load program"):
-		return "kernel verifier rejected the program ??? file an issue with kernel version"
+		return "kernel verifier rejected the program — file an issue with kernel version"
 	case strings.Contains(msg, "no such file") && strings.Contains(msg, "tracepoint"):
-		return "this kernel may lack the required tracepoint ??? try a newer kernel"
+		return "this kernel may lack the required tracepoint — try a newer kernel"
 	default:
 		return ""
 	}
@@ -482,14 +482,14 @@ func runDiagnosticCycle(
 	defer cancel()
 
 	if err := registry.StartAll(collectCtx); err != nil {
-		// A collector failing to start is non-fatal ??? log and continue.
+		// A collector failing to start is non-fatal — log and continue.
 		// Snapshot() on an unstarted collector still returns a zero-value
 		// snapshot, which the rule engine handles cleanly.
 		logger.Warn("one or more collectors failed to start", "error", err)
 	}
 	defer registry.StopAll()
 
-	// Live progress spinner ??? only when stdout is going to pretty
+	// Live progress spinner — only when stdout is going to pretty
 	// output AND stderr is a TTY. JSON output, piped output, and CI
 	// runs (NO_COLOR) get a single-line status instead.
 	showSpinner := opts.output != "json" && isTerminal()
@@ -530,7 +530,7 @@ func runDiagnosticCycle(
 	// Check if we were canceled by the parent context (Ctrl+C) vs timeout.
 	if ctx.Err() != nil {
 		if opts.output != "json" {
-			fmt.Fprintf(os.Stderr, "\nInterrupted ??? analyzing partial data.\n")
+			fmt.Fprintf(os.Stderr, "\nInterrupted — analyzing partial data.\n")
 		}
 	}
 
@@ -555,7 +555,7 @@ func runDiagnosticCycle(
 	//
 	// In --quiet mode, we suppress the full pretty rendering when the
 	// system is healthy (only critical/warning findings warrant
-	// output). JSON mode is unaffected ??? machine consumers expect a
+	// output). JSON mode is unaffected — machine consumers expect a
 	// stable shape every time.
 	if opts.quiet && opts.output != "json" {
 		hasIssues := false
@@ -566,8 +566,8 @@ func runDiagnosticCycle(
 			}
 		}
 		if !hasIssues {
-			// Single-line "all clear" ??? CI-friendly.
-			fmt.Fprintf(os.Stdout, "kerno: ??? all kernel signals nominal (%s window, %d events)\n",
+			// Single-line "all clear" — CI-friendly.
+			fmt.Fprintf(os.Stdout, "kerno: ✓ all kernel signals nominal (%s window, %d events)\n",
 				opts.duration, report.EventsCollected)
 		} else if err := renderer.Render(os.Stdout, report); err != nil {
 			return fmt.Errorf("rendering report: %w", err)
