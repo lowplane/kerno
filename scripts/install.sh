@@ -120,7 +120,7 @@ install_completion() {
         bash)
             local bash_dir="/etc/bash_completion.d"
             mkdir -p "$bash_dir"
-            kerno completion bash > "${bash_dir}/kerno"
+            "${INSTALL_DIR}/kerno" completion bash > "${bash_dir}/kerno"
             chmod 644 "${bash_dir}/kerno"
             echo "    Installed to ${bash_dir}/kerno"
             echo "    Restart shell or run: source ${bash_dir}/kerno"
@@ -128,7 +128,7 @@ install_completion() {
         zsh)
             local zsh_dir="/usr/local/share/zsh/site-functions"
             mkdir -p "$zsh_dir"
-            kerno completion zsh > "${zsh_dir}/_kerno"
+            "${INSTALL_DIR}/kerno" completion zsh > "${zsh_dir}/_kerno"
             chmod 644 "${zsh_dir}/_kerno"
             echo "    Installed to ${zsh_dir}/_kerno"
             echo "    Restart shell or run: autoload -U compinit && compinit"
@@ -136,7 +136,7 @@ install_completion() {
         fish)
             local fish_dir="/usr/share/fish/vendor_completions.d"
             mkdir -p "$fish_dir"
-            kerno completion fish > "${fish_dir}/kerno.fish"
+            "${INSTALL_DIR}/kerno" completion fish > "${fish_dir}/kerno.fish"
             chmod 644 "${fish_dir}/kerno.fish"
             echo "    Installed to ${fish_dir}/kerno.fish"
             echo "    Restart fish to load the new completion"
