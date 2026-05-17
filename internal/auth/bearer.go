@@ -88,6 +88,7 @@ func (g *BearerGuard) Wrap(next http.Handler) http.Handler {
 
 // load reads, trims, and stores the token from path under write lock.
 func (g *BearerGuard) load(path string) error {
+	// #nosec G304 -- path comes from operator config
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return err

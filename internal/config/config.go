@@ -107,9 +107,10 @@ type DoctorThresholds struct {
 
 // PrometheusConfig controls the Prometheus metrics exporter.
 type PrometheusConfig struct {
-	Enabled bool           `mapstructure:"enabled" json:"enabled"`
-	Addr    string         `mapstructure:"addr" json:"addr"`
-	Auth    PrometheusAuth `mapstructure:"auth" json:"auth"`
+	Enabled    bool           `mapstructure:"enabled" json:"enabled"`
+	Addr       string         `mapstructure:"addr" json:"addr"`
+	HealthAddr string         `mapstructure:"health_addr" json:"healthAddr"`
+	Auth       PrometheusAuth `mapstructure:"auth" json:"auth"`
 }
 
 // PrometheusAuth defines authentication settings for the metrics endpoint.
@@ -174,8 +175,9 @@ func Default() *Config {
 			PrivacyMode:        "summary",
 		},
 		Prometheus: PrometheusConfig{
-			Enabled: true,
-			Addr:    ":9090",
+			Enabled:    true,
+			Addr:       ":9090",
+			HealthAddr: ":9092",
 			Auth: PrometheusAuth{
 				Mode: "none",
 			},

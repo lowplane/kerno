@@ -22,7 +22,7 @@ var nopLogger = slog.New(slog.NewTextHandler(io.Discard, nil))
 func writeTokenFile(t *testing.T, token string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "metrics-token")
-	if err := os.WriteFile(path, []byte(token+"\n"), 0o400); err != nil {
+	if err := os.WriteFile(path, []byte(token+"\n"), 0o600); err != nil {
 		t.Fatalf("writing token file: %v", err)
 	}
 	return path

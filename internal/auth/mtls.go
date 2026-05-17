@@ -53,6 +53,7 @@ func TLSConfig(certFile, keyFile, caFile string) (*tls.Config, error) {
 // loadCertPool reads a PEM-encoded CA certificate bundle and returns a cert
 // pool suitable for use as tls.Config.ClientCAs.
 func loadCertPool(path string) (*x509.CertPool, error) {
+	// #nosec G304 -- path comes from operator config
 	pem, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err

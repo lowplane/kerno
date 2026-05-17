@@ -152,12 +152,35 @@ func runStart(ctx context.Context, opts startOpts) error {
 
 	// Phase 3: Start HTTP server for health and metrics.
 	var httpServer *http.Server
-	if opts.prometheus {
-		mux := http.NewServeMux()
-		mux.HandleFunc("/healthz", healthzHandler(loadedCount, len(loaders)))
-		mux.HandleFunc("/readyz", readyzHandler(loadedCount, len(loaders)))
+	var healthServer *http.Server
 
-		var metricsHandler http.Handler = promhttp.HandlerFor(metrics.Registry, promhttp.HandlerOpts{})
+	if opts.prometheus {
+		// --- Health Listener (Plain HTTP) ---
+		healthMux := http.NewServeMux()
+		healthMux.HandleFunc("/healthz", healthzHandler(loadedCount, len(loaders)))
+		healthMux.HandleFunc("/readyz", readyzHandler(loadedCount, len(loaders)))
+		
+		healthAddr := cfg.Prometheus.HealthAddr
+		if healthAddr == "" {
+			healthAddr = ":9092"
+		}
+		
+		healthServer = &http.Server{
+			Addr:              healthAddr,
+			Handler:           healthMux,
+			ReadHeaderTimeout: 10 * time.Second,
+		}
+
+		go func() {
+			logger.Info("starting health HTTP server", "addr", healthAddr)
+			if err := healthServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				logger.Error("health HTTP server error", "error", err)
+			}
+		}()
+
+		// --- Metrics Listener (TLS or Plain HTTP) ---
+		metricsMux := http.NewServeMux()
+		metricsHandler := promhttp.HandlerFor(metrics.Registry, promhttp.HandlerOpts{})
 
 		if cfg.Prometheus.Auth.Mode == "bearer" {
 			guard, err := auth.NewBearerGuard(cfg.Prometheus.Auth.TokenFile, logger)
@@ -183,7 +206,7 @@ func runStart(ctx context.Context, opts startOpts) error {
 			}()
 		}
 
-		mux.Handle("/metrics", metricsHandler)
+		metricsMux.Handle("/metrics", metricsHandler)
 
 		var tlsCfg *tls.Config
 		if cfg.Prometheus.Auth.Mode == "mtls" {
@@ -196,13 +219,13 @@ func runStart(ctx context.Context, opts startOpts) error {
 
 		httpServer = &http.Server{
 			Addr:              promAddr,
-			Handler:           mux,
+			Handler:           metricsMux,
 			ReadHeaderTimeout: 10 * time.Second,
 			TLSConfig:         tlsCfg,
 		}
 
 		go func() {
-			logger.Info("starting HTTP server", "addr", promAddr, "auth_mode", cfg.Prometheus.Auth.Mode)
+			logger.Info("starting metrics HTTP server", "addr", promAddr, "auth_mode", cfg.Prometheus.Auth.Mode)
 			var err error
 			if tlsCfg != nil {
 				// Certs are already loaded into TLSConfig
@@ -211,7 +234,7 @@ func runStart(ctx context.Context, opts startOpts) error {
 				err = httpServer.ListenAndServe()
 			}
 			if err != nil && !errors.Is(err, http.ErrServerClosed) {
-				logger.Error("HTTP server error", "error", err)
+				logger.Error("metrics HTTP server error", "error", err)
 			}
 		}()
 	}
@@ -220,9 +243,17 @@ func runStart(ctx context.Context, opts startOpts) error {
 	fmt.Println("kerno daemon running")
 	fmt.Printf("  eBPF programs: %d/%d loaded\n", loadedCount, len(loaders))
 	if opts.prometheus {
-		fmt.Printf("  Prometheus:    http://%s/metrics\n", promAddr)
-		fmt.Printf("  Health:        http://%s/healthz\n", promAddr)
-		fmt.Printf("  Readiness:     http://%s/readyz\n", promAddr)
+		healthAddr := cfg.Prometheus.HealthAddr
+		if healthAddr == "" {
+			healthAddr = ":9092"
+		}
+		schema := "http"
+		if cfg.Prometheus.Auth.Mode == "mtls" {
+			schema = "https"
+		}
+		fmt.Printf("  Prometheus:    %s://%s/metrics\n", schema, promAddr)
+		fmt.Printf("  Health:        http://%s/healthz\n", healthAddr)
+		fmt.Printf("  Readiness:     http://%s/readyz\n", healthAddr)
 	}
 	if opts.dashboard {
 		fmt.Printf("  Dashboard:     http://%s (not yet implemented)\n", cfg.Dashboard.Addr)
@@ -240,7 +271,14 @@ func runStart(ctx context.Context, opts startOpts) error {
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer shutdownCancel()
 		if err := httpServer.Shutdown(shutdownCtx); err != nil {
-			logger.Warn("HTTP server shutdown error", "error", err)
+			logger.Warn("metrics HTTP server shutdown error", "error", err)
+		}
+	}
+	if healthServer != nil {
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer shutdownCancel()
+		if err := healthServer.Shutdown(shutdownCtx); err != nil {
+			logger.Warn("health HTTP server shutdown error", "error", err)
 		}
 	}
 
