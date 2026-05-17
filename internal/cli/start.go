@@ -163,7 +163,7 @@ func runStart(ctx context.Context, opts startOpts) error {
 		if healthAddr == "" {
 			healthAddr = ":9092"
 		}
-		
+
 		healthServer = &http.Server{
 			Addr:              healthAddr,
 			Handler:           healthMux,
