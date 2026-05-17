@@ -12,6 +12,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"math/big"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -61,7 +62,8 @@ func generateCertificates(t *testing.T) (caPath, serverCertPath, serverKeyPath, 
 		Subject:      pkix.Name{Organization: []string{"Optiqor Server"}},
 		NotBefore:    time.Now(),
 		NotAfter:     time.Now().Add(time.Hour),
-		DNSNames:     []string{"localhost", "127.0.0.1"},
+		DNSNames:     []string{"localhost"},
+		IPAddresses:  []net.IP{net.ParseIP("127.0.0.1")},
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		KeyUsage:     x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
 	}
@@ -168,7 +170,7 @@ func TestTLSConfig_MutualTLS(t *testing.T) {
 
 func TestTLSConfig_InvalidCA(t *testing.T) {
 	_, serverCert, serverKey, _, _ := generateCertificates(t)
-	
+
 	// Create an invalid CA file
 	badCA := filepath.Join(t.TempDir(), "bad_ca.crt")
 	if err := os.WriteFile(badCA, []byte("not a certificate"), 0644); err != nil {
@@ -201,8 +203,10 @@ func TestMTLSEndToEnd(t *testing.T) {
 
 	// 1. Try with no client cert (should fail)
 	noCertClient := ts.Client() // uses standard transport that trusts the server cert, but no client cert
-	_, err = noCertClient.Get(ts.URL)
+	req1, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, ts.URL, nil)
+	resp1, err := noCertClient.Do(req1)
 	if err == nil {
+		resp1.Body.Close()
 		t.Fatal("expected request without client cert to fail")
 	}
 
@@ -228,12 +232,13 @@ func TestMTLSEndToEnd(t *testing.T) {
 		},
 	}
 
-	resp, err := validClient.Get(ts.URL)
+	req2, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, ts.URL, nil)
+	resp2, err := validClient.Do(req2)
 	if err != nil {
 		t.Fatalf("expected request with valid client cert to succeed, got error: %v", err)
 	}
-	resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected 200 OK, got %d", resp.StatusCode)
+	resp2.Body.Close()
+	if resp2.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d", resp2.StatusCode)
 	}
 }

@@ -159,7 +159,6 @@ func runStart(ctx context.Context, opts startOpts) error {
 		healthMux := http.NewServeMux()
 		healthMux.HandleFunc("/healthz", healthzHandler(loadedCount, len(loaders)))
 		healthMux.HandleFunc("/readyz", readyzHandler(loadedCount, len(loaders)))
-		
 		healthAddr := cfg.Prometheus.HealthAddr
 		if healthAddr == "" {
 			healthAddr = ":9092"
