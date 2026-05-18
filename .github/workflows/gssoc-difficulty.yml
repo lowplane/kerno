@@ -1,0 +1,141 @@
+# Copyright 2026 Optiqor contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Auto-applies a level:* difficulty label to every PR. One label per PR.
+# Re-runs on synchronize, so a PR that grows out of its initial bucket
+# gets re-classified on each push.
+#
+# Classification (strict; checked top-to-bottom, first match wins):
+#
+#   level:critical   — touches BPF C, AI, daemon entry, release tooling,
+#                      install script, Dockerfile, security workflows,
+#                      or K8s RBAC / security context. Size-independent.
+#
+#   level:beginner   — ONLY trivial paths (docs, templates, fixtures,
+#                      .gitignore) AND ≤ 5 files. Any size in that scope.
+#                      A README rewrite is beginner. A typo is beginner.
+#
+#   level:advanced   — 400+ total lines OR 9+ files; OR a code path
+#                      (internal/, pkg/, cmd/) with 100+ lines or 5+ files.
+#
+#   level:intermediate — everything else. Default bucket for code work
+#                      under 100 lines, and for non-code config tweaks
+#                      that aren't trivial docs.
+#
+# If you need to override, comment with /level <bucket> — not wired yet
+# but the override path is reserved.
+
+name: GSSoC difficulty label
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  issues: write         # /issues/:n/labels endpoint is under the issues resource
+  pull-requests: write
+
+jobs:
+  classify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v9
+        with:
+          script: |
+            const repo = { owner: context.repo.owner, repo: context.repo.repo };
+            const pr = context.payload.pull_request;
+            const prNumber = pr.number;
+
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              ...repo, pull_number: prNumber, per_page: 100,
+            });
+            const paths = files.map(f => f.filename);
+
+            // ── Critical surface (size-independent) ────────────────────
+            //
+            // A bug here can cause kernel-verifier rejection, capability
+            // widening, secret leakage, or a bad release artifact.
+            const criticalPatterns = [
+              /^internal\/bpf\/c\//,            // BPF C source — verifier risk
+              /^internal\/bpf\/.*loader\.go$/,  // BPF program loaders
+              /^internal\/ai\//,                 // privacy + API key handling
+              /^internal\/cli\/start\.go$/,      // daemon entry + capabilities
+              /^Dockerfile/,                     // production image
+              /^scripts\/install\.sh$/,          // root install + supply chain
+              /^SECURITY\.md$/,
+              /^\.goreleaser/,
+              /^\.github\/workflows\/(release|codeql|cosign|security)/,
+              /^deploy\/.*(rbac|security[Cc]ontext|securitycontext)/,
+            ];
+
+            // ── Code paths (intermediate floor) ────────────────────────
+            //
+            // Any non-trivial change in these paths is at least intermediate.
+            // Touching the doctor engine, a collector, or a CLI command
+            // requires understanding the codebase — not beginner work.
+            const codePathPatterns = [
+              /^internal\//,
+              /^pkg\//,
+              /^cmd\//,
+            ];
+
+            // ── Trivial paths (beginner ceiling) ────────────────────────
+            //
+            // PRs that touch ONLY these paths qualify for beginner regardless
+            // of line count. Docs, config, fixtures, issue/PR templates.
+            const trivialPatterns = [
+              /\.md$/,
+              /\.gitignore$/,
+              /\.editorconfig$/,
+              /^docs\//,
+              /^testdata\//,
+              /^demo\./,
+              /^\.github\/ISSUE_TEMPLATE\//,
+              /^\.github\/PULL_REQUEST_TEMPLATE\.md$/,
+              /^\.github\/mlc-config\.json$/,
+              /^\.github\/labeler\.yml$/,
+              /^\.github\/dependabot\.yml$/,
+              /^LICENSE$/,
+              /^CODE_OF_CONDUCT\.md$/,
+              /^GOVERNANCE\.md$/,
+            ];
+
+            const lines = (pr.additions || 0) + (pr.deletions || 0);
+            const fileCount = paths.length;
+            const touchesCritical = paths.some(p => criticalPatterns.some(re => re.test(p)));
+            const touchesCode = paths.some(p => codePathPatterns.some(re => re.test(p)));
+            const allTrivial = paths.length > 0 && paths.every(p => trivialPatterns.some(re => re.test(p)));
+
+            let level;
+            if (touchesCritical) {
+              level = 'level:critical';
+            } else if (allTrivial && fileCount <= 5) {
+              level = 'level:beginner';
+            } else if (lines >= 400 || fileCount >= 9) {
+              level = 'level:advanced';
+            } else if (touchesCode && (lines >= 100 || fileCount >= 5)) {
+              level = 'level:advanced';
+            } else if (touchesCode) {
+              level = 'level:intermediate';
+            } else {
+              level = 'level:intermediate';
+            }
+
+            core.info(
+              `PR #${prNumber}: ${lines} lines, ${fileCount} files, ` +
+              `critical=${touchesCritical}, code=${touchesCode}, allTrivial=${allTrivial} → ${level}`
+            );
+
+            // Strip any other level:* label, then apply the chosen one.
+            const currentLabels = (pr.labels || []).map(l => l.name);
+            for (const old of currentLabels) {
+              if (old.startsWith('level:') && old !== level) {
+                await github.rest.issues.removeLabel({
+                  ...repo, issue_number: prNumber, name: old,
+                }).catch(() => {});
+              }
+            }
+            await github.rest.issues.addLabels({
+              ...repo, issue_number: prNumber, labels: [level],
+            });

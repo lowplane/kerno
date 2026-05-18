@@ -1,0 +1,66 @@
+# Copyright 2026 Optiqor contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# When a maintainer (repo collaborator with write+) submits an APPROVED
+# review, apply `mentor:<their-username>` to the PR. The scoring engine
+# uses this label to credit the reviewing mentor with points.
+#
+# Multiple maintainers approving = multiple mentor:* labels. That is
+# intentional: every reviewer who signed off gets credit.
+
+name: GSSoC mentor attribution
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: read
+  issues: write         # /repos/:o/:r/labels and /issues/:n/labels live under the issues resource
+  pull-requests: write
+
+jobs:
+  attribute:
+    if: github.event.review.state == 'approved'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v9
+        with:
+          script: |
+            const repo = { owner: context.repo.owner, repo: context.repo.repo };
+            const reviewer = context.payload.review.user.login;
+            const prNumber = context.payload.pull_request.number;
+
+            // Only collaborators with write+ count as mentors.
+            let isMaintainer = false;
+            try {
+              const perm = await github.rest.repos.getCollaboratorPermissionLevel({
+                ...repo, username: reviewer,
+              });
+              const lvl = perm.data.permission;
+              isMaintainer = (lvl === 'admin' || lvl === 'write' || lvl === 'maintain');
+            } catch (e) {
+              core.info(`@${reviewer} not a collaborator; skipping mentor attribution`);
+              return;
+            }
+            if (!isMaintainer) {
+              core.info(`@${reviewer} lacks write+; skipping`);
+              return;
+            }
+
+            const label = `mentor:${reviewer}`;
+
+            // Create the label on the fly so we don't need to pre-register
+            // every maintainer's username. Pastel gray so they don't shout.
+            await github.rest.issues.createLabel({
+              ...repo,
+              name: label,
+              color: 'C5C5C5',
+              description: `Reviewed and approved by @${reviewer}`,
+            }).catch(() => {}); // label may already exist
+
+            await github.rest.issues.addLabels({
+              ...repo, issue_number: prNumber, labels: [label],
+            });
+
+            core.info(`applied ${label} to PR #${prNumber}`);

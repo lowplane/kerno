@@ -84,6 +84,27 @@ func TestPrettyRenderer_ContainsHeader(t *testing.T) {
 	}
 }
 
+func TestPrettyRenderer_NoBanner(t *testing.T) {
+	var buf bytes.Buffer
+	// Set NoBanner to true
+	r := &PrettyRenderer{NoColor: true, NoBanner: true}
+	report := sampleReport()
+
+	if err := r.Render(&buf, report); err != nil {
+		t.Fatalf("Render failed: %v", err)
+	}
+
+	output := buf.String()
+
+	if strings.Contains(output, "KERNO DOCTOR") {
+		t.Error("pretty output should NOT contain KERNO DOCTOR banner when NoBanner is true")
+	}
+
+	if !strings.Contains(output, "FINDINGS") {
+		t.Error("pretty output should still contain FINDINGS")
+	}
+}
+
 func TestPrettyRenderer_HealthySystem(t *testing.T) {
 	var buf bytes.Buffer
 	r := &PrettyRenderer{NoColor: true}

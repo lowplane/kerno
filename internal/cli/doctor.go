@@ -32,6 +32,7 @@ func newDoctorCmd() *cobra.Command {
 		useAI      bool
 		noAI       bool
 		quiet      bool
+		noBanner   bool
 	)
 
 	cmd := &cobra.Command{
@@ -80,6 +81,7 @@ Add --ai to enrich findings with AI-powered analysis (requires API key).`,
 				output:     output,
 				aiEnabled:  aiEnabled,
 				quiet:      quiet,
+				noBanner:   noBanner,
 			})
 		},
 	}
@@ -93,6 +95,7 @@ Add --ai to enrich findings with AI-powered analysis (requires API key).`,
 	flags.BoolVar(&useAI, "ai", false, "enable AI-powered analysis (requires API key)")
 	flags.BoolVar(&noAI, "no-ai", false, "disable AI analysis even if enabled in config")
 	flags.BoolVarP(&quiet, "quiet", "q", false, "only emit critical/warning findings (CI-friendly)")
+	flags.BoolVar(&noBanner, "no-banner", false, "suppress the ASCII banner block")
 
 	return cmd
 }
@@ -105,6 +108,7 @@ type doctorOpts struct {
 	output     string
 	aiEnabled  bool
 	quiet      bool
+	noBanner   bool
 }
 
 func runDoctor(ctx context.Context, opts doctorOpts) error {
@@ -146,7 +150,8 @@ func runDoctor(ctx context.Context, opts doctorOpts) error {
 		renderer = &doctor.JSONRenderer{Pretty: true}
 	default:
 		renderer = &doctor.PrettyRenderer{
-			NoColor: os.Getenv("NO_COLOR") != "" || !isTerminal(),
+			NoColor:  os.Getenv("NO_COLOR") != "" || !isTerminal(),
+			NoBanner: opts.noBanner,
 		}
 	}
 

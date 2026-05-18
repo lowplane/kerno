@@ -13,7 +13,7 @@ import (
 func TestNewDoctorCmd_Flags(t *testing.T) {
 	cmd := newDoctorCmd()
 
-	wantFlags := []string{"duration", "exit-code", "continuous", "interval", "output", "ai", "no-ai"}
+	wantFlags := []string{"duration", "exit-code", "continuous", "interval", "output", "ai", "no-ai", "no-banner"}
 	for _, name := range wantFlags {
 		if cmd.Flags().Lookup(name) == nil {
 			t.Errorf("doctor cmd missing --%s flag", name)
@@ -43,6 +43,7 @@ func TestNewDoctorCmd_Defaults(t *testing.T) {
 		{"continuous", "false"},
 		{"ai", "false"},
 		{"no-ai", "false"},
+		{"no-banner", "false"},
 	}
 	for _, c := range cases {
 		f := cmd.Flags().Lookup(c.flag)
