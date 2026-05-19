@@ -5,7 +5,7 @@ package cli
 
 import "testing"
 
-// TestNewTraceDiskCmd_Flags verifies the trace disk command
+// TestNewWatchOOMCmd_Flags verifies the watch oom command
 // exposes all documented flags.
 func TestNewWatchOOMCmd_Flags(t *testing.T) {
 	cmd := newWatchOOMCmd()
