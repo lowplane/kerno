@@ -475,8 +475,7 @@ perf(collector): reduce syscall aggregation allocations by 40%
 
 Your collector should not panic, but if it does, here's what kerno will do:
 - **Crash Recovery**: The goroutine will be recovered, capturing a full stack trace.
-- **Forensic Logging**: A panic trace will be saved to `/var/log/kerno-panics/` for post-mortem analysis.
-- **Backoff & Restart**: The collector will automatically restart using exponential backoff (up to 60s).
+- **Forensic Logging**: A panic trace will be saved to `/var/log/kerno-panics/` (or your configured `KERNO_PANIC_LOG_DIR`) for post-mortem analysis. If disabled, it logs to stderr.
 - **Crash-Loop Safety**: If a collector panics 5 times within 10 minutes, kerno will permanently disable it for the remainder of the daemon's lifetime and emit a `CRITICAL` alert metric to prevent flapping.
 
 ---
@@ -489,6 +488,23 @@ Your collector should not panic, but if it does, here's what kerno will do:
 - All CI checks must pass.
 - At least one maintainer approval is required.
 - Squash-merge is preferred for clean history.
+
+### PR Slash Commands
+
+Drive review and merge from PR comments. A bot picks them up within seconds.
+
+| Command | Who | Effect |
+|---|---|---|
+| `/help` | anyone | List available commands |
+| `/retest` | anyone | Re-run any failed CI checks on the current commit |
+| `/close` | author or maintainer | Close the PR |
+| `/reopen` | author or maintainer | Re-open a closed PR |
+| `/lgtm` or `/approve` | maintainer | Record approval, add `lgtm` label |
+| `/lgtm cancel` | maintainer | Withdraw approval, remove label |
+| `/merge` | maintainer | Squash-merge if green and not held |
+| `/hold` | maintainer | Block `/merge` (adds `do-not-merge/hold`) |
+| `/unhold` | maintainer | Release the hold |
+| `/ok-to-test` | maintainer | Allow CI to run on an external contributor's PR |
 
 ## Claiming an Issue
 

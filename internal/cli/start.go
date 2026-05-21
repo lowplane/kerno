@@ -21,6 +21,7 @@ import (
 	"github.com/optiqor/kerno/internal/adapter"
 	"github.com/optiqor/kerno/internal/bpf"
 	"github.com/optiqor/kerno/internal/metrics"
+	"github.com/optiqor/kerno/internal/observability"
 	"github.com/optiqor/kerno/internal/version"
 )
 
@@ -71,12 +72,19 @@ type startOpts struct {
 	dashboard      bool
 }
 
-func runStart(ctx context.Context, opts startOpts) error {
+func runStart(ctx context.Context, opts startOpts) (err error) {
 	if err := requireRoot(); err != nil {
 		return err
 	}
 
 	logger := slog.Default()
+
+	defer func() {
+		if r := recover(); r != nil {
+			observability.HandleDaemonPanic(r, logger)
+			err = fmt.Errorf("daemon panicked: %v", r)
+		}
+	}()
 
 	logger.Info("starting kerno daemon",
 		"prometheus", opts.prometheus,
@@ -234,7 +242,7 @@ func healthzHandler(loaded, total int) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]any{
+		json.NewEncoder(w).Encode(map[string]interface{}{
 			"status":         "ok",
 			"programsLoaded": loaded,
 			"programsTotal":  total,

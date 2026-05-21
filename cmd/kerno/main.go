@@ -22,6 +22,9 @@ import (
 func main() {
 	if err := cli.New().Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		if err.Error() != "" && err.Error()[0] == 'd' && err.Error()[:6] == "daemon" {
+			os.Exit(2)
+		}
 		os.Exit(1)
 	}
 }
