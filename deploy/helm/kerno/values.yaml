@@ -120,3 +120,27 @@ securityContext:
 # Host path prefix — Kerno mounts host paths under /host/ to avoid conflicts.
 # All pollers read from /host/proc, /host/sys/fs/cgroup, etc.
 hostPathPrefix: /host
+
+# NetworkPolicy configuration
+networkPolicy:
+  enabled: false
+  prometheus:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: monitoring
+    podSelector:
+      matchLabels:
+        app.kubernetes.io/name: prometheus
+  k8sApiServer:
+    ports:
+      - 443
+      - 6443
+    cidrs: []
+  kubelet:
+    ports:
+      - 10250
+      - 10255
+    cidrs: []
+  additionalIngress: []
+  additionalEgress: []
+

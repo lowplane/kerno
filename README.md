@@ -233,6 +233,7 @@ Kerno tags every finding with pod, namespace, node, and workload labels. No `cli
 - Runs with the **minimum capabilities needed** - `CAP_BPF`, `CAP_PERFMON`, `CAP_SYS_PTRACE`, `CAP_NET_ADMIN`, `CAP_DAC_READ_SEARCH` (not `CAP_SYS_ADMIN` for the hot path).
 - Read-only root filesystem, `ProtectSystem=strict` via systemd on bare metal.
 - No outbound network calls. AI integration is opt-in and goes through your configured provider only.
+- **Opt-in NetworkPolicy**: Limit metrics and `/debug/pprof` ingress to Prometheus pods, allow DNS, K8s API server, and Kubelet egress, and deny other traffic by default. See [Helm README](deploy/helm/kerno/README.md).
 
 ### Helm values
 
@@ -252,6 +253,9 @@ prometheus:
 serviceMonitor:     # Prometheus Operator
   enabled: true
   interval: 15s
+
+networkPolicy:
+  enabled: false
 
 nodeSelector:
   monitoring: "true"
