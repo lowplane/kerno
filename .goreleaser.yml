@@ -119,17 +119,23 @@ nfpms:
     vendor: Optiqor
     homepage: https://github.com/optiqor/kerno
     maintainer: Optiqor <team.optiqor@gmail.com>
-    description: |
-      Kerno is a system-level incident 
-      diagnosis engine that explains 
-      production issues across Linux, 
-      Kubernetes, VMs, and bare metal using eBPF. 
+    description: >-
+      Kerno is a system-level incident diagnosis engine that explains production
+      issues across Linux, Kubernetes, VMs, and bare metal using eBPF.
     license: Apache-2.0
     formats:
       - deb
       - rpm
 
-    bindir: /usr/local/bin
+    bindir: /usr/bin
+
+    overrides:
+      deb:
+        dependencies:
+          - systemd
+      rpm:
+        dependencies:
+          - systemd
 
     contents:
       # systemd unit
@@ -137,6 +143,14 @@ nfpms:
         dst: /etc/systemd/system/kerno.service
         file_info:
           mode: 0644
+
+      # license files for deb and rpm
+      - src: LICENSE
+        dst: /usr/share/doc/kerno/copyright
+        packager: deb
+      - src: LICENSE
+        dst: /usr/share/licenses/kerno/LICENSE
+        packager: rpm
 
       # default config — marked as config so apt/dnf never overwrites local edits
       - src: deploy/systemd/kerno.yaml
@@ -148,6 +162,7 @@ nfpms:
           group: kerno
 
     scripts:
+      preinstall: deploy/scripts/preinstall.sh
       postinstall: deploy/scripts/postinstall.sh
       preremove: deploy/scripts/preremove.sh
 

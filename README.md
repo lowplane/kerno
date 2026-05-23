@@ -140,22 +140,6 @@ ServiceMonitor for the Prometheus Operator is built-in. Raw manifests live at [`
 
 ---
 
-<!-- ### 2 · Bare metal · VMs · EC2 · GCE
-
-The same binary, the same command. No Kubernetes required.
-
-```bash
-curl -sfL https://raw.githubusercontent.com/optiqor/kerno/main/scripts/install.sh | sudo bash
-sudo kerno doctor
-```
-
-Long-lived systemd service with `/metrics` for Prometheus:
-
-```bash
-curl -sfL https://raw.githubusercontent.com/optiqor/kerno/main/scripts/install.sh | sudo bash -s -- --daemon
-journalctl -u kerno -f
-``` -->
-
 
 ### 2 · Bare metal · VMs · EC2 · GCE
 
@@ -175,7 +159,14 @@ curl -LO https://github.com/optiqor/kerno/releases/latest/download/kerno-<versio
 sudo dnf install kerno-<version>.x86_64.rpm
 ```
 
-The package handles everything — binary, systemd unit, config file at `/etc/kerno/config.yaml`, and a locked-down `kerno` system user. Start the daemon:
+Once installed, run:
+
+```bash
+sudo kerno doctor
+```
+
+If you want kerno running persistently as a daemon (for continuous 
+Prometheus metrics):
 
 ```bash
 sudo systemctl enable --now kerno
