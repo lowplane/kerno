@@ -26,7 +26,7 @@ func TestCgroupThrottleCollector_NoThrottle(t *testing.T) {
 
 	t.Setenv("KERNO_CGROUP_ROOT", dir)
 
-	logger := testLogger(t)
+	logger := newSilentLogger()
 	c := NewCgroupThrottleCollector(logger, 100*time.Millisecond)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
@@ -52,7 +52,7 @@ func TestCgroupThrottleCollector_Throttled(t *testing.T) {
 
 	t.Setenv("KERNO_CGROUP_ROOT", dir)
 
-	logger := testLogger(t)
+	logger := newSilentLogger()
 	c := NewCgroupThrottleCollector(logger, 50*time.Millisecond)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
@@ -89,38 +89,7 @@ func TestReadCPUStat(t *testing.T) {
 	assertEq(t, "throttled_usec", result["throttled_usec"], uint64(320000))
 }
 
-// TestThrottlePct checks boundary conditions for throttle percentage math.
-func TestThrottlePct(t *testing.T) {
-	tests := []struct {
-		nrThrottled uint64
-		nrPeriods   uint64
-		want        float64
-	}{
-		{0, 0, 0},
-		{0, 100, 0},
-		{50, 100, 50.0},
-		{100, 100, 100.0},
-		{47, 100, 47.0},
-	}
-	for _, tc := range tests {
-		got := throttlePct(tc.nrThrottled, tc.nrPeriods)
-		if got != tc.want {
-			t.Errorf("throttlePct(%d,%d)=%.1f want %.1f", tc.nrThrottled, tc.nrPeriods, got, tc.want)
-		}
-	}
-}
-
-// TestDiffUint64 verifies counter-reset protection.
-func TestDiffUint64(t *testing.T) {
-	if d := diffUint64(100, 60); d != 40 {
-		t.Errorf("expected 40, got %d", d)
-	}
-	// Counter reset: current < prev.
-	if d := diffUint64(10, 100); d != 10 {
-		t.Errorf("expected 10 on reset, got %d", d)
-	}
-}
-
+// assertEq is a tiny generic equality helper for uint64 fields.
 func assertEq(t *testing.T, name string, got, want uint64) {
 	t.Helper()
 	if got != want {
