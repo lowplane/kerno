@@ -56,11 +56,9 @@ func NewRegistry(logger *slog.Logger) *Registry {
 func (r *Registry) Register(c Collector) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-
 	if _, exists := r.collectors[c.Name()]; exists {
 		return fmt.Errorf("collector %q already registered", c.Name())
 	}
-
 	r.collectors[c.Name()] = c
 	r.logger.Debug("registered collector", "name", c.Name())
 	return nil
@@ -72,7 +70,6 @@ func (r *Registry) Register(c Collector) error {
 func (r *Registry) StartAll(ctx context.Context) error {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-
 	for name, c := range r.collectors {
 		r.logger.Debug("starting collector", "name", name)
 		if err := c.Start(ctx); err != nil {
@@ -86,7 +83,6 @@ func (r *Registry) StartAll(ctx context.Context) error {
 func (r *Registry) StopAll() {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-
 	for name, c := range r.collectors {
 		r.logger.Debug("stopping collector", "name", name)
 		c.Stop()
@@ -104,7 +100,6 @@ func (r *Registry) Get(name string) Collector {
 func (r *Registry) Names() []string {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-
 	names := make([]string, 0, len(r.collectors))
 	for name := range r.collectors {
 		names = append(names, name)
@@ -121,7 +116,6 @@ func (r *Registry) Signals(duration time.Duration) *Signals {
 		Timestamp: time.Now(),
 		Duration:  duration,
 	}
-
 	for _, c := range r.collectors {
 		snap := c.Snapshot()
 		if snap == nil {
@@ -144,10 +138,9 @@ func (r *Registry) Signals(duration time.Duration) *Signals {
 			s.Memory = v
 		case *CgroupMemorySnapshot:
 			s.CgroupMemory = v
-						case *CPUThrottleSnapshot:
-				s.CgroupCPU = v
+		case *CPUThrottleSnapshot:
+			s.CgroupCPU = v
 		}
 	}
-
 	return s
 }
