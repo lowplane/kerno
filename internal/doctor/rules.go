@@ -34,7 +34,7 @@ func Evaluate(signals *collector.Signals, thresholds config.DoctorThresholds) []
 
 	// If nothing found, emit "healthy system" info.
 	if len(findings) == 0 {
-		findings = append(findings, evalHealthySystem(signals))
+	findings = append(findings, evalCPUThrottled(signals)...)
 	}
 
 	RankFindings(findings)
