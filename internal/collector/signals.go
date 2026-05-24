@@ -29,6 +29,7 @@ type Signals struct {
 	FD           *FDSnapshot           `json:"fd,omitempty"`
 	Memory       *MemorySnapshot       `json:"memory,omitempty"`
 	CgroupMemory *CgroupMemorySnapshot `json:"cgroupMemory,omitempty"`
+		CgroupCPU    *CPUThrottleSnapshot  `json:"cgroupCPU,omitempty"`
 }
 
 // HostInfo identifies the machine being observed.
