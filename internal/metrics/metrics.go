@@ -125,6 +125,14 @@ var CgroupMemoryPressurePct = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 	Help:      "Per-container memory usage as a percentage of the cgroup memory.max limit.",
 }, []string{"pod"})
 
+// CgroupCPUThrottledPct tracks per-container CPU throttle percentage.
+// ThrottlePct = nr_throttled/nr_periods*100, sampled over a 5s window.
+var CgroupCPUThrottledPct = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	Namespace: Namespace,
+	Name:      "cgroup_cpu_throttled_pct",
+	Help:      "Per-container CPU throttle percentage (nr_throttled/nr_periods*100).",
+}, []string{"pod", "namespace"})
+
 // ─── Self-Monitoring Metrics ──────────────────────────────────────────────
 
 // CollectorEventsTotal counts events processed per collector.
@@ -176,6 +184,8 @@ func init() {
 		FDCloseTotal,
 		// Cgroup memory
 		CgroupMemoryPressurePct,
+				// Cgroup CPU throttle
+		CgroupCPUThrottledPct,
 		// Self-monitoring
 		CollectorEventsTotal,
 		CollectorErrorsTotal,
