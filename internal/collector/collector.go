@@ -144,6 +144,8 @@ func (r *Registry) Signals(duration time.Duration) *Signals {
 			s.Memory = v
 		case *CgroupMemorySnapshot:
 			s.CgroupMemory = v
+						case *CPUThrottleSnapshot:
+				s.CgroupCPU = v
 		}
 	}
 
