@@ -30,6 +30,7 @@ func Evaluate(signals *collector.Signals, thresholds config.DoctorThresholds) []
 	findings = append(findings, evalSyscallErrorRate(signals)...)
 	findings = append(findings, evalMemoryLimitPressure(signals)...)
 	findings = append(findings, evalMemoryHighThrottling(signals)...)
+		findings = append(findings, evalCPUThrottled(signals)...)
 
 	// If nothing found, emit "healthy system" info.
 	if len(findings) == 0 {
@@ -667,4 +668,45 @@ func evalHealthySystem(s *collector.Signals) Finding {
 		Evidence: evidence,
 		Fix:      []string{"Run kerno doctor --continuous for ongoing monitoring"},
 	}
+}
+
+
+// ── Rule 14: CPU Throttled ───────────────────────────────────────────────────────────────────
+func evalCPUThrottled(s *collector.Signals) []Finding {
+	if s.CgroupCPU == nil {
+		return nil
+	}
+	findings := make([]Finding, 0, len(s.CgroupCPU.Containers))
+	for _, c := range s.CgroupCPU.Containers {
+		if c.ThrottlePct <= 25.0 {
+			continue
+		}
+		label := c.Pod
+		if c.Namespace != "" {
+			label = c.Namespace + "/" + c.Pod
+		}
+		throttledMs := c.ThrottledNs / 1_000_000
+		findings = append(findings, Finding{
+			Severity: SeverityCritical,
+			Rule:     "cpu_throttled",
+			Title:    fmt.Sprintf("%s lost %.0f%% of its CPU time to cgroup throttling", label, c.ThrottlePct),
+			Signal:   "cgroup_cpu",
+			Cause:    fmt.Sprintf("cgroup CFS bandwidth enforcement is throttling the container: %.0f%% of scheduling periods were throttled", c.ThrottlePct),
+			Impact:   fmt.Sprintf("Pod %s lost %dms to the throttle queue — increase resources.limits.cpu or reduce sustained load", c.Pod, throttledMs),
+			Evidence: fmt.Sprintf(
+				"throttle_pct=%.1f%% nr_throttled=%d nr_periods=%d throttled_ns=%d",
+				c.ThrottlePct, c.NrThrottled, c.NrPeriods, c.ThrottledNs),
+			Fix: []string{
+				fmt.Sprintf("Increase resources.limits.cpu for pod %s (current quota appears too low)", c.Pod),
+				"Check if the workload has a CPU spike; consider HPA or VPA to autoscale",
+				"Profile the application to find hotspots that can reduce CPU usage",
+				"If the pod is consistently throttled, consider removing the CPU limit entirely (use requests only)",
+			},
+			Metric:    "cgroup_cpu_throttled_pct",
+			Value:     c.ThrottlePct,
+			Threshold: 25.0,
+			Process:   c.Pod,
+		})
+	}
+	return findings
 }
