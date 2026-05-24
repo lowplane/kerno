@@ -47,12 +47,16 @@ func (CPUThrottleScenario) PairedRule() string { return "cpu_throttled" }
 
 // Run implements Scenario.
 func (s CPUThrottleScenario) Run(ctx context.Context, opts Options) error {
-	// ── 1. Write synthetic cpu.stat fixture ────────────────────────────────
+	// ── 1. Write synthetic cpu.stat fixture ──────────────────────────────────────
 	fixtureDir := filepath.Join(os.TempDir(), "kerno-chaos-cpu-throttle")
-	if err := os.MkdirAll(fixtureDir, 0o755); err != nil {
+	if err := os.MkdirAll(fixtureDir, 0o750); err != nil { //nolint:gosec
 		return fmt.Errorf("cpu-throttle: create fixture dir: %w", err)
 	}
-	defer os.RemoveAll(fixtureDir)
+	defer func() {
+		if err := os.RemoveAll(fixtureDir); err != nil {
+			opts.Logger.Debug("cpu-throttle: cleanup fixture dir failed", "error", err)
+		}
+	}()
 
 	// Write initial cpu.stat with throttle_pct well above the 25% threshold.
 	// The collector computes delta so we write large absolute values; the
@@ -75,9 +79,7 @@ func (s CPUThrottleScenario) Run(ctx context.Context, opts Options) error {
 
 	// ── 2. Spin CPU workers so the scenario has real CPU impact ────────────
 	workers := workersFromIntensity(opts.Intensity, runtime.NumCPU())
-	fmt.Fprintf(opts.Out, "  spawning %d CPU spin workers, throttle_pct=%.0f%%\n",
-		workers, throttleLevel.pct)
-
+	fmt.Fprintf(opts.Out, " spawning %d CPU spin workers, throttle_pct=%.0f%%\n", workers, throttleLevel.pct)
 	var sink atomic.Uint64
 	var wg sync.WaitGroup
 	for i := 0; i < workers; i++ {
@@ -115,7 +117,6 @@ loop:
 			}
 		}
 	}
-
 	wg.Wait()
 	_ = sink.Load()
 	return nil
