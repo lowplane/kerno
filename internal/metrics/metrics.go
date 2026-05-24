@@ -185,7 +185,7 @@ func init() {
 		// Cgroup memory
 		CgroupMemoryPressurePct,
 				// Cgroup CPU throttle
-		CgroupCPUThrottledPct,
+			CgroupCPUThrottledPct,
 		// Self-monitoring
 		CollectorEventsTotal,
 		CollectorErrorsTotal,
