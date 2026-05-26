@@ -12,6 +12,7 @@ package ai
 import (
 	"context"
 	"fmt"
+	"time"
 )
 
 // Provider abstracts an LLM backend. Implementations exist for Anthropic,
@@ -70,6 +71,14 @@ type ProviderConfig struct {
 
 	// Temperature default.
 	Temperature float64
+
+	Timeout time.Duration
+
+	Proxy string
+
+	CACertFile string
+
+	InsecureSkipVerify bool
 }
 
 // NewProvider constructs the appropriate Provider from config.

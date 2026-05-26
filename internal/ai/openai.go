@@ -53,7 +53,12 @@ func NewOpenAIProvider(cfg ProviderConfig) *OpenAIProvider {
 		model:       model,
 		maxTokens:   maxTokens,
 		temperature: temp,
-		client:      &http.Client{},
+		client: NewHTTPClient(
+			cfg.Timeout,
+			cfg.Proxy,
+			cfg.CACertFile,
+			cfg.InsecureSkipVerify,
+		),
 	}
 }
 
@@ -96,7 +101,7 @@ func (p *OpenAIProvider) Complete(ctx context.Context, req CompletionRequest) (*
 
 	resp, err := p.client.Do(httpReq)
 	if err != nil {
-		return nil, fmt.Errorf("openai API call failed: %w", err)
+		return nil, fmt.Errorf("openai request failed: %w", formatHTTPError(err))
 	}
 	defer resp.Body.Close()
 

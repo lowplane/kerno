@@ -8,6 +8,8 @@ package config
 
 import (
 	"fmt"
+	"net/url"
+	"os"
 	"time"
 )
 
@@ -70,6 +72,14 @@ type AIConfig struct {
 
 	// PrivacyMode controls what data is sent to the LLM: "full", "redacted", "summary".
 	PrivacyMode string `mapstructure:"privacy_mode" json:"privacyMode"`
+
+	Timeout time.Duration `mapstructure:"timeout" json:"timeout"`
+
+	Proxy string `mapstructure:"proxy" json:"proxy"`
+
+	CACertFile string `mapstructure:"ca_cert_file" json:"caCertFile"`
+
+	InsecureSkipVerify bool `mapstructure:"insecure_skip_verify" json:"insecureSkipVerify"`
 }
 
 // CollectorsConfig controls which signal collectors are active.
@@ -162,6 +172,7 @@ func Default() *Config {
 			CacheTTL:           "5m",
 			RateLimitPerMinute: 10,
 			PrivacyMode:        "summary",
+			Timeout:            30 * time.Second,
 		},
 		Prometheus: PrometheusConfig{
 			Enabled: true,
@@ -212,6 +223,23 @@ func (c *Config) Validate() error {
 		case "full", "redacted", "summary", "":
 		default:
 			return fmt.Errorf("invalid ai.privacy_mode %q: must be full, redacted, or summary", c.AI.PrivacyMode)
+		}
+		if c.AI.Timeout < time.Second {
+			return fmt.Errorf("ai.timeout must be at least 1s")
+		}
+		if c.AI.Timeout > 5*time.Minute {
+			return fmt.Errorf("ai.timeout must be at most 5m")
+		}
+		if c.AI.Proxy != "" {
+			u, err := url.Parse(c.AI.Proxy)
+			if err != nil || u.Scheme == "" || u.Host == "" {
+				return fmt.Errorf("invalid ai.proxy: %w", err)
+			}
+		}
+		if c.AI.CACertFile != "" {
+			if _, err := os.Stat(c.AI.CACertFile); err != nil {
+				return fmt.Errorf("ai.ca_cert_file does not exist: %w", err)
+			}
 		}
 	}
 
