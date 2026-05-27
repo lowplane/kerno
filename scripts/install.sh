@@ -30,17 +30,20 @@ CONFIG_DIR="/etc/kerno"
 # ── Parse arguments ──────────────────────────────────────────────────
 VERSION=""
 INSTALL_DAEMON=false
+INSTALL_COMPLETION=true
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --version) VERSION="$2"; shift 2 ;;
         --daemon)  INSTALL_DAEMON=true; shift ;;
+        --no-completion) INSTALL_COMPLETION=false; shift ;;
         --help|-h)
             echo "Usage: curl -sfL https://raw.githubusercontent.com/optiqor/kerno/main/scripts/install.sh | bash -s -- [OPTIONS]"
             echo ""
             echo "Options:"
             echo "  --version VERSION   Install a specific version (default: latest)"
             echo "  --daemon            Also install systemd service for daemon mode"
+            echo "  --no-completion     Skip shell completion installation"
             echo "  --help              Show this help"
             exit 0
             ;;
@@ -86,6 +89,59 @@ check_root() {
         echo "Re-run with: curl -sfL https://raw.githubusercontent.com/optiqor/kerno/main/scripts/install.sh | sudo bash"
         exit 1
     fi
+}
+
+# ── Shell completion installation ──────────────────────────────────
+detect_shell() {
+    local shell
+    shell="${SHELL##*/}"
+    case "$shell" in
+        bash) echo "bash" ;;
+        zsh)  echo "zsh"  ;;
+        fish) echo "fish" ;;
+        *)    echo "" ;;
+    esac
+}
+
+install_completion() {
+    local shell
+    shell=$(detect_shell)
+
+    if [ -z "$shell" ]; then
+        echo "==> Shell completion: could not detect shell (SHELL=$SHELL)"
+        echo "    Manually enable completion: https://github.com/optiqor/kerno#shell-completion"
+        return
+    fi
+
+    echo ""
+    echo "==> Installing shell completion for $shell..."
+
+    case "$shell" in
+        bash)
+            local bash_dir="/etc/bash_completion.d"
+            mkdir -p "$bash_dir"
+            "${INSTALL_DIR}/kerno" completion bash > "${bash_dir}/kerno"
+            chmod 644 "${bash_dir}/kerno"
+            echo "    Installed to ${bash_dir}/kerno"
+            echo "    Restart shell or run: source ${bash_dir}/kerno"
+            ;;
+        zsh)
+            local zsh_dir="/usr/local/share/zsh/site-functions"
+            mkdir -p "$zsh_dir"
+            "${INSTALL_DIR}/kerno" completion zsh > "${zsh_dir}/_kerno"
+            chmod 644 "${zsh_dir}/_kerno"
+            echo "    Installed to ${zsh_dir}/_kerno"
+            echo "    Restart shell or run: autoload -U compinit && compinit"
+            ;;
+        fish)
+            local fish_dir="/usr/share/fish/vendor_completions.d"
+            mkdir -p "$fish_dir"
+            "${INSTALL_DIR}/kerno" completion fish > "${fish_dir}/kerno.fish"
+            chmod 644 "${fish_dir}/kerno.fish"
+            echo "    Installed to ${fish_dir}/kerno.fish"
+            echo "    Restart fish to load the new completion"
+            ;;
+    esac
 }
 
 # ── Download ─────────────────────────────────────────────────────────
@@ -142,7 +198,12 @@ main() {
 
     echo "==> Installed: $(kerno version 2>/dev/null || echo "${INSTALL_DIR}/kerno")"
 
-    # ── Optional: systemd daemon ─────────────────────────────────────
+    # ── Optional: shell completion ────────────────────────────────────
+    if [ "$INSTALL_COMPLETION" = true ]; then
+        install_completion
+    fi
+
+    # ── Optional: systemd daemon ───────────────────────────────────────
     if [ "$INSTALL_DAEMON" = true ]; then
         echo ""
         echo "==> Installing systemd service..."

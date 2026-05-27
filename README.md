@@ -169,6 +169,52 @@ docker run --rm --privileged --pid=host \
 
 Multi-arch (`linux/amd64`, `linux/arm64`) images published to GHCR on every release.
 
+### Shell Completion
+
+Enable tab completion for your shell:
+
+**Bash:**
+
+```bash
+# Load completions for current session
+source <(kerno completion bash)
+
+# Persist across sessions
+echo 'source <(kerno completion bash)' >> ~/.bashrc
+```
+
+**Zsh:**
+
+```bash
+# Enable completions (add to ~/.zshrc if not already present)
+echo 'autoload -U compinit; compinit' >> ~/.zshrc
+
+# Load completions for current session
+autoload -U compinit && compinit
+kerno completion zsh > "${fpath[1]}/_kerno"
+
+# Persist across sessions - run once, then start new shell
+kerno completion zsh > "${fpath[1]}/_kerno"
+```
+
+**Fish:**
+
+```bash
+# Load completions for current session
+kerno completion fish | source
+
+# Persist across sessions
+kerno completion fish > ~/.config/fish/completions/kerno.fish
+```
+
+**PowerShell:**
+
+```powershell
+# Add to your PowerShell profile
+kerno completion powershell > kerno.ps1
+. ./kerno.ps1
+```
+
 ---
 
 ## Kubernetes Deployment
@@ -598,6 +644,7 @@ make test-race      # Run with race detector
 make lint           # golangci-lint
 make check          # vet + test + lint
 make verify         # Comprehensive 13-phase production-readiness check
+make manpage        # Generate man pages for all CLI commands
 make demo           # Record demo.gif via vhs (needs vhs + ttyd + ffmpeg)
 make demo-cast      # Record demo.cast via asciinema (alternative to vhs)
 make docker         # Build Docker image

@@ -46,7 +46,7 @@ UI_DIST_DIR      := internal/dashboard/dist/assets
 .PHONY: all build build-ebpf build-debug test test-cover test-race lint vet check \
 	fmt clean bpf generate docker help \
 	ui-fetch ui-dev install-tools setup precommit \
-	verify demo demo-cast bpf-verify
+	verify demo demo-cast bpf-verify manpage
 
 .DEFAULT_GOAL := help
 
@@ -166,6 +166,13 @@ docker:
 		--build-arg COMMIT=$(COMMIT) \
 		--build-arg DATE=$(DATE) \
 		.
+
+# ─── Man Pages ────────────────────────────────────────────────────────────────
+
+## manpage: Generate man pages for all CLI commands
+manpage:
+	@mkdir -p docs/man
+	go run ./cmd/kerno-mangen/
 
 # ─── Utilities ───────────────────────────────────────────────────────────────
 

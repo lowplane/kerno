@@ -22,7 +22,8 @@ type Renderer interface {
 // PrettyRenderer outputs a human-readable incident report with ANSI colors,
 // box-drawn finding cards, and bar-chart signal visualizations.
 type PrettyRenderer struct {
-	NoColor bool
+	NoColor  bool
+	NoBanner bool
 }
 
 const (
@@ -67,7 +68,11 @@ func newPalette(noColor bool) palette {
 
 func (r *PrettyRenderer) Render(w io.Writer, report *Report) error {
 	p := newPalette(r.NoColor)
-	r.renderHeader(w, report, p)
+
+	if !r.NoBanner {
+		r.renderHeader(w, report, p)
+	}
+
 	r.renderDegradation(w, report, p)
 	r.renderTriage(w, report, p)
 	for i := range report.Findings {
