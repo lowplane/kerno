@@ -76,6 +76,22 @@ func TestAnalyzerHappyPath(t *testing.T) {
 	}
 }
 
+func TestAnalyzerUsesDiscardLoggerWhenNil(t *testing.T) {
+	prov := &scriptedProvider{text: `{"summary":"ok"}`}
+
+	a := NewAnalyzer(AnalyzerConfig{Provider: prov})
+	if a.logger == nil {
+		t.Fatal("logger should default when omitted")
+	}
+	resp, err := a.Analyze(context.Background(), doctor.AnalysisRequest{Signals: emptySignals()})
+	if err != nil {
+		t.Fatalf("Analyze error: %v", err)
+	}
+	if resp.Summary != "ok" {
+		t.Errorf("Summary = %q, want ok", resp.Summary)
+	}
+}
+
 func TestAnalyzerMarkdownFencedJSON(t *testing.T) {
 	prov := &scriptedProvider{text: "Here you go:\n```json\n{\"summary\":\"ok\"}\n```\n"}
 

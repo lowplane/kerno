@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 
 	"github.com/optiqor/kerno/internal/doctor"
@@ -35,11 +36,15 @@ func NewAnalyzer(cfg AnalyzerConfig) *DefaultAnalyzer {
 	if privacy == "" {
 		privacy = PrivacySummary
 	}
+	logger := cfg.Logger
+	if logger == nil {
+		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	}
 	return &DefaultAnalyzer{
 		provider: cfg.Provider,
 		cache:    cfg.Cache,
 		privacy:  privacy,
-		logger:   cfg.Logger,
+		logger:   logger,
 	}
 }
 
