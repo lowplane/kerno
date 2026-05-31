@@ -104,7 +104,7 @@ func TestPagerDutySink(t *testing.T) {
 	}
 
 	f1 := doctor.Finding{Rule: "rule1", Severity: doctor.SeverityWarning}
-	
+
 	// Cycle 1: trigger
 	err := sink.Send(context.Background(), []doctor.Finding{f1})
 	if err != nil {
