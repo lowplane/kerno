@@ -63,7 +63,7 @@ func (s *PagerDutySink) Send(ctx context.Context, findings []doctor.Finding) err
 		if _, exists := current[key]; !exists {
 			// Create a dummy finding just to hold the key for resolution.
 			// The Events API v2 only strictly needs the routing_key and dedup_key for a resolve.
-			dummy := doctor.Finding{Rule: "cleared"} 
+			dummy := doctor.Finding{Rule: "cleared"}
 			if err := s.sendEvent(ctx, "resolve", key, dummy); err != nil {
 				errs = append(errs, fmt.Errorf("resolving %s: %w", key, err))
 			} else {

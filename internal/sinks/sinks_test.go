@@ -92,7 +92,7 @@ func TestPagerDutySink(t *testing.T) {
 	// We override the URL in the sink to point to our test server
 	// Note: since the URL is hardcoded in pagerduty.go, we would normally make it configurable.
 	// For this test, we'll just test the Send loop with a mocked http.Client or RoundTripper.
-	
+
 	// Let's mock the RoundTripper to intercept the hardcoded URL.
 	sink.client.Transport = &mockTransport{
 		fn: func(req *http.Request) (*http.Response, error) {
