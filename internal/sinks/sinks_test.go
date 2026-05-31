@@ -1,8 +1,10 @@
 package sinks
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -84,16 +86,8 @@ func TestSlackSink(t *testing.T) {
 
 func TestPagerDutySink(t *testing.T) {
 	var actions []string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var payload map[string]interface{}
-		json.NewDecoder(r.Body).Decode(&payload)
-		actions = append(actions, payload["event_action"].(string))
-		w.WriteHeader(http.StatusAccepted)
-	}))
-	defer srv.Close()
 
 	sink := NewPagerDutySink("dummy-key", slog.Default())
-	sink.client.Transport = srv.Client().Transport // use same transport
 
 	// We override the URL in the sink to point to our test server
 	// Note: since the URL is hardcoded in pagerduty.go, we would normally make it configurable.
@@ -105,7 +99,7 @@ func TestPagerDutySink(t *testing.T) {
 			var payload map[string]interface{}
 			json.NewDecoder(req.Body).Decode(&payload)
 			actions = append(actions, payload["event_action"].(string))
-			return &http.Response{StatusCode: 202, Body: nopCloser{}}, nil
+			return &http.Response{StatusCode: 202, Body: io.NopCloser(bytes.NewReader(nil))}, nil
 		},
 	}
 
@@ -161,11 +155,6 @@ func TestRetryBackoff(t *testing.T) {
 		t.Errorf("expected 3 calls, got %d", calls)
 	}
 }
-
-type nopCloser struct{}
-
-func (nopCloser) Read(p []byte) (n int, err error) { return 0, nil }
-func (nopCloser) Close() error                     { return nil }
 
 type mockTransport struct {
 	fn func(*http.Request) (*http.Response, error)
