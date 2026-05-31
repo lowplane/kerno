@@ -121,7 +121,9 @@ securityContext:
 # All pollers read from /host/proc, /host/sys/fs/cgroup, etc.
 hostPathPrefix: /host
 
-# NetworkPolicy configuration
+# NetworkPolicy configuration.
+# NOTE: Since Kerno runs with 'hostNetwork: true', standard NetworkPolicies
+# do not restrict its traffic in most CNIs without host-firewall configuration.
 networkPolicy:
   enabled: false
   prometheus:
@@ -135,11 +137,13 @@ networkPolicy:
     ports:
       - 443
       - 6443
+    # Target API server CIDRs. If empty, egress is blocked by default.
     cidrs: []
   kubelet:
     ports:
       - 10250
       - 10255
+    # Target Kubelet CIDRs. If empty, egress is blocked by default.
     cidrs: []
   additionalIngress: []
   additionalEgress: []
