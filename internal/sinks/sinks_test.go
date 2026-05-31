@@ -77,7 +77,7 @@ func TestSlackSink(t *testing.T) {
 	if !ok || len(attachments) != 1 {
 		t.Fatalf("expected 1 attachment, got %v", attachments)
 	}
-	
+
 	att := attachments[0].(map[string]interface{})
 	if att["color"] != "#e01e5a" {
 		t.Errorf("expected critical color #e01e5a, got %v", att["color"])

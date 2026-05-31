@@ -19,7 +19,7 @@ func NewDiscordSink(url string, logger *slog.Logger) *DiscordSink {
 	if !strings.HasSuffix(url, "/slack") {
 		url = strings.TrimRight(url, "/") + "/slack"
 	}
-	
+
 	return &DiscordSink{
 		slack: NewSlackSink(url, logger),
 	}

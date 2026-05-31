@@ -56,7 +56,7 @@ func (s *SlackSink) Send(ctx context.Context, findings []doctor.Finding) error {
 }
 
 func (s *SlackSink) buildPayload(findings []doctor.Finding) map[string]interface{} {
-	var attachments []map[string]interface{}
+	attachments := make([]map[string]interface{}, 0, len(findings))
 
 	for _, f := range findings {
 		color := "#f2c744" // yellow for WARNING

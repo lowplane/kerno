@@ -73,7 +73,7 @@ func (s *PagerDutySink) Send(ctx context.Context, findings []doctor.Finding) err
 	}
 
 	if len(errs) > 0 {
-		return fmt.Errorf("pagerduty sink encountered %d errors, first: %v", len(errs), errs[0])
+		return fmt.Errorf("pagerduty sink encountered %d errors, first: %w", len(errs), errs[0])
 	}
 	return nil
 }

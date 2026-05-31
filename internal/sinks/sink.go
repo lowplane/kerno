@@ -70,9 +70,7 @@ func BuildSinks(urls []string, logger *slog.Logger) ([]Sink, error) {
 // expandEnvInURL allows users to pass "slack://$KERNO_SLACK_WEBHOOK_URL"
 // to avoid putting secrets in shell history.
 func expandEnvInURL(u string) string {
-	return os.Expand(u, func(key string) string {
-		return os.Getenv(key)
-	})
+	return os.Expand(u, os.Getenv)
 }
 
 // sendWithRetry executes an HTTP request with exponential backoff.

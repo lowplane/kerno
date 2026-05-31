@@ -33,7 +33,7 @@ func (d *Deduper) Filter(findings []doctor.Finding) []doctor.Finding {
 	}
 
 	now := time.Now()
-	var novel []doctor.Finding
+	novel := make([]doctor.Finding, 0, len(findings))
 
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -64,6 +64,6 @@ func (d *Deduper) Filter(findings []doctor.Finding) []doctor.Finding {
 func fingerprint(f doctor.Finding) string {
 	// Include Rule, Severity, and Process.
 	h := sha256.New()
-	h.Write([]byte(fmt.Sprintf("%s:%d:%s", f.Rule, f.Severity, f.Process)))
+	fmt.Fprintf(h, "%s:%d:%s", f.Rule, f.Severity, f.Process)
 	return fmt.Sprintf("%x", h.Sum(nil))
 }
