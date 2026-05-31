@@ -313,3 +313,23 @@ func TestJSONRenderer_EmptyFindings(t *testing.T) {
 		t.Errorf("expected nil or empty findings, got %d", len(jr.Findings))
 	}
 }
+
+func TestMarkdownRenderer(t *testing.T) {
+    r := &Report{
+        Findings: []Finding{
+            {Fix: []string{"Step one", "Step two"}},
+        },
+    }
+    mr := &MarkdownRenderer{}
+    var sb strings.Builder
+    err := mr.Render(&sb, r)
+
+    if err != nil {
+        t.Fatalf("Render failed: %v", err)
+    }
+
+    output := sb.String()
+    if !strings.Contains(output, "- Step one") || !strings.Contains(output, "- Step two") {
+        t.Errorf("Expected markdown list output, got: %s", output)
+    }
+}

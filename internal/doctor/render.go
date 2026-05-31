@@ -1,4 +1,4 @@
-// Copyright 2026 Optiqor contributors
+// Copyright 2025 Optiqor contributors
 // SPDX-License-Identifier: Apache-2.0
 
 package doctor
@@ -679,4 +679,22 @@ func (r *JSONRenderer) Render(w io.Writer, report *Report) error {
 		enc.SetIndent("", "  ")
 	}
 	return enc.Encode(jr)
+}
+type MarkdownRenderer struct{}
+func (m *MarkdownRenderer) Render(w io.Writer, r *Report) error {
+	var sb strings.Builder
+	sb.WriteString("# Kerno Doctor - Diagnostic Report\n\n")
+
+	// Iterate through findings to access Fix
+	for _, f := range r.Findings {
+		if len(f.Fix) > 0 {
+			sb.WriteString("**Fix:**\n")
+			for _, fix := range f.Fix {
+				sb.WriteString(fmt.Sprintf("- %s\n", fix))
+			}
+		}
+	}
+
+	_, err := w.Write([]byte(sb.String()))
+	return err
 }
