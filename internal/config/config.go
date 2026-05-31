@@ -213,6 +213,15 @@ func (c *Config) Validate() error {
 		default:
 			return fmt.Errorf("invalid ai.privacy_mode %q: must be full, redacted, or summary", c.AI.PrivacyMode)
 		}
+		if c.AI.MaxTokens <= 0 {
+			return fmt.Errorf("ai.max_tokens must be > 0, got %d", c.AI.MaxTokens)
+		}
+		if c.AI.RateLimitPerMinute < 0 {
+			return fmt.Errorf("ai.rate_limit_per_minute must be >= 0, got %d", c.AI.RateLimitPerMinute)
+		}
+		if c.AI.Temperature < 0.0 || c.AI.Temperature > 1.0 {
+			return fmt.Errorf("ai.temperature must be in [0.0, 1.0], got %g", c.AI.Temperature)
+		}
 	}
 
 	if c.Prometheus.Enabled && c.Prometheus.Addr == "" {
