@@ -3,9 +3,9 @@ package sinks
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -87,11 +87,12 @@ func sendWithRetry(ctx context.Context, client *http.Client, req *http.Request, 
 		var bodyCopy []byte
 		if req.Body != nil {
 			var err error
-			bodyCopy, err = readAllAndClose(req.Body)
+			bodyCopy, err = io.ReadAll(req.Body)
+			req.Body.Close()
 			if err != nil {
 				return fmt.Errorf("reading request body: %w", err)
 			}
-			req.Body = ioNopCloser(bytes.NewReader(bodyCopy))
+			req.Body = io.NopCloser(bytes.NewReader(bodyCopy))
 		}
 
 		resp, err := client.Do(req)
@@ -118,30 +119,11 @@ func sendWithRetry(ctx context.Context, client *http.Client, req *http.Request, 
 			}
 			// Restore body for the next attempt
 			if bodyCopy != nil {
-				req.Body = ioNopCloser(bytes.NewReader(bodyCopy))
+				req.Body = io.NopCloser(bytes.NewReader(bodyCopy))
 			}
 		}
 	}
 
 	metrics.SinksFailedTotal.WithLabelValues(sinkName).Inc()
 	return fmt.Errorf("failed after %d attempts: %w", maxRetries, lastErr)
-}
-
-// Helper to read and close body
-func readAllAndClose(rc interface{ Read(p []byte) (n int, err error); Close() error }) ([]byte, error) {
-	defer rc.Close()
-	buf := new(bytes.Buffer)
-	_, err := buf.ReadFrom(rc)
-	return buf.Bytes(), err
-}
-
-// Helper to create a ReadCloser
-type nopCloser struct {
-	*bytes.Reader
-}
-
-func (nopCloser) Close() error { return nil }
-
-func ioNopCloser(r *bytes.Reader) interface{ Read(p []byte) (n int, err error); Close() error } {
-	return nopCloser{r}
 }
