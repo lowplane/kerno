@@ -21,6 +21,7 @@ import (
 	"github.com/optiqor/kerno/internal/collector"
 	"github.com/optiqor/kerno/internal/config"
 	"github.com/optiqor/kerno/internal/doctor"
+	"github.com/optiqor/kerno/internal/metrics"
 )
 
 func newDoctorCmd() *cobra.Command {
@@ -340,6 +341,9 @@ func buildCollectors(ctx context.Context, logger *slog.Logger) collectorBuildRes
 			// errors can run with --log-level=debug.
 			logger.Debug("failed to load eBPF program; collector disabled",
 				"program", r.name, "error", err)
+			// Emit per-program load failure metrics.
+			metrics.BPFProgramLoaded.WithLabelValues(r.name).Set(0)
+			metrics.BPFProgramLoadErrorsTotal.WithLabelValues(r.name, classifyLoadError(err)).Inc()
 			failures = append(failures, doctor.LoadFailure{
 				Program: r.name,
 				Error:   err.Error(),
@@ -350,6 +354,9 @@ func buildCollectors(ctx context.Context, logger *slog.Logger) collectorBuildRes
 		closers = append(closers, func() { _ = closer.Close() })
 		if err := registry.Register(coll); err != nil {
 			logger.Debug("failed to register collector", "name", coll.Name(), "error", err)
+			// Registration failure also counts as a load failure for metrics.
+			metrics.BPFProgramLoaded.WithLabelValues(coll.Name()).Set(0)
+			metrics.BPFProgramLoadErrorsTotal.WithLabelValues(coll.Name(), "registration_conflict").Inc()
 			failures = append(failures, doctor.LoadFailure{
 				Program: coll.Name(),
 				Error:   err.Error(),
@@ -357,6 +364,8 @@ func buildCollectors(ctx context.Context, logger *slog.Logger) collectorBuildRes
 			})
 			continue
 		}
+		// Mark program as successfully loaded.
+		metrics.BPFProgramLoaded.WithLabelValues(r.name).Set(1)
 		loaded++
 	}
 
