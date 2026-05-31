@@ -155,29 +155,7 @@ func runStart(ctx context.Context, opts startOpts) error {
 	var healthServer *http.Server
 
 	if opts.prometheus {
-		// --- Health Listener (Plain HTTP) ---
-		healthMux := http.NewServeMux()
-		healthMux.HandleFunc("/healthz", healthzHandler(loadedCount, len(loaders)))
-		healthMux.HandleFunc("/readyz", readyzHandler(loadedCount, len(loaders)))
-		healthAddr := cfg.Prometheus.HealthAddr
-		if healthAddr == "" {
-			healthAddr = ":9092"
-		}
 
-		healthServer = &http.Server{
-			Addr:              healthAddr,
-			Handler:           healthMux,
-			ReadHeaderTimeout: 10 * time.Second,
-		}
-
-		go func() {
-			logger.Info("starting health HTTP server", "addr", healthAddr)
-			if err := healthServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-				logger.Error("health HTTP server error", "error", err)
-			}
-		}()
-
-		// --- Metrics Listener (TLS or Plain HTTP) ---
 		metricsMux := http.NewServeMux()
 		metricsHandler := promhttp.HandlerFor(metrics.Registry, promhttp.HandlerOpts{})
 
@@ -207,13 +185,54 @@ func runStart(ctx context.Context, opts startOpts) error {
 
 		metricsMux.Handle("/metrics", metricsHandler)
 
+		// Build TLS config when cert material is present.
+		// - mtls: mandatory (cert + key + ca).
+		// - bearer: optional (cert + key only → one-way TLS so the token
+		//   is not sent in cleartext on the node wire).
+		// - none: no TLS.
 		var tlsCfg *tls.Config
-		if cfg.Prometheus.Auth.Mode == "mtls" {
+		if cfg.Prometheus.Auth.CertFile != "" {
+			caFile := cfg.Prometheus.Auth.CACertFile
 			var err error
-			tlsCfg, err = auth.TLSConfig(cfg.Prometheus.Auth.CertFile, cfg.Prometheus.Auth.KeyFile, cfg.Prometheus.Auth.CACertFile)
+			tlsCfg, err = auth.TLSConfig(cfg.Prometheus.Auth.CertFile, cfg.Prometheus.Auth.KeyFile, caFile)
 			if err != nil {
-				return fmt.Errorf("failed to initialize mtls: %w", err)
+				return fmt.Errorf("failed to initialize TLS: %w", err)
 			}
+		}
+
+		// For none and bearer the health probes stay on the metrics mux so
+		// existing systemd units, LB checks, and the chart's httpGet probes
+		// that hit :9090/healthz keep working after upgrade.
+		//
+		// For mtls the listener runs ListenAndServeTLS which forces every
+		// client to present a cert — kubelet probes can't do that, so we
+		// split health onto a dedicated plain-HTTP listener.
+		if cfg.Prometheus.Auth.Mode == "mtls" {
+			healthMux := http.NewServeMux()
+			healthMux.HandleFunc("/healthz", healthzHandler(loadedCount, len(loaders)))
+			healthMux.HandleFunc("/readyz", healthzHandler(loadedCount, len(loaders)))
+
+			healthAddr := cfg.Prometheus.HealthAddr
+			if healthAddr == "" {
+				healthAddr = ":9092"
+			}
+
+			healthServer = &http.Server{
+				Addr:              healthAddr,
+				Handler:           healthMux,
+				ReadHeaderTimeout: 10 * time.Second,
+			}
+
+			go func() {
+				logger.Info("starting health HTTP server", "addr", healthAddr)
+				if err := healthServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+					logger.Error("health HTTP server error", "error", err)
+				}
+			}()
+		} else {
+			// none / bearer: health endpoints live on the metrics mux.
+			metricsMux.HandleFunc("/healthz", healthzHandler(loadedCount, len(loaders)))
+			metricsMux.HandleFunc("/readyz", healthzHandler(loadedCount, len(loaders)))
 		}
 
 		httpServer = &http.Server{
@@ -242,17 +261,22 @@ func runStart(ctx context.Context, opts startOpts) error {
 	fmt.Println("kerno daemon running")
 	fmt.Printf("  eBPF programs: %d/%d loaded\n", loadedCount, len(loaders))
 	if opts.prometheus {
-		healthAddr := cfg.Prometheus.HealthAddr
-		if healthAddr == "" {
-			healthAddr = ":9092"
-		}
 		schema := "http"
-		if cfg.Prometheus.Auth.Mode == "mtls" {
+		if cfg.Prometheus.Auth.CertFile != "" {
 			schema = "https"
 		}
 		fmt.Printf("  Prometheus:    %s://%s/metrics\n", schema, promAddr)
-		fmt.Printf("  Health:        http://%s/healthz\n", healthAddr)
-		fmt.Printf("  Readiness:     http://%s/readyz\n", healthAddr)
+		if cfg.Prometheus.Auth.Mode == "mtls" {
+			healthAddr := cfg.Prometheus.HealthAddr
+			if healthAddr == "" {
+				healthAddr = ":9092"
+			}
+			fmt.Printf("  Health:        http://%s/healthz\n", healthAddr)
+			fmt.Printf("  Readiness:     http://%s/readyz\n", healthAddr)
+		} else {
+			fmt.Printf("  Health:        %s://%s/healthz\n", schema, promAddr)
+			fmt.Printf("  Readiness:     %s://%s/readyz\n", schema, promAddr)
+		}
 	}
 	if opts.dashboard {
 		fmt.Printf("  Dashboard:     http://%s (not yet implemented)\n", cfg.Dashboard.Addr)

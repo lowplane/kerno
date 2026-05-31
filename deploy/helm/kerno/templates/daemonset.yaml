@@ -86,6 +86,24 @@ spec:
               value: {{ .Values.log.level }}
             - name: KERNO_LOG_FORMAT
               value: {{ .Values.log.format }}
+            - name: KERNO_PROMETHEUS_AUTH_MODE
+              value: {{ .Values.prometheus.auth.mode | quote }}
+            {{- if eq .Values.prometheus.auth.mode "bearer" }}
+            {{- if .Values.prometheus.auth.tokenSecretName }}
+            - name: KERNO_PROMETHEUS_AUTH_TOKEN_FILE
+              value: "/etc/kerno/auth/bearer/{{ .Values.prometheus.auth.tokenSecretKey }}"
+            {{- end }}
+            {{- end }}
+            {{- if .Values.prometheus.auth.tlsSecretName }}
+            - name: KERNO_PROMETHEUS_AUTH_CERT_FILE
+              value: "/etc/kerno/auth/tls/tls.crt"
+            - name: KERNO_PROMETHEUS_AUTH_KEY_FILE
+              value: "/etc/kerno/auth/tls/tls.key"
+            {{- if eq .Values.prometheus.auth.mode "mtls" }}
+            - name: KERNO_PROMETHEUS_AUTH_CA_CERT_FILE
+              value: "/etc/kerno/auth/tls/ca.crt"
+            {{- end }}
+            {{- end }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -116,6 +134,18 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 5
           volumeMounts:
+            {{- if eq .Values.prometheus.auth.mode "bearer" }}
+            {{- if .Values.prometheus.auth.tokenSecretName }}
+            - name: auth-bearer
+              mountPath: /etc/kerno/auth/bearer
+              readOnly: true
+            {{- end }}
+            {{- end }}
+            {{- if .Values.prometheus.auth.tlsSecretName }}
+            - name: auth-tls
+              mountPath: /etc/kerno/auth/tls
+              readOnly: true
+            {{- end }}
             # ── eBPF core (6 programs: syscall, tcp, oom, disk, sched, fd) ──
             - name: sys-kernel-debug
               mountPath: /sys/kernel/debug
@@ -142,6 +172,18 @@ spec:
               mountPath: /host/sys/block
               readOnly: true
       volumes:
+        {{- if eq .Values.prometheus.auth.mode "bearer" }}
+        {{- if .Values.prometheus.auth.tokenSecretName }}
+        - name: auth-bearer
+          secret:
+            secretName: {{ .Values.prometheus.auth.tokenSecretName }}
+        {{- end }}
+        {{- end }}
+        {{- if .Values.prometheus.auth.tlsSecretName }}
+        - name: auth-tls
+          secret:
+            secretName: {{ .Values.prometheus.auth.tlsSecretName }}
+        {{- end }}
         - name: sys-kernel-debug
           hostPath:
             path: /sys/kernel/debug

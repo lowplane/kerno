@@ -254,6 +254,9 @@ func (c *Config) Validate() error {
 		if c.Prometheus.Auth.Mode == "mtls" && (c.Prometheus.Auth.CertFile == "" || c.Prometheus.Auth.KeyFile == "") {
 			return fmt.Errorf("prometheus.auth.cert_file and prometheus.auth.key_file are required when auth mode is mtls")
 		}
+		if c.Prometheus.Auth.Mode == "mtls" && c.Prometheus.Auth.CACertFile == "" {
+			return fmt.Errorf("prometheus.auth.ca_cert_file is required when auth mode is mtls; without it client certs are never verified")
+		}
 	}
 
 	if c.Dashboard.Enabled && c.Dashboard.Addr == "" {
