@@ -58,10 +58,6 @@ spec:
               hostPort: {{ .Values.prometheus.port }}
               protocol: TCP
           env:
-            - name: NODE_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: spec.nodeName
             - name: KERNO_NODE_NAME
               valueFrom:
                 fieldRef:
