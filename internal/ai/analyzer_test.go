@@ -210,6 +210,19 @@ func TestExtractJSON(t *testing.T) {
 	}
 
 	for _, tc := range cases {
+		for _, tc := range cases {
+    tc := tc // ✅ REQUIRED FIX FOR golangci-lint (Go 1.22+ loop capture)
+
+    t.Run(tc.name, func(t *testing.T) {
+        t.Parallel()
+
+        got := extractJSON(tc.in)
+
+        if got != tc.want {
+            t.Fatalf("extractJSON(%q) = %q, want %q", tc.in, got, tc.want)
+        }
+    })
+}
 
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
