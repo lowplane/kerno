@@ -209,32 +209,34 @@ func TestExtractJSON(t *testing.T) {
 		},
 	}
 
-		for _, tc := range cases {
-    tc := tc
+	for _, tc := range cases {
+		tc := tc
 
-    t.Run(tc.name, func(t *testing.T) {
-        t.Parallel()
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-        got := extractJSON(tc.in)
+			got := extractJSON(tc.in)
 
-        if got != tc.want {
-            t.Fatalf("extractJSON(%q) = %q, want %q", tc.in, got, tc.want)
-        }
-    })
+			if got != tc.want {
+				t.Fatalf("extractJSON(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
+	}
 }
-// ─── FallbackAnalyzer ──────────────────────────────────────────────────────
-
 func TestFallbackAnalyzerEmptyFindings(t *testing.T) {
 	f := NewFallbackAnalyzer()
-	resp, err := f.Analyze(context.Background(), doctor.AnalysisRequest{Signals: emptySignals()})
+
+	resp, err := f.Analyze(context.Background(), doctor.AnalysisRequest{
+		Signals: emptySignals(),
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if !strings.Contains(resp.Summary, "normal thresholds") {
-		t.Errorf("empty Summary = %q, want healthy phrase", resp.Summary)
+		t.Errorf("Summary = %q, want healthy phrase", resp.Summary)
 	}
 }
-
 func TestFallbackAnalyzerCountsBySeverity(t *testing.T) {
 	f := NewFallbackAnalyzer()
 
@@ -245,7 +247,9 @@ func TestFallbackAnalyzerCountsBySeverity(t *testing.T) {
 		{Severity: doctor.SeverityInfo, Title: "info", Cause: "i", Rule: "i", Signal: "fd"},
 	}
 
-	resp, err := f.Analyze(context.Background(), doctor.AnalysisRequest{Findings: findings})
+	resp, err := f.Analyze(context.Background(), doctor.AnalysisRequest{
+		Findings: findings,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -260,15 +264,14 @@ func TestFallbackAnalyzerCountsBySeverity(t *testing.T) {
 		t.Errorf("Summary should highlight first finding: %q", resp.Summary)
 	}
 
-	// Root causes from non-info findings.
 	if len(resp.RootCauses) != 3 {
 		t.Errorf("RootCauses = %d, want 3 (excludes info)", len(resp.RootCauses))
 	}
+
 	if resp.RootCauses[0].Fix != "upgrade ssd" {
-		t.Errorf("first RootCause Fix = %q, want upgrade ssd", resp.RootCauses[0].Fix)
+		t.Errorf("first RootCause Fix = %q", resp.RootCauses[0].Fix)
 	}
 }
-
 func TestDetectSimpleCorrelations(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -282,15 +285,20 @@ func TestDetectSimpleCorrelations(t *testing.T) {
 		{"all four pairs", []string{"diskio", "syscall", "tcp", "sched", "fd", "oom"}, 4},
 		{"unrelated", []string{"foo", "bar"}, 0},
 	}
+
 	for _, c := range cases {
+		c := c
+
 		t.Run(c.name, func(t *testing.T) {
 			findings := make([]doctor.Finding, len(c.signals))
 			for i, sig := range c.signals {
 				findings[i] = doctor.Finding{Signal: sig}
 			}
+
 			cors := detectSimpleCorrelations(findings)
+
 			if len(cors) != c.want {
-				t.Errorf("got %d correlations, want %d (signals=%v)", len(cors), c.want, c.signals)
+				t.Errorf("got %d correlations, want %d", len(cors), c.want)
 			}
 		})
 	}
