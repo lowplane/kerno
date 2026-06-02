@@ -133,5 +133,32 @@ func detectSimpleCorrelations(findings []doctor.Finding) []doctor.Correlation {
 		})
 	}
 
+	// Memory + cgroup memory → container pressure impacting host.
+	if signals["memory"] && signals["cgroupMemory"] {
+		correlations = append(correlations, doctor.Correlation{
+			Signals:     []string{"memory", "cgroupMemory"},
+			Description: "Host memory pressure combined with container memory limits suggests multiple containers competing for resources.",
+			Confidence:  0.85,
+		})
+	}
+
+	// Scheduler + syscall → CPU contention causing syscall queueing.
+	if signals["sched"] && signals["syscall"] {
+		correlations = append(correlations, doctor.Correlation{
+			Signals:     []string{"sched", "syscall"},
+			Description: "High scheduler delays combined with syscall latency indicates CPU contention is causing system call queueing.",
+			Confidence:  0.80,
+		})
+	}
+
+	// TCP + memory → network buffer exhaustion.
+	if signals["tcp"] && signals["memory"] {
+		correlations = append(correlations, doctor.Correlation{
+			Signals:     []string{"tcp", "memory"},
+			Description: "TCP issues combined with memory pressure may indicate network buffer exhaustion or connection pool limits.",
+			Confidence:  0.75,
+		})
+	}
+
 	return correlations
 }
