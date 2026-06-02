@@ -168,22 +168,61 @@ func TestFindingsFingerprintShape(t *testing.T) {
 
 func TestExtractJSON(t *testing.T) {
 	cases := []struct {
+		name string
 		in   string
 		want string
 	}{
-		{"```json\n{\"a\":1}\n```", "\n{\"a\":1}\n"},
-		{"prelude ```json\n{\"x\":2}\n``` postlude", "\n{\"x\":2}\n"},
-		{"```\n{\"y\":3}\n```", "\n{\"y\":3}\n"},
-		{"{\"raw\":true}", "{\"raw\":true}"},
+		{
+			name: "json fenced block",
+			in:   "```json\n{\"a\":1}\n```",
+			want: "\n{\"a\":1}\n",
+		},
+		{
+			name: "json fenced block with surrounding text",
+			in:   "prelude ```json\n{\"x\":2}\n``` postlude",
+			want: "\n{\"x\":2}\n",
+		},
+		{
+			name: "generic fenced block",
+			in:   "```\n{\"y\":3}\n```",
+			want: "\n{\"y\":3}\n",
+		},
+		{
+			name: "raw json",
+			in:   "{\"raw\":true}",
+			want: "{\"raw\":true}",
+		},
+		{
+			name: "empty input",
+			in:   "",
+			want: "",
+		},
+		{
+			name: "bare fence",
+			in:   "```",
+			want: "```",
+		},
+		{
+			name: "malformed json",
+			in:   "{bad json",
+			want: "{bad json",
+		},
 	}
-	for _, c := range cases {
-		got := extractJSON(c.in)
-		if got != c.want {
-			t.Errorf("extractJSON(%q) = %q, want %q", c.in, got, c.want)
-		}
+
+	for _, tc := range cases {
+		tc := tc
+
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := extractJSON(tc.in)
+
+			if got != tc.want {
+				t.Fatalf("extractJSON(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
 	}
 }
-
 // ─── FallbackAnalyzer ──────────────────────────────────────────────────────
 
 func TestFallbackAnalyzerEmptyFindings(t *testing.T) {
