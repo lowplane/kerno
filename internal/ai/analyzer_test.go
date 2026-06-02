@@ -208,10 +208,7 @@ func TestExtractJSON(t *testing.T) {
 			want: "{bad json",
 		},
 	}
-
 	for _, tc := range cases {
-		for _, tc := range cases {
-
     t.Run(tc.name, func(t *testing.T) {
         t.Parallel()
 
