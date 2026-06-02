@@ -4,8 +4,8 @@ metadata:
   name: kerno
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "kerno.labels" . | nindent 4 }}
     app.kubernetes.io/component: agent
+    {{- include "kerno.labels" . | nindent 4 }}
 spec:
   selector:
     matchLabels:
@@ -99,6 +99,7 @@ spec:
               port: metrics
             failureThreshold: 30
             periodSeconds: 10
+            timeoutSeconds: 5
           volumeMounts:
             # ── eBPF core (6 programs: syscall, tcp, oom, disk, sched, fd) ──
             - name: sys-kernel-debug
@@ -154,3 +155,4 @@ spec:
           hostPath:
             path: /sys/block
             type: Directory
+            
