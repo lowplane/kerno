@@ -208,8 +208,10 @@ func TestExtractJSON(t *testing.T) {
 			want: "{bad json",
 		},
 	}
-	for _, tc := range cases {
-		tc := tc
+
+		for _, tc := range cases {
+    tc := tc
+
     t.Run(tc.name, func(t *testing.T) {
         t.Parallel()
 
@@ -220,17 +222,6 @@ func TestExtractJSON(t *testing.T) {
         }
     })
 }
-
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			got := extractJSON(tc.in)
-
-			if got != tc.want {
-				t.Fatalf("extractJSON(%q) = %q, want %q", tc.in, got, tc.want)
-			}
-		})
-	}
 // ─── FallbackAnalyzer ──────────────────────────────────────────────────────
 
 func TestFallbackAnalyzerEmptyFindings(t *testing.T) {
