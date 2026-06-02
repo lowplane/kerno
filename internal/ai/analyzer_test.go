@@ -230,7 +230,6 @@ func TestExtractJSON(t *testing.T) {
 			}
 		})
 	}
-}
 // ─── FallbackAnalyzer ──────────────────────────────────────────────────────
 
 func TestFallbackAnalyzerEmptyFindings(t *testing.T) {
