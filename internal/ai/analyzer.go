@@ -20,6 +20,9 @@ type DefaultAnalyzer struct {
 	cache    *Cache
 	privacy  PrivacyMode
 	logger   *slog.Logger
+
+	maxTokens   int
+	temperature float64
 }
 
 // AnalyzerConfig holds configuration for constructing a DefaultAnalyzer.
@@ -28,6 +31,9 @@ type AnalyzerConfig struct {
 	Cache    *Cache
 	Privacy  PrivacyMode
 	Logger   *slog.Logger
+
+	MaxTokens   int
+	Temperature float64
 }
 
 // NewAnalyzer creates a DefaultAnalyzer.
@@ -41,10 +47,12 @@ func NewAnalyzer(cfg AnalyzerConfig) *DefaultAnalyzer {
 		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 	}
 	return &DefaultAnalyzer{
-		provider: cfg.Provider,
-		cache:    cfg.Cache,
-		privacy:  privacy,
-		logger:   logger,
+		provider:    cfg.Provider,
+		cache:       cfg.Cache,
+		privacy:     privacy,
+		logger:      logger,
+		maxTokens:   cfg.MaxTokens,
+		temperature: cfg.Temperature,
 	}
 }
 
@@ -73,6 +81,8 @@ func (a *DefaultAnalyzer) Analyze(ctx context.Context, req doctor.AnalysisReques
 	completion, err := a.provider.Complete(ctx, CompletionRequest{
 		SystemPrompt: SystemPrompt,
 		UserPrompt:   userPrompt,
+		MaxTokens:    a.maxTokens,
+		Temperature:  a.temperature,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("AI provider %s: %w", a.provider.Name(), err)
