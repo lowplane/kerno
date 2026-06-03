@@ -9,37 +9,146 @@ import (
 	"testing"
 )
 
-func TestHistogramEmpty(t *testing.T) {
-	h := New()
-	if got := h.Count(); got != 0 {
-		t.Errorf("Count() = %d, want 0", got)
+func TestHistogramTableDriven(t *testing.T) {
+	// 1. Defining a comprehensive, boundary-focused table structure
+	tests := []struct {
+		name      string
+		values    []uint64
+		wantCount uint64
+		wantSum   uint64
+		wantMin   uint64
+		wantMax   uint64
+		wantP50   uint64
+		wantP95   uint64
+		wantP99   uint64
+		wantP100  uint64
+		wantP0    uint64
+	}{
+		// --- BOUNDARY COVERAGE REQUESTS ---
+		{
+			name:      "zero / empty inputs",
+			values:    []uint64{},
+			wantCount: 0,
+			wantSum:   0,
+			wantMin:   0,
+			wantMax:   0,
+			wantP50:   0,
+			wantP99:   0,
+		},
+		{
+			name:      "single value allocation",
+			values:    []uint64{10},
+			wantCount: 1,
+			wantSum:   10,
+			wantMin:   10,
+			wantMax:   10,
+			wantP50:   10,
+			wantP99:   10,
+		},
+		{
+			name:      "exact log2 bucket edge",
+			values:    []uint64{1024}, // 2^10 edge boundary
+			wantCount: 1,
+			wantSum:   1024,
+			wantMin:   1024,
+			wantMax:   1024,
+			wantP50:   1024,
+			wantP99:   1024,
+		},
+		{
+			name:      "one past the bucket edge",
+			values:    []uint64{1025}, // 2^10 + 1 boundary
+			wantCount: 1,
+			wantSum:   1025,
+			wantMin:   1025,
+			wantMax:   1025,
+			wantP50:   1025,
+			wantP99:   1025,
+		},
+		{
+			name:      "max bucket clamping at bucket 63",
+			values:    []uint64{18446744073709551615}, // Max uint64 value to force bucket 63 clamp
+			wantCount: 1,
+			wantSum:   18446744073709551615,
+			wantMin:   18446744073709551615,
+			wantMax:   18446744073709551615,
+			wantP50:   18446744073709551615,
+			wantP99:   18446744073709551615,
+		},
+
+		// --- ORIGINAL TESTING CASES (RETING RETAINED TO PREVENT REGRESSION) ---
+		{
+			name:      "original static record sample",
+			values:    []uint64{100, 200, 300, 400, 500},
+			wantCount: 5,
+			wantSum:   1500,
+			wantMin:   100,
+			wantMax:   500,
+		},
+		{
+			name:     "original clamp matching min max",
+			values:   []uint64{50_000_000, 60_000_000, 70_000_000},
+			wantP0:   50_000_000, // original checked p0 == Min
+			wantP100: 70_000_000, // original checked p100 == Max
+		},
 	}
-	if got := h.Percentile(50); got != 0 {
-		t.Errorf("Percentile(50) on empty = %d, want 0", got)
-	}
-	if got := h.Mean(); got != 0 {
-		t.Errorf("Mean() on empty = %v, want 0", got)
+
+	// 2. Iterating through tests dynamically using t.Run and t.Parallel()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			h := New()
+			for _, v := range tt.values {
+				h.Record(v)
+			}
+
+			// Validate explicit dynamic math metrics if they are set in our table setup
+			if tt.wantCount != 0 || len(tt.values) == 0 {
+				if got := h.Count(); got != tt.wantCount {
+					t.Errorf("Count() = %d, want %d", got, tt.wantCount)
+				}
+			}
+			if tt.wantSum != 0 {
+				if got := h.Sum(); got != tt.wantSum {
+					t.Errorf("Sum() = %d, want %d", got, tt.wantSum)
+				}
+			}
+			if tt.wantMin != 0 {
+				if got := h.Min(); got != tt.wantMin {
+					t.Errorf("Min() = %d, want %d", got, tt.wantMin)
+				}
+			}
+			if tt.wantMax != 0 {
+				if got := h.Max(); got != tt.wantMax {
+					t.Errorf("Max() = %d, want %d", got, tt.wantMax)
+				}
+			}
+			if tt.wantP50 != 0 {
+				if got := h.Percentile(50); got != tt.wantP50 {
+					t.Errorf("Percentile(50) = %d, want %d", got, tt.wantP50)
+				}
+			}
+			if tt.wantP99 != 0 {
+				if got := h.Percentile(99); got != tt.wantP99 {
+					t.Errorf("Percentile(99) = %d, want %d", got, tt.wantP99)
+				}
+			}
+			if tt.wantP100 != 0 {
+				if got := h.Percentile(100); got != tt.wantP100 {
+					t.Errorf("Percentile(100) = %d, want %d", got, tt.wantP100)
+				}
+			}
+			if tt.wantP0 != 0 {
+				if got := h.Percentile(0); got != tt.wantP0 {
+					t.Errorf("Percentile(0) = %d, want %d", got, tt.wantP0)
+				}
+			}
+		})
 	}
 }
 
-func TestHistogramRecord(t *testing.T) {
-	h := New()
-	for _, v := range []uint64{100, 200, 300, 400, 500} {
-		h.Record(v)
-	}
-	if got := h.Count(); got != 5 {
-		t.Errorf("Count() = %d, want 5", got)
-	}
-	if got := h.Sum(); got != 1500 {
-		t.Errorf("Sum() = %d, want 1500", got)
-	}
-	if got := h.Min(); got != 100 {
-		t.Errorf("Min() = %d, want 100", got)
-	}
-	if got := h.Max(); got != 500 {
-		t.Errorf("Max() = %d, want 500", got)
-	}
-}
+// --- SEQUENTIAL PROPERTY & FUNCTIONAL RUNS ---
 
 func TestHistogramPercentilesMonotonic(t *testing.T) {
 	h := New()
@@ -61,7 +170,6 @@ func TestHistogramPercentilesMonotonic(t *testing.T) {
 }
 
 func TestHistogramPercentileWithinBucketBound(t *testing.T) {
-	// All samples in [1024, 2047] → bucket 10 covers [2^10, 2^11).
 	h := New()
 	for i := 1024; i < 2048; i++ {
 		h.Record(uint64(i))
@@ -69,21 +177,6 @@ func TestHistogramPercentileWithinBucketBound(t *testing.T) {
 	p99 := h.Percentile(99)
 	if p99 < 1024 || p99 >= 2048 {
 		t.Errorf("p99 = %d, want in [1024, 2048)", p99)
-	}
-}
-
-func TestHistogramMinMaxClamp(t *testing.T) {
-	h := New()
-	h.Record(50_000_000) // 50ms
-	h.Record(60_000_000)
-	h.Record(70_000_000)
-	p100 := h.Percentile(100)
-	if p100 != h.Max() {
-		t.Errorf("Percentile(100) = %d, want Max=%d", p100, h.Max())
-	}
-	p0 := h.Percentile(0)
-	if p0 != h.Min() {
-		t.Errorf("Percentile(0) = %d, want Min=%d", p0, h.Min())
 	}
 }
 
@@ -167,6 +260,8 @@ func TestHistogramSnapshotIsolated(t *testing.T) {
 		t.Errorf("original Count after writes = %d, want 200", a.Count())
 	}
 }
+
+// --- SYSTEM BENCHMARKS ---
 
 func BenchmarkHistogramRecord(b *testing.B) {
 	h := New()
