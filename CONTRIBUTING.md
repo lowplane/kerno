@@ -41,17 +41,24 @@ git commit -s -m "feat: add syscall latency collector"
 
 ### System Requirements
 
+**Required (for basic Go development):**
+
 | Requirement | Minimum | Recommended | Notes |
 |---|---|---|---|
-| **Linux kernel** | 5.8 | 6.1+ | Must have `CONFIG_DEBUG_INFO_BTF=y` |
 | **Go** | 1.24 | 1.25+ | [install](https://go.dev/doc/install) |
+| **make** | 4.0 | - | Build orchestration |
+
+**Optional (for eBPF development and running Kerno):**
+
+| Requirement | Minimum | Recommended | Notes |
+|---|---|---|---|
+| **Linux kernel** | 5.8 | 6.1+ | Must have `CONFIG_DEBUG_INFO_BTF=y` to run |
 | **clang** | 14 | 17+ | For eBPF C compilation |
 | **llvm** | 14 | 17+ | `llvm-strip` used by bpf2go |
 | **libbpf-dev** | 0.8 | 1.0+ | BPF CO-RE headers |
 | **bpftool** | - | latest | BTF inspection and debugging |
-| **make** | 4.0 | - | Build orchestration |
 
-### Step 1 - Install System Dependencies
+### Step 1 - Install System Dependencies (Optional for Go-only dev)
 
 **Ubuntu / Debian (22.04+):**
 
@@ -132,21 +139,11 @@ go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
 go install github.com/goreleaser/goreleaser/v2@latest
 ```
 
-### Step 4 - Verify BTF Support
+### Step 4 - Clone and Build
 
-Kerno requires BTF (BPF Type Format) in your kernel:
-
-```bash
-# Check if BTF is available
-ls /sys/kernel/btf/vmlinux && echo "BTF: OK" || echo "BTF: MISSING"
-
-# Alternative check
-bpftool btf dump file /sys/kernel/btf/vmlinux format raw | head -c 4
-```
-
-If BTF is missing, you need a kernel compiled with `CONFIG_DEBUG_INFO_BTF=y`. Most modern distro kernels (Ubuntu 22.04+, Fedora 38+, Arch) have this enabled by default.
-
-### Step 5 - Clone and Build
+Kerno supports two build modes depending on what you are working on:
+- **Go-only mode (`make build`)**: Uses pre-generated Go stub types so you can develop and test Go code without clang/libbpf installed.
+- **eBPF mode (`make build-ebpf`)**: Compiles eBPF C programs and generates bindings. Requires all system dependencies installed.
 
 ```bash
 git clone https://github.com/optiqor/kerno.git
@@ -160,7 +157,7 @@ make build
 ./bin/kerno --help
 ```
 
-### Step 6 - Full Build with eBPF Compilation (Optional)
+### Step 5 - Full Build with eBPF Compilation (Optional)
 
 If you're working on the eBPF C programs:
 
@@ -176,6 +173,20 @@ make generate
 ```
 
 > **Note:** The standard `make build` uses pre-generated Go stub types (`gen_stub.go`) so you can develop and test Go code without clang/libbpf installed. Only use `make build-ebpf` when modifying the eBPF C programs.
+
+### Step 6 - Verify BTF Support
+
+Kerno requires BTF (BPF Type Format) in your kernel to run eBPF programs:
+
+```bash
+# Check if BTF is available
+ls /sys/kernel/btf/vmlinux && echo "BTF: OK" || echo "BTF: MISSING"
+
+# Alternative check
+bpftool btf dump file /sys/kernel/btf/vmlinux format raw | head -c 4
+```
+
+If BTF is missing, you need a kernel compiled with `CONFIG_DEBUG_INFO_BTF=y`. Most modern distro kernels (Ubuntu 22.04+, Fedora 38+, Arch) have this enabled by default.
 
 ### Step 7 - Run the Doctor (requires root)
 
@@ -328,7 +339,7 @@ kerno/
 ### Key Architecture Decisions
 
 - **`internal/`** - All packages are internal; the only public API is the CLI binary.
-- **Build tag strategy** - `gen_stub.go` (`//go:build !ebpf`) provides stub types so `make build` works without clang. The real BPF-generated types are only produced when running `make generate` with the `ebpf` build tag.
+- **Build tag strategy** - `gen_stub.go` (`//go:build !ebpf`) provides stub types so `make build` works without clang. `make generate` post-processes the BPF-generated types to require the `ebpf` build tag, making stubs and generated files mutually exclusive.
 - **Loader interface** - Each eBPF program has a typed Go loader implementing a common `Loader` interface, enabling uniform lifecycle management via `LoaderSet`.
 - **Collector interface** - Collectors consume raw events from loaders, aggregate them into typed snapshots, and expose them via a `Registry` for the doctor engine.
 

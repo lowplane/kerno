@@ -1,0 +1,38 @@
+# Git
+.git
+.gitignore
+
+# GitHub
+.github
+
+# Documentation
+docs
+
+# Local environment files
+.env
+.env.*
+
+# Logs and temp files
+*.log
+*.tmp
+tmp/
+
+# Build output
+dist/
+build/
+bin/
+
+# Go build/cache
+*.test
+coverage.out
+
+# Dependency directories
+vendor/
+
+# IDE/editor files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db

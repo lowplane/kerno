@@ -83,6 +83,78 @@ func TestValidate(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "ai max_tokens must be positive",
+			modify: func(c *Config) {
+				c.AI.Enabled = true
+				c.AI.Provider = "ollama"
+				c.AI.MaxTokens = 0
+			},
+			wantErr: true,
+		},
+		{
+			name: "ai max_tokens negative",
+			modify: func(c *Config) {
+				c.AI.Enabled = true
+				c.AI.Provider = "ollama"
+				c.AI.MaxTokens = -1
+			},
+			wantErr: true,
+		},
+		{
+			name: "ai rate_limit_per_minute may not be negative",
+			modify: func(c *Config) {
+				c.AI.Enabled = true
+				c.AI.Provider = "ollama"
+				c.AI.RateLimitPerMinute = -1
+			},
+			wantErr: true,
+		},
+		{
+			name: "ai rate_limit_per_minute zero means unlimited",
+			modify: func(c *Config) {
+				c.AI.Enabled = true
+				c.AI.Provider = "ollama"
+				c.AI.RateLimitPerMinute = 0
+			},
+			wantErr: false,
+		},
+		{
+			name: "ai temperature below zero",
+			modify: func(c *Config) {
+				c.AI.Enabled = true
+				c.AI.Provider = "ollama"
+				c.AI.Temperature = -0.1
+			},
+			wantErr: true,
+		},
+		{
+			name: "ai temperature above one",
+			modify: func(c *Config) {
+				c.AI.Enabled = true
+				c.AI.Provider = "ollama"
+				c.AI.Temperature = 1.1
+			},
+			wantErr: true,
+		},
+		{
+			name: "ai temperature at zero lower bound",
+			modify: func(c *Config) {
+				c.AI.Enabled = true
+				c.AI.Provider = "ollama"
+				c.AI.Temperature = 0.0
+			},
+			wantErr: false,
+		},
+		{
+			name: "ai temperature at one upper bound",
+			modify: func(c *Config) {
+				c.AI.Enabled = true
+				c.AI.Provider = "ollama"
+				c.AI.Temperature = 1.0
+			},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
