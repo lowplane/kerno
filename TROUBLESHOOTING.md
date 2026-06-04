@@ -7,6 +7,7 @@ If you are experiencing issues while setting up or running Kerno, please check t
     * **Cause:** The required eBPF build toolchain is missing from your system.
     * **Fix:** Install the necessary build dependencies:
         ```bash
+        Note: These dependencies are only required for 'make build-ebpf'.
         sudo apt-get update
         sudo apt-get install clang llvm libbpf-dev bpftool
         ```
@@ -15,7 +16,8 @@ If you are experiencing issues while setting up or running Kerno, please check t
 * **Error:** `/sys/kernel/btf not found` or `failed to load BPF program`
     * **Cause:** Your current kernel version is likely older than 5.8 or lacks BPF Type Format (BTF) support.
     * **Fix:** Ensure you are running a modern, managed Kubernetes distribution (EKS, GKE, AKS, etc.) or update your host kernel to 5.8+.
-* **Error:** `failed to attach kprobe`
+* Note: Kerno uses tracepoints, not kprobes. Ensure your kernel has BTF (BPF Type Format) 
+        support enabled (available in kernels 5.8+).
     * **Cause:** The kernel may have restrictions on attaching probes, or the specific tracepoint is unavailable.
     * **Fix:** Verify your kernel headers are installed: `sudo apt-get install linux-headers-$(uname -r)`.
 
