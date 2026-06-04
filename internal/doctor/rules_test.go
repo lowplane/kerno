@@ -218,6 +218,31 @@ func TestEvaluate_FDLeak(t *testing.T) {
 	}
 }
 
+func TestEvaluate_FDLeakSkipsUnmeaningfulETA(t *testing.T) {
+	thresholds := defaultThresholds()
+	thresholds.FDGrowthPerSec = 0.001
+	signals := &collector.Signals{
+		FD: &collector.FDSnapshot{
+			GrowthRate: 0.01,
+			NetDelta:   100,
+		},
+	}
+
+	findings := Evaluate(signals, thresholds)
+	for _, f := range findings {
+		if f.Rule == "fd_leak" {
+			if f.ETA != nil {
+				t.Fatalf("expected no ETA for far-future FD leak, got %s", *f.ETA)
+			}
+			if f.Impact != "Process will eventually hit ulimit and crash" {
+				t.Fatalf("expected default impact when ETA is unmeaningful, got %q", f.Impact)
+			}
+			return
+		}
+	}
+	t.Fatal("expected fd_leak finding")
+}
+
 func TestEvaluate_SyscallLatencyHigh(t *testing.T) {
 	signals := &collector.Signals{
 		Syscall: &collector.SyscallSnapshot{
@@ -363,6 +388,32 @@ func TestEvaluate_OOMImminent_Critical(t *testing.T) {
 	if !found {
 		t.Error("expected CRITICAL oom_imminent finding for 96.9% + growing")
 	}
+}
+
+func TestEvaluate_OOMImminentSkipsUnmeaningfulETA(t *testing.T) {
+	signals := &collector.Signals{
+		Memory: &collector.MemorySnapshot{
+			TotalBytes:            16_000_000_000,
+			UsedBytes:             15_500_000_000,
+			UsedPct:               96.9,
+			GrowthRateBytesPerSec: 100,
+			AvailableBytes:        1_000_000_000,
+		},
+	}
+
+	findings := Evaluate(signals, defaultThresholds())
+	for _, f := range findings {
+		if f.Rule == "oom_imminent" {
+			if f.ETA != nil {
+				t.Fatalf("expected no ETA for far-future OOM risk, got %s", *f.ETA)
+			}
+			if f.Impact != "OOM killer will start terminating processes if memory is not freed" {
+				t.Fatalf("expected default impact when ETA is unmeaningful, got %q", f.Impact)
+			}
+			return
+		}
+	}
+	t.Fatal("expected oom_imminent finding")
 }
 
 func TestEvaluate_OOMImminent_BelowThreshold(t *testing.T) {
