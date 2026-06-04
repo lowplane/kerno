@@ -209,8 +209,7 @@ func TestExtractJSON(t *testing.T) {
 		},
 	}
 
-	for _, tc := range cases{
-
+	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -285,9 +284,7 @@ func TestDetectSimpleCorrelations(t *testing.T) {
 		{"unrelated", []string{"foo", "bar"}, 0},
 	}
 
-	
-for _, c := range cases{
-
+	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			findings := make([]doctor.Finding, len(c.signals))
 			for i, sig := range c.signals {
@@ -300,4 +297,5 @@ for _, c := range cases{
 				t.Errorf("got %d correlations, want %d", len(cors), c.want)
 			}
 		})
+	}
 }
