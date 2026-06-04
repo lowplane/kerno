@@ -730,3 +730,93 @@ func TestEvaluate_MultipleFindings(t *testing.T) {
 		}
 	}
 }
+
+func TestPredict_DiskIOSaturation(t *testing.T) {
+	now := time.Now()
+	snapshots := []*collector.Signals{
+		{
+			Timestamp: now,
+			DiskIO: &collector.DiskIOSnapshot{
+				SyncLatency: collector.Percentiles{P99: 10 * time.Millisecond},
+			},
+		},
+		{
+			Timestamp: now.Add(10 * time.Second),
+			DiskIO: &collector.DiskIOSnapshot{
+				SyncLatency: collector.Percentiles{P99: 20 * time.Millisecond},
+			},
+		},
+		{
+			Timestamp: now.Add(20 * time.Second),
+			DiskIO: &collector.DiskIOSnapshot{
+				SyncLatency: collector.Percentiles{P99: 30 * time.Millisecond},
+			},
+		},
+	}
+
+	report := Predict(snapshots)
+	if len(report.Predictions) == 0 {
+		t.Fatal("expected at least 1 prediction")
+	}
+
+	found := false
+	for _, p := range report.Predictions {
+		if p.Signal == "diskio" {
+			found = true
+			if p.TimeToImpact <= 0 {
+				t.Errorf("expected positive time to impact, got %v", p.TimeToImpact)
+			}
+			break
+		}
+	}
+	if !found {
+		t.Error("expected diskio prediction")
+	}
+}
+
+func TestPredict_DiskIOSaturation_NilSnapshots(t *testing.T) {
+	now := time.Now()
+	snapshots := []*collector.Signals{
+		{
+			Timestamp: now,
+			DiskIO: &collector.DiskIOSnapshot{
+				SyncLatency: collector.Percentiles{P99: 10 * time.Millisecond},
+			},
+		},
+		{
+			Timestamp: now.Add(10 * time.Second),
+			DiskIO:    nil,
+		},
+		{
+			Timestamp: now.Add(20 * time.Second),
+			DiskIO: &collector.DiskIOSnapshot{
+				SyncLatency: collector.Percentiles{P99: 20 * time.Millisecond},
+			},
+		},
+		{
+			Timestamp: now.Add(30 * time.Second),
+			DiskIO: &collector.DiskIOSnapshot{
+				SyncLatency: collector.Percentiles{P99: 30 * time.Millisecond},
+			},
+		},
+	}
+
+	report := Predict(snapshots)
+	if len(report.Predictions) == 0 {
+		t.Fatal("expected at least 1 prediction")
+	}
+
+	found := false
+	for _, p := range report.Predictions {
+		if p.Signal == "diskio" {
+			found = true
+			if p.TimeToImpact <= 0 {
+				t.Errorf("expected positive time to impact, got %v", p.TimeToImpact)
+			}
+			break
+		}
+	}
+	if !found {
+		t.Error("expected diskio prediction")
+	}
+}

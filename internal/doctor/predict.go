@@ -155,7 +155,7 @@ func predictDiskSaturation(snapshots []*collector.Signals) []Prediction {
 	remaining := criticalNs - current
 	// Slope is per-snapshot. Convert to per-second.
 	interval := snapshots[len(snapshots)-1].Timestamp.Sub(snapshots[0].Timestamp)
-	slopePerSec := slope / interval.Seconds() * float64(len(snapshots)-1)
+	slopePerSec := slope / interval.Seconds() * float64(len(latencies)-1)
 
 	if slopePerSec <= 0 {
 		return nil
