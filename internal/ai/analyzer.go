@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 
 	"github.com/optiqor/kerno/internal/doctor"
@@ -31,10 +32,16 @@ type AnalyzerConfig struct {
 
 // NewAnalyzer creates a DefaultAnalyzer.
 func NewAnalyzer(cfg AnalyzerConfig) *DefaultAnalyzer {
+	// Set default logger if none provided
+	if cfg.Logger == nil {
+		cfg.Logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	}
+
 	privacy := cfg.Privacy
 	if privacy == "" {
 		privacy = PrivacySummary
 	}
+
 	return &DefaultAnalyzer{
 		provider: cfg.Provider,
 		cache:    cfg.Cache,
