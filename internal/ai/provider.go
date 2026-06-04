@@ -81,7 +81,9 @@ func NewProvider(cfg ProviderConfig) (Provider, error) {
 		return NewOpenAIProvider(cfg), nil
 	case "ollama":
 		return NewOllamaProvider(cfg), nil
+	case "gemini":
+		return NewGeminiProvider(cfg), nil
 	default:
-		return nil, fmt.Errorf("unknown AI provider %q: must be anthropic, openai, or ollama", cfg.Name)
+		return nil, fmt.Errorf("unknown AI provider %q: must be anthropic, openai, ollama, or gemini", cfg.Name)
 	}
 }
