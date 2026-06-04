@@ -82,6 +82,7 @@ and copy-paste fix steps.`,
 	watchCmd := newWatchCmd()
 	auditCmd := newAuditCmd()
 	chaosCmd := newChaosCmd()
+	preflightCmd := newPreflightCmd()
 	versionCmd := newVersionCmd()
 	completionCmd := newCompletionCmd()
 
@@ -98,10 +99,11 @@ and copy-paste fix steps.`,
 	auditCmd.GroupID = "observe"
 	startCmd.GroupID = "ops"
 	chaosCmd.GroupID = "ops"
+	preflightCmd.GroupID = "ops"
 	versionCmd.GroupID = "ops"
 	completionCmd.GroupID = "ops"
 
-	root.AddCommand(doctorCmd, explainCmd, predictCmd, traceCmd, watchCmd, auditCmd, startCmd, chaosCmd, versionCmd, completionCmd)
+	root.AddCommand(doctorCmd, explainCmd, predictCmd, traceCmd, watchCmd, auditCmd, startCmd, chaosCmd, preflightCmd, versionCmd, completionCmd)
 
 	return root
 }

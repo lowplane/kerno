@@ -274,6 +274,7 @@ make check
 - `internal/config` - Configuration parsing + validation (8 table-driven tests)
 - `internal/bpf` - Event binary round-trip, helper methods, type consistency
 - `internal/collector` - Registry lifecycle, signal aggregation
+- `internal/preflight` - Host prerequisite validation (kernel, BTF, caps, port)
 
 ---
 
@@ -305,6 +306,7 @@ kerno/
 │   ├── cli/                    # Cobra CLI commands
 │   │   ├── root.go             #   Root command, flags, logger init
 │   │   ├── doctor.go           #   `kerno doctor` command
+│   │   ├── preflight.go        #   `kerno preflight` command
 │   │   ├── version.go          #   `kerno version` command
 │   │   └── start.go            #   `kerno start` daemon command
 │   ├── collector/              # Signal collection + aggregation
@@ -314,6 +316,9 @@ kerno/
 │   │   └── config.go           #   Config struct, defaults, validation
 │   └── version/                # Build metadata
 │       └── version.go          #   Version, commit, date via ldflags
+│   └── preflight/              # Host prerequisite validation
+│       ├── checks.go           #   10 check functions + RunAll
+│       └── checks_test.go      #   Fixture-based unit tests
 ├── .github/
 │   ├── workflows/
 │   │   ├── ci.yml              # Lint, test, build, BPF, Docker jobs

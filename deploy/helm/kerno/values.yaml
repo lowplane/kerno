@@ -120,3 +120,15 @@ securityContext:
 # Host path prefix — Kerno mounts host paths under /host/ to avoid conflicts.
 # All pollers read from /host/proc, /host/sys/fs/cgroup, etc.
 hostPathPrefix: /host
+
+# Preflight checks — validate host prerequisites before starting kerno.
+#
+# NOTE: The pre-install hook Job runs on a single scheduled node, so it
+# validates only that one node — not every node the DaemonSet lands on. On a
+# mixed-kernel cluster the hook can pass while some nodes still fail at start.
+# Enable initContainer for a per-node gate that checks every node.
+preflight:
+  # Enable the Helm pre-install hook Job (validates one node).
+  enabled: false
+  # Add preflight as an init container in the DaemonSet (validates every node).
+  initContainer: false

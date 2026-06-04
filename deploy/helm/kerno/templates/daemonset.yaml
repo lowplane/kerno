@@ -43,6 +43,28 @@ spec:
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- if .Values.preflight.initContainer }}
+      initContainers:
+        - name: preflight
+          image: {{ include "kerno.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["preflight"]
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: sys-kernel-btf
+              mountPath: /sys/kernel/btf
+              readOnly: true
+            - name: sys-kernel-debug
+              mountPath: /sys/kernel/debug
+              readOnly: true
+            - name: proc
+              mountPath: /proc
+              readOnly: true
+            - name: sys-fs-cgroup
+              mountPath: /sys/fs/cgroup
+              readOnly: true
+      {{- end }}
       containers:
         - name: kerno
           image: {{ include "kerno.image" . }}

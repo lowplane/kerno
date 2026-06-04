@@ -21,6 +21,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+ExecStartPre=/usr/local/bin/kerno preflight
 ExecStart=/usr/local/bin/kerno start
 Restart=on-failure
 RestartSec=5s

@@ -146,6 +146,7 @@ The same binary, the same command. No Kubernetes required.
 
 ```bash
 curl -sfL https://raw.githubusercontent.com/optiqor/kerno/main/scripts/install.sh | sudo bash
+sudo kerno preflight     # validate host prerequisites
 sudo kerno doctor
 ```
 
