@@ -1,4 +1,4 @@
-# Troubleshooting Kerno
+3# Troubleshooting Kerno
 
 If you are experiencing issues while setting up or running Kerno, please check the common scenarios below.
 
