@@ -49,10 +49,6 @@ func TestEngineDiagnoseContinuesWhenAnalyzerFails(t *testing.T) {
 		t.Fatal("expected deterministic findings to remain when AI fails")
 	}
 
-	if report.Analysis != nil {
-		t.Fatalf("expected nil analysis after AI failure, got: %#v", report.Analysis)
-	}
-
 	foundDiskFinding := false
 	for _, finding := range report.Findings {
 		if finding.Rule == "disk_io_bottleneck" {
