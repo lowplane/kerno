@@ -274,9 +274,10 @@ func evalFDLeak(s *collector.Signals, t config.DoctorThresholds) []Finding {
 		remainingFDs := 65536.0 - float64(s.FD.NetDelta)
 		if remainingFDs > 0 {
 			etaSecs := remainingFDs / s.FD.GrowthRate
-			eta := time.Duration(etaSecs) * time.Second
-			f.ETA = &eta
-			f.Impact = fmt.Sprintf("Process will hit ulimit (65536) in %s at current growth rate", f.ETAString())
+			if eta, ok := etaDuration(etaSecs); ok {
+				f.ETA = &eta
+				f.Impact = fmt.Sprintf("Process will hit ulimit (65536) in %s at current growth rate", f.ETAString())
+			}
 		}
 	}
 
@@ -416,9 +417,10 @@ func evalOOMImminent(s *collector.Signals, t config.DoctorThresholds) []Finding 
 	// Estimate time to 100% if growing.
 	if s.Memory.GrowthRateBytesPerSec > 0 && s.Memory.AvailableBytes > 0 {
 		etaSecs := float64(s.Memory.AvailableBytes) / s.Memory.GrowthRateBytesPerSec
-		eta := time.Duration(etaSecs) * time.Second
-		f.ETA = &eta
-		f.Impact = fmt.Sprintf("At current growth rate, memory will be exhausted in %s", f.ETAString())
+		if eta, ok := etaDuration(etaSecs); ok {
+			f.ETA = &eta
+			f.Impact = fmt.Sprintf("At current growth rate, memory will be exhausted in %s", f.ETAString())
+		}
 	}
 
 	return []Finding{f}
@@ -562,13 +564,18 @@ func evalMemoryLimitPressure(s *collector.Signals) []Finding {
 			if c.GrowthRateBytesPerSec >= minGrowthForETA && c.LimitBytes > c.CurrentBytes {
 				remaining := c.LimitBytes - c.CurrentBytes
 				etaSecs := float64(remaining) / c.GrowthRateBytesPerSec
-				eta := time.Duration(etaSecs) * time.Second
-				f.ETA = &eta
-				f.Impact = fmt.Sprintf(
-					"%s is %.0f%% of its memory limit (%s / %s) and growing %.1f MB/s. OOMKill expected in %s.",
-					label, c.UsedPct,
-					formatBytes(c.CurrentBytes), formatBytes(c.LimitBytes),
-					growthMBs, f.ETAString())
+				if eta, ok := etaDuration(etaSecs); ok {
+					f.ETA = &eta
+					f.Impact = fmt.Sprintf(
+						"%s is %.0f%% of its memory limit (%s / %s) and growing %.1f MB/s. OOMKill expected in %s.",
+						label, c.UsedPct,
+						formatBytes(c.CurrentBytes), formatBytes(c.LimitBytes),
+						growthMBs, f.ETAString())
+				} else {
+					f.Impact = fmt.Sprintf(
+						"%s is %.0f%% of its memory limit (%s / %s) and trending up, but no reliable ETA available.",
+						label, c.UsedPct, formatBytes(c.CurrentBytes), formatBytes(c.LimitBytes))
+				}
 			} else {
 				f.Impact = fmt.Sprintf(
 					"%s is %.0f%% of its memory limit (%s / %s) and trending up, but no reliable ETA available (growth rate < 1 MB/s).",
