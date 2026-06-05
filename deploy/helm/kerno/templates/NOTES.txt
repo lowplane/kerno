@@ -1,0 +1,57 @@
+Kerno {{ .Chart.AppVersion }} deployed as a DaemonSet in namespace {{ .Release.Namespace }}.
+
+─── Verify the rollout ────────────────────────────────────────────────────────
+
+  kubectl rollout status daemonset/kerno -n {{ .Release.Namespace }}
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/name=kerno
+
+─── Check Prometheus metrics ─────────────────────────────────────────────────
+
+  # Pick any running kerno pod and curl its /metrics endpoint:
+  POD=$(kubectl get pod -n {{ .Release.Namespace }} \
+        -l app.kubernetes.io/name=kerno \
+        -o jsonpath='{.items[0].metadata.name}')
+
+  kubectl exec -n {{ .Release.Namespace }} "$POD" -- \
+    wget -qO- http://localhost:{{ .Values.prometheus.port }}/metrics | head -30
+
+─── Check health endpoints ───────────────────────────────────────────────────
+
+  kubectl exec -n {{ .Release.Namespace }} "$POD" -- \
+    wget -qO- http://localhost:{{ .Values.prometheus.port }}/healthz
+
+  kubectl exec -n {{ .Release.Namespace }} "$POD" -- \
+    wget -qO- http://localhost:{{ .Values.prometheus.port }}/readyz
+
+─── Run kerno doctor on a node ───────────────────────────────────────────────
+
+  kubectl exec -n {{ .Release.Namespace }} "$POD" -- kerno doctor
+
+─── Structured logs ──────────────────────────────────────────────────────────
+
+  kubectl logs -n {{ .Release.Namespace }} "$POD" --follow
+
+─── Run the Helm test suite ──────────────────────────────────────────────────
+
+  helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
+
+{{- if .Values.serviceMonitor.enabled }}
+
+─── Prometheus Operator ──────────────────────────────────────────────────────
+
+  A ServiceMonitor has been created. Verify it is picked up:
+
+  kubectl get servicemonitor -n {{ .Release.Namespace }} kerno
+{{- end }}
+
+─── Upgrade / uninstall ──────────────────────────────────────────────────────
+
+  # Upgrade with new values:
+  helm upgrade {{ .Release.Name }} ./deploy/helm/kerno -n {{ .Release.Namespace }}
+
+  # Uninstall:
+  helm uninstall {{ .Release.Name }} -n {{ .Release.Namespace }}
+
+─── Documentation ────────────────────────────────────────────────────────────
+
+  https://github.com/optiqor/kerno

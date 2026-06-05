@@ -47,9 +47,10 @@ spec:
         - name: kerno
           image: {{ include "kerno.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # Only pass the subcommand — all tuning comes from env vars (viper
+          # AutomaticEnv picks up KERNO_* vars with the KERNO_ prefix stripped).
           args:
             - start
-            - --prometheus-addr=:{{ .Values.prometheus.port }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           ports:
@@ -58,6 +59,11 @@ spec:
               hostPort: {{ .Values.prometheus.port }}
               protocol: TCP
           env:
+            # ── Prometheus ────────────────────────────────────────────────────
+            # Viper maps KERNO_PROMETHEUS_ADDR → prometheus.addr in config.
+            - name: KERNO_PROMETHEUS_ADDR
+              value: ":{{ .Values.prometheus.port }}"
+            # ── Identity (injected from the Downward API) ─────────────────────
             - name: KERNO_NODE_NAME
               valueFrom:
                 fieldRef:
@@ -70,29 +76,46 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
+            # ── Logging ───────────────────────────────────────────────────────
             - name: KERNO_LOG_LEVEL
               value: {{ .Values.log.level }}
             - name: KERNO_LOG_FORMAT
               value: {{ .Values.log.format }}
+            # ── Host path prefix ──────────────────────────────────────────────
+            # Pollers read /host/proc, /host/sys/fs/cgroup, etc. instead of
+            # the container-namespaced /proc so they see host-level metrics.
+            - name: KERNO_HOST_PATH_PREFIX
+              value: {{ .Values.hostPathPrefix | quote }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          # startupProbe gives kerno up to 60 s to load all eBPF programs
+          # before liveness kicks in (6 programs × ~5 s worst-case each).
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            failureThreshold: 12
+            periodSeconds: 5
+            timeoutSeconds: 3
           livenessProbe:
             httpGet:
               path: /healthz
               port: metrics
-            initialDelaySeconds: 15
+            initialDelaySeconds: 0
             periodSeconds: 15
             timeoutSeconds: 5
+            failureThreshold: 3
           readinessProbe:
             httpGet:
               path: /readyz
               port: metrics
-            initialDelaySeconds: 10
+            initialDelaySeconds: 0
             periodSeconds: 10
             timeoutSeconds: 5
+            failureThreshold: 3
           volumeMounts:
             # ── eBPF core (6 programs: syscall, tcp, oom, disk, sched, fd) ──
             - name: sys-kernel-debug
