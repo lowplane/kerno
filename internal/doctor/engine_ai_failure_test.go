@@ -14,7 +14,7 @@ import (
 
 type failingAnalyzer struct{}
 
-func (f failingAnalyzer) Analyze(ctx context.Context, req AnalysisRequest) (*AnalysisResponse, error) {
+func (f failingAnalyzer) Analyze(_ context.Context, _ AnalysisRequest) (*AnalysisResponse, error) {
 	return nil, errors.New("provider failed")
 }
 
