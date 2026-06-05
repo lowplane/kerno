@@ -160,80 +160,44 @@ func TestRunUsesDefaults(t *testing.T) {
 	}
 }
 
-func TestCPUScenario(t *testing.T) {
-	var buf bytes.Buffer
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel()
-
-	err := CPUScenario{}.Run(ctx, Options{
-		Intensity: IntensityLow,
-		Out:       &buf,
-	})
-	if err != nil {
-		t.Errorf("CPUScenario.Run = %v", err)
+// TestScenarios runs a smoke test for each registered scenario.
+func TestScenarios(t *testing.T) {
+	tests := []struct {
+		name       string
+		scenario   Scenario
+		duration   time.Duration
+		wantOutput string // substring expected in output; empty = no check
+	}{
+		{"cpu", CPUScenario{}, 200 * time.Millisecond, ""},
+		{"fd-leak", FDLeakScenario{}, 200 * time.Millisecond, "FDs/sec"},
+		{"memory", MemoryScenario{}, 300 * time.Millisecond, ""},
+		{"disk-sat", DiskScenario{}, 200 * time.Millisecond, "fsync"},
+		{"tcp-churn", TCPChurnScenario{}, 200 * time.Millisecond, ""},
 	}
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			ctx, cancel := context.WithTimeout(context.Background(), tt.duration)
+			defer cancel()
 
-func TestFDLeakScenario(t *testing.T) {
-	var buf bytes.Buffer
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel()
+			opts := Options{
+				Intensity: IntensityLow,
+				Out:       &buf,
+			}
+			// Memory scenario explicitly sets Duration so it fills
+			// the buffer with a longer run.
+			if tt.name == "memory" {
+				opts.Duration = tt.duration
+			}
 
-	err := FDLeakScenario{}.Run(ctx, Options{
-		Intensity: IntensityLow,
-		Out:       &buf,
-	})
-	if err != nil {
-		t.Errorf("FDLeakScenario.Run = %v", err)
-	}
-	if !strings.Contains(buf.String(), "FDs/sec") {
-		t.Errorf("FDLeak output missing rate line; got: %q", buf.String())
-	}
-}
-
-func TestMemoryScenario(t *testing.T) {
-	var buf bytes.Buffer
-	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
-	defer cancel()
-
-	err := MemoryScenario{}.Run(ctx, Options{
-		Duration:  300 * time.Millisecond,
-		Intensity: IntensityLow,
-		Out:       &buf,
-	})
-	if err != nil {
-		t.Errorf("MemoryScenario.Run = %v", err)
-	}
-}
-
-func TestDiskScenario(t *testing.T) {
-	var buf bytes.Buffer
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel()
-
-	err := DiskScenario{}.Run(ctx, Options{
-		Intensity: IntensityLow,
-		Out:       &buf,
-	})
-	if err != nil {
-		t.Errorf("DiskScenario.Run = %v", err)
-	}
-	if !strings.Contains(buf.String(), "fsync") {
-		t.Errorf("Disk output missing fsync line; got: %q", buf.String())
-	}
-}
-
-func TestTCPChurnScenario(t *testing.T) {
-	var buf bytes.Buffer
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel()
-
-	err := TCPChurnScenario{}.Run(ctx, Options{
-		Intensity: IntensityLow,
-		Out:       &buf,
-	})
-	if err != nil {
-		t.Errorf("TCPChurnScenario.Run = %v", err)
+			err := tt.scenario.Run(ctx, opts)
+			if err != nil {
+				t.Errorf("%s.Run = %v", tt.name, err)
+			}
+			if tt.wantOutput != "" && !strings.Contains(buf.String(), tt.wantOutput) {
+				t.Errorf("%s output missing %q; got: %q", tt.name, tt.wantOutput, buf.String())
+			}
+		})
 	}
 }
 
