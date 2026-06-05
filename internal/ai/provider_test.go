@@ -55,7 +55,7 @@ func TestAnthropicProviderHappyPath(t *testing.T) {
 	var capturedBody anthropicRequest
 	var capturedKey, capturedVersion string
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		capturedKey = r.Header.Get("x-api-key")
 		capturedVersion = r.Header.Get("anthropic-version")
 		body, _ := io.ReadAll(r.Body)
@@ -437,17 +437,18 @@ func (p *countingProvider) Complete(_ context.Context, _ CompletionRequest) (*Co
 var _ = errors.New // silence unused import on some toolchains
 
 func TestOllamaProviderTimeout(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		time.Sleep(200 * time.Millisecond)
 	}))
 	defer server.Close()
 
 	p := NewOllamaProvider(ProviderConfig{
 		Endpoint: server.URL,
-		Timeout:  50 * time.Millisecond,
 	})
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
 	_, err := p.Complete(ctx, CompletionRequest{
 		SystemPrompt: "test",
 		UserPrompt:   "test",
@@ -468,7 +469,9 @@ func TestOllamaProviderServerError(t *testing.T) {
 		Endpoint: server.URL,
 	})
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
 	_, err := p.Complete(ctx, CompletionRequest{
 		SystemPrompt: "test",
 		UserPrompt:   "test",
@@ -494,7 +497,9 @@ func TestOllamaProviderMalformedJSON(t *testing.T) {
 		Endpoint: server.URL,
 	})
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
 	_, err := p.Complete(ctx, CompletionRequest{
 		SystemPrompt: "test",
 		UserPrompt:   "test",

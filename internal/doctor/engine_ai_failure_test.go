@@ -14,7 +14,7 @@ import (
 
 type failingAnalyzer struct{}
 
-func (f failingAnalyzer) Analyze(_ context.Context, _ AnalysisRequest) (*AnalysisResponse, error) {
+func (failingAnalyzer) Analyze(_ context.Context, _ AnalysisRequest) (*AnalysisResponse, error) {
 	return nil, errors.New("provider failed")
 }
 
@@ -25,8 +25,11 @@ func TestEngineDiagnoseContinuesWhenAnalyzerFails(t *testing.T) {
 		Host: collector.HostInfo{
 			KernelVer: "test-kernel",
 		},
-		Disk: &collector.DiskSnapshot{
-			WriteP99Ns: 250 * int64(time.Millisecond),
+		DiskIO: &collector.DiskIOSnapshot{
+			SyncLatency: collector.Percentiles{
+				P99: 300 * time.Millisecond,
+			},
+			TotalSyncs: 500,
 		},
 	}
 
