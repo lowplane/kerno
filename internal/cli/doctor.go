@@ -171,6 +171,12 @@ func runDoctor(ctx context.Context, opts doctorOpts) error {
 		}
 	}()
 
+	// Start collectors once for the lifetime of runDoctor.
+	if err := build.registry.StartAll(ctx); err != nil {
+		logger.Warn("one or more collectors failed to start", "error", err)
+	}
+	defer build.registry.StopAll()
+
 	// Run the diagnostic loop (once, or continuous).
 	for {
 		if err := runDiagnosticCycle(ctx, engine, build, renderer, opts, logger); err != nil {
@@ -471,14 +477,6 @@ func runDiagnosticCycle(
 	// by the loader's ringbuf; we just bound the lifetime here.
 	collectCtx, cancel := context.WithTimeout(ctx, opts.duration)
 	defer cancel()
-
-	if err := registry.StartAll(collectCtx); err != nil {
-		// A collector failing to start is non-fatal — log and continue.
-		// Snapshot() on an unstarted collector still returns a zero-value
-		// snapshot, which the rule engine handles cleanly.
-		logger.Warn("one or more collectors failed to start", "error", err)
-	}
-	defer registry.StopAll()
 
 	// Live progress spinner — only when stdout is going to pretty
 	// output AND stderr is a TTY. JSON output, piped output, and CI
