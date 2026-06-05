@@ -55,7 +55,7 @@ func TestAnthropicProviderHappyPath(t *testing.T) {
 	var capturedBody anthropicRequest
 	var capturedKey, capturedVersion string
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		capturedKey = r.Header.Get("x-api-key")
 		capturedVersion = r.Header.Get("anthropic-version")
 		body, _ := io.ReadAll(r.Body)
