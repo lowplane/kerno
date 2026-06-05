@@ -435,3 +435,72 @@ func (p *countingProvider) Complete(_ context.Context, _ CompletionRequest) (*Co
 //
 // Defined in cache_helpers_test.go to avoid import cycles in the test.
 var _ = errors.New // silence unused import on some toolchains
+
+func TestOllamaProviderTimeout(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(200 * time.Millisecond)
+	}))
+	defer server.Close()
+
+	p := NewOllamaProvider(ProviderConfig{
+		Endpoint: server.URL,
+		Timeout:  50 * time.Millisecond,
+	})
+
+	ctx := context.Background()
+	_, err := p.Complete(ctx, CompletionRequest{
+		SystemPrompt: "test",
+		UserPrompt:   "test",
+	})
+
+	if err == nil {
+		t.Fatal("expected timeout error, got nil")
+	}
+}
+
+func TestOllamaProviderServerError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	p := NewOllamaProvider(ProviderConfig{
+		Endpoint: server.URL,
+	})
+
+	ctx := context.Background()
+	_, err := p.Complete(ctx, CompletionRequest{
+		SystemPrompt: "test",
+		UserPrompt:   "test",
+	})
+
+	if err == nil {
+		t.Fatal("expected server error, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "status 500") {
+		t.Errorf("expected status 500 error, got: %v", err)
+	}
+}
+
+func TestOllamaProviderMalformedJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"message":`))
+	}))
+	defer server.Close()
+
+	p := NewOllamaProvider(ProviderConfig{
+		Endpoint: server.URL,
+	})
+
+	ctx := context.Background()
+	_, err := p.Complete(ctx, CompletionRequest{
+		SystemPrompt: "test",
+		UserPrompt:   "test",
+	})
+
+	if err == nil {
+		t.Fatal("expected malformed JSON error, got nil")
+	}
+}

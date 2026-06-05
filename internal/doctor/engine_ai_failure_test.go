@@ -1,0 +1,64 @@
+package doctor
+
+import (
+	"context"
+	"errors"
+	"io"
+	"log/slog"
+	"testing"
+	"time"
+
+	"github.com/optiqor/kerno/internal/collector"
+	"github.com/optiqor/kerno/internal/config"
+)
+
+type failingAnalyzer struct{}
+
+func (f failingAnalyzer) Analyze(ctx context.Context, req AnalysisRequest) (*AnalysisResponse, error) {
+	return nil, errors.New("provider failed")
+}
+
+func TestEngineDiagnoseContinuesWhenAnalyzerFails(t *testing.T) {
+	signals := &collector.Signals{
+		Timestamp: time.Now(),
+		Duration:  30 * time.Second,
+		Host: collector.HostInfo{
+			KernelVer: "test-kernel",
+		},
+		Disk: &collector.DiskSnapshot{
+			WriteP99Ns: 250 * int64(time.Millisecond),
+		},
+	}
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	engine := NewEngine(config.Default().Doctor.Thresholds, failingAnalyzer{}, logger)
+
+	report, err := engine.Diagnose(context.Background(), signals)
+	if err != nil {
+		t.Fatalf("Diagnose returned error: %v", err)
+	}
+
+	if report == nil {
+		t.Fatal("expected report, got nil")
+	}
+
+	if len(report.Findings) == 0 {
+		t.Fatal("expected deterministic findings to remain when AI fails")
+	}
+
+	if report.Analysis != nil {
+		t.Fatalf("expected nil analysis after AI failure, got: %#v", report.Analysis)
+	}
+
+	foundDiskFinding := false
+	for _, finding := range report.Findings {
+		if finding.Rule == "disk_io_bottleneck" {
+			foundDiskFinding = true
+			break
+		}
+	}
+
+	if !foundDiskFinding {
+		t.Fatalf("expected disk_io_bottleneck deterministic finding, got: %#v", report.Findings)
+	}
+}
