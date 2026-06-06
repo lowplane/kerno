@@ -47,10 +47,15 @@ spec:
         - name: kerno
           image: {{ include "kerno.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          # Only pass the subcommand — all tuning comes from env vars (viper
-          # AutomaticEnv picks up KERNO_* vars with the KERNO_ prefix stripped).
+          # Pass the subcommand and any flags that must override config defaults.
+          # KERNO_PROMETHEUS_ADDR cannot be used here: viper AutomaticEnv values
+          # are not propagated through Unmarshal unless the key is explicitly
+          # registered (issue #112). Use --prometheus-addr so the flag path in
+          # runStart() is taken directly, bypassing the viper config struct.
           args:
             - start
+            - --prometheus-addr
+            - ":{{ .Values.prometheus.port }}"
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           ports:
@@ -59,10 +64,6 @@ spec:
               hostPort: {{ .Values.prometheus.port }}
               protocol: TCP
           env:
-            # ── Prometheus ────────────────────────────────────────────────────
-            # Viper maps KERNO_PROMETHEUS_ADDR → prometheus.addr in config.
-            - name: KERNO_PROMETHEUS_ADDR
-              value: ":{{ .Values.prometheus.port }}"
             # ── Identity (injected from the Downward API) ─────────────────────
             - name: KERNO_NODE_NAME
               valueFrom:
@@ -81,11 +82,6 @@ spec:
               value: {{ .Values.log.level }}
             - name: KERNO_LOG_FORMAT
               value: {{ .Values.log.format }}
-            # ── Host path prefix ──────────────────────────────────────────────
-            # Pollers read /host/proc, /host/sys/fs/cgroup, etc. instead of
-            # the container-namespaced /proc so they see host-level metrics.
-            - name: KERNO_HOST_PATH_PREFIX
-              value: {{ .Values.hostPathPrefix | quote }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

@@ -9,10 +9,7 @@
 #      (one endpoint per node — the test hits whichever endpoint DNS resolves first).
 #   3. Verifies that the metrics response contains at least one kerno_ metric.
 #
-# The pod uses the same distroless/static image as kerno itself so we avoid
-# pulling a separate busybox or curl image. wget is provided by the BusyBox
-# layer baked into kerno's Dockerfile.goreleaser image; for the standard
-# distroless/static image we use a dedicated alpine-based test image instead.
+# The test pod uses busybox:1.36-musl which provides wget and a POSIX shell.
 apiVersion: v1
 kind: Pod
 metadata:
