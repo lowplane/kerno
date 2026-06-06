@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	dockercontainer "github.com/docker/docker/api/types/container"
 	"github.com/optiqor/kerno/internal/bpf"
 	"github.com/optiqor/kerno/internal/collector"
 	"github.com/optiqor/kerno/internal/config"
@@ -49,16 +48,12 @@ func TestOOMKillCapturedFromConstrainedCgroup(t *testing.T) {
 		ContainerRequest: testcontainers.ContainerRequest{
 			Image: "docker.io/library/python:3.12-alpine",
 			Cmd: []string{
-				"python3",
+				"sh",
 				"-c",
-				"chunks=[]\nwhile True:\n chunks.append(bytearray(8*1024*1024))\n",
+				"ulimit -v 65536; python3 -c 'chunks=[]\nwhile True:\n chunks.append(bytearray(8*1024*1024))'",
 			},
 			WaitingFor:      wait.ForExit().WithExitTimeout(45 * time.Second),
 			AlwaysPullImage: false,
-			HostConfigModifier: func(hostConfig *dockercontainer.HostConfig) {
-				hostConfig.Memory = 64 * 1024 * 1024
-				hostConfig.MemorySwap = 64 * 1024 * 1024
-			},
 		},
 		Started: true,
 	})
@@ -77,11 +72,13 @@ func TestOOMKillCapturedFromConstrainedCgroup(t *testing.T) {
 
 	for time.Now().Before(deadline) {
 		got := oomCollector.Snapshot()
+
 		var ok bool
 		snap, ok = got.(*collector.OOMSnapshot)
 		if ok && snap.Count > 0 {
 			break
 		}
+
 		time.Sleep(250 * time.Millisecond)
 	}
 
@@ -97,10 +94,10 @@ func TestOOMKillCapturedFromConstrainedCgroup(t *testing.T) {
 			break
 		}
 	}
+
 	if captured == nil {
 		t.Fatalf("expected captured OOM event for victim process, got %#v", snap.Events)
 	}
-
 	if captured.PID == 0 {
 		t.Fatalf("expected captured OOM event PID to be set, got %#v", captured)
 	}
