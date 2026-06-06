@@ -155,6 +155,7 @@ func (r *Registry) Signals(duration time.Duration) *Signals {
 
 // RunSafeCollectorGoroutine wraps a collector's core processing loop with panic recovery,
 // and crash-loop safety (by disabling the collector if it panics too frequently).
+// Note: On panic, the goroutine exits with no restart. Callers should not assume self-healing.
 func RunSafeCollectorGoroutine(ctx context.Context, name string, logger *slog.Logger, fn func()) {
 	go func() {
 		defer func() {

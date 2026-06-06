@@ -13,6 +13,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -22,7 +23,7 @@ import (
 func main() {
 	if err := cli.New().Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		if err.Error() != "" && err.Error()[0] == 'd' && err.Error()[:6] == "daemon" {
+		if errors.Is(err, cli.ErrDaemonPanic) {
 			os.Exit(2)
 		}
 		os.Exit(1)

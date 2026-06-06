@@ -41,7 +41,10 @@ var GlobalHandler = &PanicHandler{
 // HandlePanic processes a recovered panic. It writes the stack trace to a file
 // (if logging is enabled), logs the error, and returns whether the collector should
 // be permanently disabled due to crash-looping.
-func (h *PanicHandler) HandlePanic(component string, r interface{}, logger *slog.Logger) bool {
+//
+// Note: There is no cap or rotation on panic logs. The operator is responsible
+// for managing disk space in the panic log directory.
+func (h *PanicHandler) HandlePanic(component string, r any, logger *slog.Logger) bool {
 	now := time.Now()
 
 	// Determine panic reason
@@ -105,6 +108,6 @@ func (h *PanicHandler) HandlePanic(component string, r interface{}, logger *slog
 
 // HandleDaemonPanic processes a daemon-level panic.
 // It writes the panic stack to a file and logs it.
-func HandleDaemonPanic(r interface{}, logger *slog.Logger) {
+func HandleDaemonPanic(r any, logger *slog.Logger) {
 	GlobalHandler.HandlePanic("daemon", r, logger)
 }
