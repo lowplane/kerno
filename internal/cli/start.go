@@ -23,6 +23,8 @@ import (
 	"github.com/optiqor/kerno/internal/metrics"
 	"github.com/optiqor/kerno/internal/observability"
 	"github.com/optiqor/kerno/internal/version"
+)
+
 var ErrDaemonPanic = errors.New("daemon panic")
 
 func newStartCmd() *cobra.Command {
