@@ -155,8 +155,8 @@ sudo apt install ./kerno_<version>_amd64.deb
 
 On RHEL / Fedora / Amazon Linux 2023:
 ```bash
-curl -LO https://github.com/optiqor/kerno/releases/latest/download/kerno-<version>.x86_64.rpm
-sudo dnf install kerno-<version>.x86_64.rpm
+curl -LO https://github.com/optiqor/kerno/releases/latest/download/kerno-<version>-1.x86_64.rpm
+sudo dnf install kerno-<version>-1.x86_64.rpm
 ```
 
 Once installed, run:

@@ -127,6 +127,12 @@ nfpms:
       - deb
       - rpm
 
+    # Conventional per-format names: deb keeps the Go arch (amd64/arm64),
+    # rpm maps to the rpm arch (x86_64/aarch64). Without this nfpm inherits
+    # the archive name_template and emits *_linux_amd64.rpm, which the
+    # release download patterns and the install matrix never match.
+    file_name_template: "{{ .ConventionalFileName }}"
+
     bindir: /usr/bin
 
     overrides:
