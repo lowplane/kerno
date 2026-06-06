@@ -16,3 +16,11 @@ keywords:
   - kernel
   - prometheus
   - monitoring
+annotations:
+  artifacthub.io/license: Apache-2.0
+  artifacthub.io/signKey: ""
+  artifacthub.io/containsSecurityUpdates: "false"
+  artifacthub.io/prerelease: "false"
+  # artifacthub.io/maintainers annotation intentionally omitted:
+  # Artifact Hub reads the standard maintainers: field above automatically.
+  # icon: intentionally omitted until a proper static PNG/SVG logo is available.

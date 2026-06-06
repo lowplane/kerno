@@ -1,0 +1,11 @@
+# Artifact Hub repository metadata
+# https://artifacthub.io/docs/topics/repositories/helm-charts/
+#
+# To register this chart on Artifact Hub:
+#   1. Go to https://artifacthub.io and sign in.
+#   2. Add a new Helm Charts repository with the URL:
+#      https://optiqor.github.io/kerno-charts
+#   3. Artifact Hub will generate a repositoryID (UUID).
+#   4. Uncomment and fill in the lines below, then open a PR.
+#
+# repositoryID: <uuid-generated-by-artifacthub>

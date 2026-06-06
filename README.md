@@ -118,11 +118,15 @@ Kerno is the only eBPF tool in the Kubernetes ecosystem that produces a ranked, 
 ### 1 · Kubernetes (primary)
 
 ```bash
-helm install kerno ./deploy/helm/kerno \
+helm repo add kerno https://optiqor.github.io/kerno-charts
+helm repo update
+helm install kerno kerno/kerno \
   -n kerno-system --create-namespace
 ```
 
 Within 30 seconds Kerno is running as a DaemonSet on every node, watching the kernel via eBPF, exposing `/metrics` for Prometheus, and ready for `kerno doctor`.
+
+> **Tip:** If you prefer to install from a local clone: `helm install kerno ./deploy/helm/kerno -n kerno-system --create-namespace`
 
 ```bash
 # Cluster-wide incident report - 30 seconds of real kernel data
@@ -198,53 +202,7 @@ docker run --rm --privileged --pid=host \
   ghcr.io/optiqor/kerno:latest doctor
 ```
 
-Multi-arch (`linux/amd64`, `linux/arm64`) images published to GHCR on every release.
-
-### Shell Completion
-
-Enable tab completion for your shell:
-
-**Bash:**
-
-```bash
-# Load completions for current session
-source <(kerno completion bash)
-
-# Persist across sessions
-echo 'source <(kerno completion bash)' >> ~/.bashrc
-```
-
-**Zsh:**
-
-```bash
-# Enable completions (add to ~/.zshrc if not already present)
-echo 'autoload -U compinit; compinit' >> ~/.zshrc
-
-# Load completions for current session
-autoload -U compinit && compinit
-kerno completion zsh > "${fpath[1]}/_kerno"
-
-# Persist across sessions - run once, then start new shell
-kerno completion zsh > "${fpath[1]}/_kerno"
-```
-
-**Fish:**
-
-```bash
-# Load completions for current session
-kerno completion fish | source
-
-# Persist across sessions
-kerno completion fish > ~/.config/fish/completions/kerno.fish
-```
-
-**PowerShell:**
-
-```powershell
-# Add to your PowerShell profile
-kerno completion powershell > kerno.ps1
-. ./kerno.ps1
-```
+Multi-arch (`linux/amd64`, `linux/arm64`) images published to GHCR on every release. Graviton, Apple Silicon, and Raspberry Pi clusters work out of the box.
 
 ---
 
@@ -675,7 +633,6 @@ make test-race      # Run with race detector
 make lint           # golangci-lint
 make check          # vet + test + lint
 make verify         # Comprehensive 13-phase production-readiness check
-make manpage        # Generate man pages for all CLI commands
 make demo           # Record demo.gif via vhs (needs vhs + ttyd + ffmpeg)
 make demo-cast      # Record demo.cast via asciinema (alternative to vhs)
 make docker         # Build Docker image

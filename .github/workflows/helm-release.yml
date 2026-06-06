@@ -1,0 +1,48 @@
+# Copyright 2026 Optiqor contributors
+# SPDX-License-Identifier: Apache-2.0
+
+name: Helm Chart Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release-chart:
+    name: Release Chart
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Run chart-releaser
+        uses: helm/chart-releaser-action@v1
+        with:
+          charts_dir: deploy/helm
+        env:
+          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+
+      # After chart-releaser finishes, it has updated gh-pages.
+      # We need to ensure artifacthub-repo.yml is in the root of gh-pages.
+      - name: Push Artifact Hub metadata
+        run: |
+          cp artifacthub-repo.yml /tmp/ahr.yml
+          git checkout gh-pages
+          cp /tmp/ahr.yml ./artifacthub-repo.yml
+          git add artifacthub-repo.yml
+          git commit -m "chore: update artifacthub-repo.yml" || echo "No changes to commit"
+          git push origin gh-pages
