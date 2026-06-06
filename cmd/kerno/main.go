@@ -21,7 +21,7 @@ import (
 
 func main() {
 	if err := cli.New().Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
-	}
+	fmt.Fprintln(os.Stderr, err)
+	os.Exit(1)
+}
 }
