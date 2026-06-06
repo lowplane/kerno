@@ -680,7 +680,9 @@ func (r *JSONRenderer) Render(w io.Writer, report *Report) error {
 	}
 	return enc.Encode(jr)
 }
+
 type MarkdownRenderer struct{}
+
 func (m *MarkdownRenderer) Render(w io.Writer, r *Report) error {
 	var sb strings.Builder
 	sb.WriteString("# Kerno Doctor - Diagnostic Report\n\n")
