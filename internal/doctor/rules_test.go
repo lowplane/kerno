@@ -178,7 +178,7 @@ func TestEvaluate_OOMKill(t *testing.T) {
 	tests := []struct {
 		name        string
 		events      []collector.OOMEventEntry
-		count       uint64
+		count       int
 		wantFinding bool
 		wantProcess string
 	}{
@@ -214,7 +214,7 @@ func TestEvaluate_OOMKill(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			signals := &collector.Signals{
-				OOM: &collector.OOMSnapshot{Events: tc.events, Count: tc.count},
+				OOM: &collector.OOMSnapshot{Events: tc.events, Count: uint64(tc.count)},
 			}
 			findings := Evaluate(signals, defaultThresholds())
 			f := findingForSeverity(findings, "oom_kill_occurred", SeverityCritical)
@@ -241,7 +241,7 @@ func TestEvaluate_TCPRetransmitStorm(t *testing.T) {
 		name             string
 		retransmitRate   float64
 		totalRetransmits uint64
-		activeConns      uint64
+		activeConns      int
 		wantFinding      bool
 		wantSeverity     Severity
 	}{
@@ -276,7 +276,7 @@ func TestEvaluate_TCPRetransmitStorm(t *testing.T) {
 				TCP: &collector.TCPSnapshot{
 					RetransmitRate:    tc.retransmitRate,
 					TotalRetransmits:  tc.totalRetransmits,
-					ActiveConnections: tc.activeConns,
+					ActiveConnections: uint64(tc.activeConns),
 					TopRetransmitters: []collector.TCPConnectionEntry{
 						{SrcAddr: "10.0.1.5", SrcPort: 45000, DstAddr: "10.0.1.10", DstPort: 5432, Retransmits: 80},
 					},
