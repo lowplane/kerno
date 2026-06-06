@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"syscall"
 	"time"
 )
 
@@ -83,14 +84,7 @@ func fdRateFromIntensity(intensity Intensity) int {
 // isResourceExhausted detects EMFILE / ENFILE / ENOSPC so the scenario
 // can stop gracefully rather than treating ulimit-hits as fatal errors.
 func isResourceExhausted(err error) bool {
-	if err == nil {
-		return false
-	}
-	// Walk the error chain for syscall errno equivalents.
-	var pErr *os.PathError
-	if errors.As(err, &pErr) {
-		s := pErr.Err.Error()
-		return s == "too many open files" || s == "no space left on device"
-	}
-	return false
+	return errors.Is(err, syscall.EMFILE) ||
+		errors.Is(err, syscall.ENFILE) ||
+		errors.Is(err, syscall.ENOSPC)
 }

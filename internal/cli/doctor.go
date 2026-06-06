@@ -25,15 +25,16 @@ import (
 
 func newDoctorCmd() *cobra.Command {
 	var (
-		duration   time.Duration
-		exitCode   bool
-		continuous bool
-		interval   time.Duration
-		output     string
-		useAI      bool
-		noAI       bool
-		quiet      bool
-		noBanner   bool
+		duration     time.Duration
+		exitCode     bool
+		continuous   bool
+		interval     time.Duration
+		output       string
+		useAI        bool
+		noAI         bool
+		quiet        bool
+		noBanner     bool
+		onlyCritical bool
 	)
 
 	cmd := &cobra.Command{
@@ -75,14 +76,15 @@ Add --ai to enrich findings with AI-powered analysis (requires API key).`,
 			}
 
 			return runDoctor(cmd.Context(), doctorOpts{
-				duration:   duration,
-				exitCode:   exitCode,
-				continuous: continuous,
-				interval:   interval,
-				output:     output,
-				aiEnabled:  aiEnabled,
-				quiet:      quiet,
-				noBanner:   noBanner,
+				duration:     duration,
+				exitCode:     exitCode,
+				continuous:   continuous,
+				interval:     interval,
+				output:       output,
+				aiEnabled:    aiEnabled,
+				quiet:        quiet,
+				noBanner:     noBanner,
+				onlyCritical: onlyCritical,
 			})
 		},
 	}
@@ -97,24 +99,24 @@ Add --ai to enrich findings with AI-powered analysis (requires API key).`,
 	flags.BoolVar(&noAI, "no-ai", false, "disable AI analysis even if enabled in config")
 	flags.BoolVarP(&quiet, "quiet", "q", false, "only emit critical/warning findings (CI-friendly)")
 	flags.BoolVar(&noBanner, "no-banner", false, "suppress the ASCII banner block")
-
+	flags.BoolVar(&onlyCritical, "only-critical", false, "show only critical severity items")
 	//nolint:errcheck // RegisterFlagCompletionFunc only returns error on invalid flag name, which is static.
 	_ = cmd.RegisterFlagCompletionFunc("output", func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
 		return []string{"pretty", "json"}, cobra.ShellCompDirectiveNoFileComp
 	})
-
 	return cmd
 }
 
 type doctorOpts struct {
-	duration   time.Duration
-	exitCode   bool
-	continuous bool
-	interval   time.Duration
-	output     string
-	aiEnabled  bool
-	quiet      bool
-	noBanner   bool
+	duration     time.Duration
+	exitCode     bool
+	continuous   bool
+	interval     time.Duration
+	output       string
+	aiEnabled    bool
+	quiet        bool
+	noBanner     bool
+	onlyCritical bool
 }
 
 func runDoctor(ctx context.Context, opts doctorOpts) error {
@@ -170,6 +172,12 @@ func runDoctor(ctx context.Context, opts doctorOpts) error {
 			c()
 		}
 	}()
+
+	// Start collectors once for the lifetime of runDoctor.
+	if err := build.registry.StartAll(ctx); err != nil {
+		logger.Warn("one or more collectors failed to start", "error", err)
+	}
+	defer build.registry.StopAll()
 
 	// Run the diagnostic loop (once, or continuous).
 	for {
@@ -472,14 +480,6 @@ func runDiagnosticCycle(
 	collectCtx, cancel := context.WithTimeout(ctx, opts.duration)
 	defer cancel()
 
-	if err := registry.StartAll(collectCtx); err != nil {
-		// A collector failing to start is non-fatal — log and continue.
-		// Snapshot() on an unstarted collector still returns a zero-value
-		// snapshot, which the rule engine handles cleanly.
-		logger.Warn("one or more collectors failed to start", "error", err)
-	}
-	defer registry.StopAll()
-
 	// Live progress spinner — only when stdout is going to pretty
 	// output AND stderr is a TTY. JSON output, piped output, and CI
 	// runs (NO_COLOR) get a single-line status instead.
@@ -542,6 +542,12 @@ func runDiagnosticCycle(
 	report.LoadFailures = build.failures
 	report.ProgramsLoaded = build.loaded
 
+	// phase 3b: apply only-critical filter
+	// happens after rule evaluation but before rendering.
+	if opts.onlyCritical {
+		report.Findings = doctor.FilterCriticalFindings(report.Findings)
+	}
+
 	// Phase 4: Render the report.
 	//
 	// In --quiet mode, we suppress the full pretty rendering when the
@@ -568,6 +574,7 @@ func runDiagnosticCycle(
 	}
 
 	// Phase 5: Exit code handling for CI/CD.
+	// with only-critical, only exit 1 if critical items remain after filtering
 	if opts.exitCode && report.HasCritical() {
 		return &exitError{code: 1}
 	}

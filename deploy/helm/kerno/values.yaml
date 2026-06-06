@@ -233,3 +233,31 @@ securityContext:
 # /host/proc, /host/sys/fs/cgroup, etc.
 # Only change this if another DaemonSet already uses /host on your nodes.
 hostPathPrefix: /host
+
+# NetworkPolicy configuration.
+# NOTE: Since Kerno runs with 'hostNetwork: true', standard NetworkPolicies
+# do not restrict its traffic in most CNIs without host-firewall configuration.
+networkPolicy:
+  enabled: false
+  prometheus:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: monitoring
+    podSelector:
+      matchLabels:
+        app.kubernetes.io/name: prometheus
+  k8sApiServer:
+    ports:
+      - 443
+      - 6443
+    # Target API server CIDRs. If empty, egress is blocked by default.
+    cidrs: []
+  kubelet:
+    ports:
+      - 10250
+      - 10255
+    # Target Kubelet CIDRs. If empty, egress is blocked by default.
+    cidrs: []
+  additionalIngress: []
+  additionalEgress: []
+

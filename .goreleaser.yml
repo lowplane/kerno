@@ -112,3 +112,72 @@ docker_manifests:
     image_templates:
       - "ghcr.io/optiqor/kerno:{{ .Tag }}-amd64"
       - "ghcr.io/optiqor/kerno:{{ .Tag }}-arm64"
+
+nfpms:
+  - id: kerno-packages
+    package_name: kerno
+    vendor: Optiqor
+    homepage: https://github.com/optiqor/kerno
+    maintainer: Optiqor <team.optiqor@gmail.com>
+    description: >-
+      Kerno is a system-level incident diagnosis engine that explains production
+      issues across Linux, Kubernetes, VMs, and bare metal using eBPF.
+    license: Apache-2.0
+    formats:
+      - deb
+      - rpm
+
+    # Conventional per-format names: deb keeps the Go arch (amd64/arm64),
+    # rpm maps to the rpm arch (x86_64/aarch64). Without this nfpm inherits
+    # the archive name_template and emits *_linux_amd64.rpm, which the
+    # release download patterns and the install matrix never match.
+    file_name_template: "{{ .ConventionalFileName }}"
+
+    bindir: /usr/bin
+
+    overrides:
+      deb:
+        dependencies:
+          - systemd
+      rpm:
+        dependencies:
+          - systemd
+
+    contents:
+      # systemd unit
+      - src: deploy/systemd/kerno.service
+        dst: /etc/systemd/system/kerno.service
+        file_info:
+          mode: 0644
+
+      # license files for deb and rpm
+      - src: LICENSE
+        dst: /usr/share/doc/kerno/copyright
+        packager: deb
+      - src: LICENSE
+        dst: /usr/share/licenses/kerno/LICENSE
+        packager: rpm
+
+      # default config — marked as config so apt/dnf never overwrites local edits
+      - src: deploy/systemd/kerno.yaml
+        dst: /etc/kerno/config.yaml
+        type: config|noreplace
+        file_info:
+          mode: 0640
+          owner: kerno
+          group: kerno
+
+    scripts:
+      preinstall: deploy/scripts/preinstall.sh
+      postinstall: deploy/scripts/postinstall.sh
+      preremove: deploy/scripts/preremove.sh
+
+    # RPM-specific metadata
+    rpm:
+      summary: eBPF-powered observability daemon
+      group: System/Daemons
+
+    # deb-specific metadata
+    deb:
+      lintian_overrides:
+        - statically-linked-binary
