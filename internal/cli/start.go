@@ -23,7 +23,7 @@ import (
 	"github.com/optiqor/kerno/internal/metrics"
 	"github.com/optiqor/kerno/internal/observability"
 	"github.com/optiqor/kerno/internal/version"
-)
+var ErrDaemonPanic = errors.New("daemon panic")
 
 func newStartCmd() *cobra.Command {
 	var (
@@ -82,7 +82,7 @@ func runStart(ctx context.Context, opts startOpts) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			observability.HandleDaemonPanic(r, logger)
-			err = fmt.Errorf("daemon panicked: %v", r)
+			err = ErrDaemonPanic
 		}
 	}()
 
@@ -242,7 +242,7 @@ func healthzHandler(loaded, total int) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]any{
 			"status":         "ok",
 			"programsLoaded": loaded,
 			"programsTotal":  total,
