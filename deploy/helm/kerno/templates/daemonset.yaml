@@ -4,8 +4,8 @@ metadata:
   name: kerno
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "kerno.labels" . | nindent 4 }}
     app.kubernetes.io/component: agent
+    {{- include "kerno.labels" . | nindent 4 }}
 spec:
   selector:
     matchLabels:
@@ -47,9 +47,15 @@ spec:
         - name: kerno
           image: {{ include "kerno.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # Pass the subcommand and any flags that must override config defaults.
+          # KERNO_PROMETHEUS_ADDR cannot be used here: viper AutomaticEnv values
+          # are not propagated through Unmarshal unless the key is explicitly
+          # registered (issue #112). Use --prometheus-addr so the flag path in
+          # runStart() is taken directly, bypassing the viper config struct.
           args:
             - start
-            - --prometheus-addr=:{{ .Values.prometheus.port }}
+            - --prometheus-addr
+            - ":{{ .Values.prometheus.port }}"
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           ports:
@@ -58,6 +64,7 @@ spec:
               hostPort: {{ .Values.prometheus.port }}
               protocol: TCP
           env:
+            # ── Identity (injected from the Downward API) ─────────────────────
             - name: KERNO_NODE_NAME
               valueFrom:
                 fieldRef:
@@ -70,6 +77,7 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
+            # ── Logging ───────────────────────────────────────────────────────
             - name: KERNO_LOG_LEVEL
               value: {{ .Values.log.level }}
             - name: KERNO_LOG_FORMAT
@@ -79,18 +87,36 @@ spec:
             {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          # startupProbe gives kerno up to 60 s to load all eBPF programs
+          # before liveness kicks in (6 programs × ~5 s worst-case each).
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            failureThreshold: 12
+            periodSeconds: 5
+            timeoutSeconds: 3
           livenessProbe:
             httpGet:
               path: /healthz
               port: metrics
-            initialDelaySeconds: 15
+            initialDelaySeconds: 0
             periodSeconds: 15
             timeoutSeconds: 5
+            failureThreshold: 3
           readinessProbe:
             httpGet:
               path: /readyz
               port: metrics
-            initialDelaySeconds: 10
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            failureThreshold: 30
             periodSeconds: 10
             timeoutSeconds: 5
           volumeMounts:
@@ -148,3 +174,4 @@ spec:
           hostPath:
             path: /sys/block
             type: Directory
+            

@@ -83,6 +83,13 @@ spec:
             initialDelaySeconds: 10
             periodSeconds: 10
             timeoutSeconds: 5
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            failureThreshold: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
           volumeMounts:
             # ── eBPF core (6 programs: syscall, tcp, oom, disk, sched, fd) ──
             - name: sys-kernel-debug

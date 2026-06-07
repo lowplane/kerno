@@ -33,37 +33,65 @@ func writeCgroupDir(t *testing.T, root string, limitBytes, currentBytes, highByt
 }
 
 func TestCgroupMemoryCollector_BasicPoll(t *testing.T) {
-	root := t.TempDir()
-	const limitBytes = 4 << 30   // 4 GiB
-	const currentBytes = 3 << 30 // 3 GiB = 75%
-	writeCgroupDir(t, root, limitBytes, currentBytes, limitBytes*9/10, 0)
-
-	c := NewCgroupMemoryCollector(newSilentLogger(), 50*time.Millisecond)
-	c.cgroupRoot = root
-
-	if err := c.poll(); err != nil {
-		t.Fatalf("poll: %v", err)
+	tests := []struct {
+		name         string
+		limitBytes   uint64
+		currentBytes uint64
+		highBytes    uint64
+		wantUsedLow  float64
+		wantUsedHigh float64
+	}{
+		{
+			name:         "normal usage 75 percent",
+			limitBytes:   4 << 30,
+			currentBytes: 3 << 30,
+			highBytes:    uint64(4<<30) * 9 / 10,
+			wantUsedLow:  74.0,
+			wantUsedHigh: 76.0,
+		},
+		{
+			name:         "at high threshold 90 percent",
+			limitBytes:   4 << 30,
+			currentBytes: uint64(4<<30) * 9 / 10, // current == high
+			highBytes:    uint64(4<<30) * 9 / 10,
+			wantUsedLow:  89.0,
+			wantUsedHigh: 91.0,
+		},
 	}
 
-	snap, ok := c.Snapshot().(*CgroupMemorySnapshot)
-	if !ok || snap == nil {
-		t.Fatal("expected non-nil CgroupMemorySnapshot")
-	}
-	if len(snap.Containers) != 1 {
-		t.Fatalf("expected 1 container, got %d", len(snap.Containers))
-	}
-	e := snap.Containers[0]
-	if e.LimitBytes != limitBytes {
-		t.Errorf("LimitBytes = %d, want %d", e.LimitBytes, uint64(limitBytes))
-	}
-	if e.CurrentBytes != currentBytes {
-		t.Errorf("CurrentBytes = %d, want %d", e.CurrentBytes, uint64(currentBytes))
-	}
-	if e.UsedPct < 74.0 || e.UsedPct > 76.0 {
-		t.Errorf("UsedPct = %.1f, want ~75", e.UsedPct)
-	}
-	if e.Pod == "" {
-		t.Error("Pod should be non-empty (extracted from path)")
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			writeCgroupDir(t, root, tc.limitBytes, tc.currentBytes, tc.highBytes, 0)
+
+			c := NewCgroupMemoryCollector(newSilentLogger(), 50*time.Millisecond)
+			c.cgroupRoot = root
+
+			if err := c.poll(); err != nil {
+				t.Fatal(err)
+			}
+
+			snap := c.Snapshot().(*CgroupMemorySnapshot)
+			if snap == nil || len(snap.Containers) == 0 {
+				t.Fatal("expected containers in snapshot")
+			}
+
+			e := snap.Containers[0]
+
+			if e.LimitBytes != tc.limitBytes {
+				t.Errorf("LimitBytes = %d, want %d", e.LimitBytes, tc.limitBytes)
+			}
+			if e.CurrentBytes != tc.currentBytes {
+				t.Errorf("CurrentBytes = %d, want %d", e.CurrentBytes, tc.currentBytes)
+			}
+			if e.HighBytes != tc.highBytes {
+				t.Errorf("HighBytes = %d, want %d", e.HighBytes, tc.highBytes)
+			}
+			if e.UsedPct < tc.wantUsedLow || e.UsedPct > tc.wantUsedHigh {
+				t.Errorf("UsedPct = %.1f, want between %.1f and %.1f",
+					e.UsedPct, tc.wantUsedLow, tc.wantUsedHigh)
+			}
+		})
 	}
 }
 
@@ -99,33 +127,78 @@ func TestCgroupMemoryCollector_UnlimitedMax(t *testing.T) {
 }
 
 func TestCgroupMemoryCollector_GrowthRate(t *testing.T) {
-	root := t.TempDir()
-	const limitBytes = 1 << 30                                                 // 1 GiB
-	cgPath := writeCgroupDir(t, root, limitBytes, 700<<20, limitBytes*9/10, 0) // 700 MB initial
-
-	c := NewCgroupMemoryCollector(newSilentLogger(), 10*time.Millisecond)
-	c.cgroupRoot = root
-
-	if err := c.poll(); err != nil {
-		t.Fatal(err)
+	tests := []struct {
+		name      string
+		initialMB int
+		finalMB   int
+		wantPos   bool
+	}{
+		{
+			name:      "positive growth",
+			initialMB: 700,
+			finalMB:   800,
+			wantPos:   true,
+		},
+		{
+			name:      "negative growth",
+			initialMB: 800,
+			finalMB:   700,
+			wantPos:   false,
+		},
 	}
 
-	// Simulate memory growth to 800 MB.
-	time.Sleep(50 * time.Millisecond)
-	if err := os.WriteFile(filepath.Join(cgPath, "memory.current"), []byte(fmt.Sprintf("%d\n", 800<<20)), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
 
-	if err := c.poll(); err != nil {
-		t.Fatal(err)
-	}
+			const limitBytes = 1 << 30
 
-	snap := c.Snapshot().(*CgroupMemorySnapshot)
-	if len(snap.Containers) == 0 {
-		t.Fatal("expected containers in snapshot")
-	}
-	if snap.Containers[0].GrowthRateBytesPerSec <= 0 {
-		t.Errorf("GrowthRateBytesPerSec = %v, want > 0", snap.Containers[0].GrowthRateBytesPerSec)
+			cgPath := writeCgroupDir(
+				t,
+				root,
+				limitBytes,
+				uint64(tc.initialMB)<<20,
+				limitBytes*9/10,
+				0,
+			)
+
+			c := NewCgroupMemoryCollector(newSilentLogger(), 10*time.Millisecond)
+			c.cgroupRoot = root
+
+			if err := c.poll(); err != nil {
+				t.Fatal(err)
+			}
+
+			time.Sleep(50 * time.Millisecond)
+
+			if err := os.WriteFile(
+				filepath.Join(cgPath, "memory.current"),
+				[]byte(fmt.Sprintf("%d\n", uint64(tc.finalMB)<<20)),
+				0o600,
+			); err != nil {
+				t.Fatal(err)
+			}
+
+			if err := c.poll(); err != nil {
+				t.Fatal(err)
+			}
+
+			snap := c.Snapshot().(*CgroupMemorySnapshot)
+
+			if len(snap.Containers) == 0 {
+				t.Fatal("expected containers in snapshot")
+			}
+
+			rate := snap.Containers[0].GrowthRateBytesPerSec
+
+			if tc.wantPos && rate <= 0 {
+				t.Errorf("GrowthRateBytesPerSec = %v, want > 0", rate)
+			}
+
+			if !tc.wantPos && rate >= 0 {
+				t.Errorf("GrowthRateBytesPerSec = %v, want < 0", rate)
+			}
+		})
 	}
 }
 
@@ -247,38 +320,129 @@ func TestCgroupMemoryCollector_LeafOnly(t *testing.T) {
 }
 
 func TestReadCgroupMemoryEvents(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "memory.events")
-	content := "low 0\nhigh 4\nmax 2\noom 1\noom_kill 1\noom_group_kill 0\n"
-	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
-		t.Fatal(err)
+	tests := []struct {
+		name    string
+		content string
+		want    map[string]uint64
+	}{
+		{
+			name:    "full events file",
+			content: "low 0\nhigh 4\nmax 2\noom 1\noom_kill 1\noom_group_kill 0\n",
+			want: map[string]uint64{
+				"low":            0,
+				"high":           4,
+				"max":            2,
+				"oom":            1,
+				"oom_kill":       1,
+				"oom_group_kill": 0,
+			},
+		},
+		{
+			name:    "empty file",
+			content: "",
+			want:    map[string]uint64{},
+		},
 	}
-	got := readCgroupMemoryEvents(path)
-	cases := map[string]uint64{"low": 0, "high": 4, "max": 2, "oom": 1, "oom_kill": 1, "oom_group_kill": 0}
-	for k, want := range cases {
-		if got[k] != want {
-			t.Errorf("events[%q] = %d, want %d", k, got[k], want)
-		}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "memory.events")
+
+			if err := os.WriteFile(path, []byte(tc.content), 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			got := readCgroupMemoryEvents(path)
+
+			for k, want := range tc.want {
+				if got[k] != want {
+					t.Errorf("events[%q] = %d, want %d", k, got[k], want)
+				}
+			}
+		})
 	}
 }
 
 func TestParseCgroupPod(t *testing.T) {
-	cases := []struct {
-		path      string
-		wantPod   string
-		wantEmpty bool
+	tests := []struct {
+		name    string
+		path    string
+		wantPod string
 	}{
-		{"/sys/fs/cgroup/kubepods/burstable/poda1b2c3d4/container-xyz", "poda1b2c3d4", false},
-		{"/sys/fs/cgroup/kubepods/guaranteed/pod-foo-bar/ctr0", "pod-foo-bar", false},
-		{"/sys/fs/cgroup/system.slice/docker-abc123.scope", "docker-abc123.scope", false},
+		{
+			name:    "kubernetes pod uid",
+			path:    "/sys/fs/cgroup/kubepods/burstable/poda1b2c3d4/container-xyz",
+			wantPod: "poda1b2c3d4",
+		},
+		{
+			name:    "pod with hyphen",
+			path:    "/sys/fs/cgroup/kubepods/guaranteed/pod-foo-bar/ctr0",
+			wantPod: "pod-foo-bar",
+		},
+		{
+			name:    "docker scope fallback",
+			path:    "/sys/fs/cgroup/system.slice/docker-abc123.scope",
+			wantPod: "docker-abc123.scope",
+		},
 	}
-	for _, c := range cases {
-		pod := parseCgroupPod(c.path)
-		if pod == "" {
-			t.Errorf("parseCgroupPod(%q) pod is empty", c.path)
-		}
-		if c.wantPod != "" && pod != c.wantPod {
-			t.Errorf("parseCgroupPod(%q) = %q, want %q", c.path, pod, c.wantPod)
-		}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := parseCgroupPod(tc.path)
+
+			if got == "" {
+				t.Errorf("parseCgroupPod(%q) returned empty pod", tc.path)
+			}
+
+			if got != tc.wantPod {
+				t.Errorf("parseCgroupPod(%q) = %q, want %q", tc.path, got, tc.wantPod)
+			}
+		})
+	}
+}
+
+// TestReadCgroupMemoryMax verifies parsing of finite and unlimited memory limits.
+func TestReadCgroupMemoryMax(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		wantVal uint64
+		wantOK  bool
+	}{
+		{
+			name:    "max literal",
+			content: "max\n",
+			wantVal: 0,
+			wantOK:  false,
+		},
+		{
+			name:    "numeric limit",
+			content: "1073741824\n",
+			wantVal: 1073741824,
+			wantOK:  true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+
+			path := filepath.Join(dir, "memory.max")
+
+			if err := os.WriteFile(path, []byte(tc.content), 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			gotVal, gotOK := readCgroupMemoryMax(path)
+
+			if gotVal != tc.wantVal {
+				t.Fatalf("got %d want %d", gotVal, tc.wantVal)
+			}
+
+			if gotOK != tc.wantOK {
+				t.Fatalf("got %v want %v", gotOK, tc.wantOK)
+			}
+		})
 	}
 }

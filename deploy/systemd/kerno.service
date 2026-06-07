@@ -4,7 +4,7 @@
 # Systemd unit for kerno daemon mode on bare-metal / VMs.
 #
 # Install:
-#   sudo cp kerno /usr/local/bin/kerno
+#   sudo cp kerno /usr/bin/kerno
 #   sudo cp kerno.service /etc/systemd/system/kerno.service
 #   sudo cp kerno.yaml /etc/kerno/config.yaml   (optional)
 #   sudo systemctl daemon-reload
@@ -21,7 +21,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/kerno start
+ExecStart=/usr/bin/kerno start
 Restart=on-failure
 RestartSec=5s
 

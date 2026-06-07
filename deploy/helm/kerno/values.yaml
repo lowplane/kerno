@@ -1,13 +1,45 @@
-# Default values for kerno Helm chart.
-# Scoped to v0.2 release: 20 diagnostic rules.
+# Copyright 2026 Optiqor contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Default values for the kerno Helm chart.
+# Scoped to v0.2 release: 11 diagnostic rules, 6 eBPF collectors.
+#
+# ── Quick reference ──────────────────────────────────────────────────────────
+#
+#   helm install kerno ./deploy/helm/kerno \
+#     -n kerno-system --create-namespace
+#
+#   # Then verify with:
+#   helm test kerno -n kerno-system
+#
+# Full install guide: https://github.com/optiqor/kerno#getting-started
+# ─────────────────────────────────────────────────────────────────────────────
 
+# ── Image ─────────────────────────────────────────────────────────────────────
 image:
+  # repository is the container registry path. Change this if you push kerno to
+  # your own registry (e.g. "my-registry.example.com/kerno").
   repository: ghcr.io/optiqor/kerno
-  tag: ""  # Defaults to Chart.appVersion
+
+  # tag overrides the image tag. Defaults to Chart.AppVersion when left empty.
+  # Pin to a specific version in production (e.g. "v0.2.0") — never use "latest"
+  # in production because it makes rollbacks ambiguous.
+  tag: ""
+
+  # pullPolicy controls when Kubernetes pulls the image.
+  #   IfNotPresent — use the cached image if it exists on the node (recommended).
+  #   Always       — always pull; useful when using a floating tag like "main".
   pullPolicy: IfNotPresent
 
-# Resource requests and limits.
-# 20 rules + 6 eBPF programs + procfs/sysfs/cgroupfs polling.
+# ── Resource requests and limits ──────────────────────────────────────────────
+# Kerno runs as a DaemonSet (one pod per node). These values apply per pod.
+#
+# CPU: 100m idle, spikes to ~200m during kerno doctor runs.
+# Memory: 6 eBPF ring-buffers (default 256KB each) + Go runtime ≈ 50-80Mi typical.
+#         256Mi limit gives headroom for large syscall event bursts.
+#
+# On memory-constrained nodes (< 2GB RAM), reduce limits.memory to 128Mi and
+# monitor for OOM kills via kerno's own oom_kill_occurred rule.
 resources:
   requests:
     cpu: 100m
@@ -16,79 +48,150 @@ resources:
     cpu: 500m
     memory: 256Mi
 
-# Prometheus metrics configuration.
+# ── Prometheus metrics ────────────────────────────────────────────────────────
+# Kerno exposes Prometheus metrics at /metrics on the port below.
+# The DaemonSet also annotates pods with prometheus.io/scrape: "true" so
+# a standard Prometheus installation picks them up automatically.
 prometheus:
+  # enabled controls whether the /metrics HTTP endpoint is started.
   enabled: true
+
+  # port is both the container port and the host port. Each kerno pod
+  # binds this port on the node it runs on (hostNetwork: true + hostPort).
+  # If port 9090 conflicts with another DaemonSet on your nodes, change it here.
   port: 9090
 
-# Logging configuration.
+# ── Logging ───────────────────────────────────────────────────────────────────
 log:
+  # level sets the minimum log severity. One of: debug, info, warn, error.
+  # Use "debug" when troubleshooting eBPF loader failures.
   level: info
+
+  # format controls the log output format.
+  #   json  — structured JSON, recommended for log aggregators (Loki, ELK, Splunk).
+  #   text  — human-readable key=value, useful for local dev with kubectl logs.
+  #   auto  — json when stdout is not a TTY (i.e. always in Kubernetes), text otherwise.
   format: json
 
-# ── eBPF collectors (require kernel >= 5.8 with BTF) ─────────────────
+# ── eBPF collectors ───────────────────────────────────────────────────────────
+# Each collector loads one eBPF program and feeds one or more doctor rules.
+# All require a Linux kernel >= 5.8 with CONFIG_DEBUG_INFO_BTF=y.
+# Disabling a collector disables the rules that depend on it.
+#
+# Rule coverage per collector:
+#   syscallLatency → syscall_latency_high, syscall_error_rate
+#   tcpMonitor     → tcp_retransmit_storm, tcp_rtt_degradation
+#   oomTrack       → oom_kill_occurred
+#   diskIO         → disk_io_bottleneck, disk_io_write_high
+#   schedDelay     → scheduler_contention
+#   fdTrack        → fd_leak
 collectors:
-  syscallLatency: true    # Rules: syscall_latency_high, syscall_error_rate
-  tcpMonitor: true        # Rules: tcp_retransmit_storm, tcp_rtt_degradation
-  oomTrack: true          # Rule:  oom_kill_occurred
-  diskIO: true            # Rule:  disk_io_bottleneck
-  schedDelay: true        # Rule:  scheduler_contention
-  fdTrack: true           # Rule:  fd_leak
-  # Future eBPF collectors (disabled until implemented):
-  # dnsMonitor: false     # Requires new dns_monitor.c eBPF program
-  # lockContention: false # Requires kernel >= 5.17
-  # pageFault: false      # Requires new page_fault.c eBPF program
-  # processLifecycle: false # Requires new process_lifecycle.c eBPF program
-  # cgroupPressure: false # Requires kernel >= 5.13 PSI tracepoints
-  # kernelHealth: false   # Requires new kernel_health.c eBPF program
+  syscallLatency: true
+  tcpMonitor: true
+  oomTrack: true
+  diskIO: true
+  schedDelay: true
+  fdTrack: true
 
-# ── Userspace polling collectors (no eBPF, read procfs/sysfs/cgroupfs) ──
-# These are lightweight and ship in v0.2.
+  # Future eBPF collectors — implemented in Phase 10, disabled until then:
+  # dnsMonitor: false        # dns_nxdomain_spike, dns_servfail_spike (Phase 10.2.1)
+  # lockContention: false    # lock_contention_high (requires kernel >= 5.17)
+  # pageFault: false         # page_fault_spike (Phase 10.4.3)
+  # processLifecycle: false  # crash_loop_detected (Phase 10.9.1)
+  # cgroupPressure: false    # cgroup_pressure_high (requires kernel >= 5.13 PSI tracepoints)
+
+# ── Userspace pollers (no eBPF, read procfs / sysfs / cgroupfs) ───────────────
+# These pollers are lightweight — they read files under /host/proc and
+# /host/sys/fs/cgroup. No root required beyond the hostPath mounts.
+#
+# Rule coverage per poller:
+#   memory      → oom_imminent, memory_limit_pressure (high_throttling from cgroupStats)
+#   cgroupStats → cpu_throttled, memory_limit_pressure, memory_high_throttling
+#   diskSpace   → disk_space_critical (Phase 10.8.9 — poller ready, rule open)
+#   conntrack   → conntrack_exhaustion (Phase 10.6.3 — poller ready, rule open)
+#   cpuAcct     → cpu_steal_high
+#   nicStats    → nic_errors
+#   nodePressure → node_memory_pressure
 pollers:
-  memory: true            # Rule:  oom_imminent, memory_pressure, swap_thrashing
-  cgroupStats: true       # Rules: cpu_throttled, memory_limit_pressure
-  diskSpace: true         # Rule:  disk_space_critical
-  conntrack: true         # Rule:  conntrack_exhaustion
-  cpuAccounting: true     # Rule:  cpu_steal_high
-  nicStats: true          # Rule:  nic_errors
-  nodePressure: true      # Rule:  node_memory_pressure
-  # Future pollers (disabled until implemented):
-  # filesystem: false     # inode_exhaustion, writeback_pressure
-  # ephemeralPorts: false # ephemeral_port_exhaustion
-  # thermal: false        # cpu_throttled_thermal, thermal_critical
-  # clockDrift: false     # clock_drift, ntp_unsynchronized
+  memory: true
+  cgroupStats: true
+  diskSpace: true
+  conntrack: true
+  cpuAccounting: true
+  nicStats: true
+  nodePressure: true
+
+  # Future pollers — disabled until their rules are implemented:
+  # filesystem: false      # inode_exhaustion, writeback_pressure (Phase 10.8.6)
+  # ephemeralPorts: false  # ephemeral_port_exhaustion (Phase 10.6.2)
+  # thermal: false         # cpu_throttled_thermal, thermal_critical
+  # clockDrift: false      # clock_drift, ntp_unsynchronized
   # kubeletEviction: false # node_disk_pressure, node_pid_pressure
   # containerRuntime: false # container_runtime_stall
-  # arpTable: false       # arp_table_pressure
-  # ipvs: false           # ipvs_backend_down, service_connectivity_failure
+  # arpTable: false        # arp_table_pressure
+  # ipvs: false            # ipvs_backend_down, service_connectivity_failure
 
-# Container runtime socket (disabled for v0.2 — no runtime health rule yet).
+# ── Container runtime (disabled for v0.2) ─────────────────────────────────────
+# When enabled, kerno mounts the container runtime socket to enrich findings
+# with container names and image tags. Only relevant inside Kubernetes.
 containerRuntime:
   enabled: false
+  # hostSocketPath is the path on the host node to the runtime socket.
+  # Common values:
+  #   containerd: /run/containerd/containerd.sock
+  #   cri-o:      /var/run/crio/crio.sock
+  #   docker:     /var/run/docker.sock
   hostSocketPath: /run/containerd/containerd.sock
+  # socketPath is where the socket is mounted inside the container.
   socketPath: /run/containerd/containerd.sock
 
-# ServiceMonitor for Prometheus Operator (requires CRD).
+# ── ServiceMonitor (Prometheus Operator) ─────────────────────────────────────
+# A ServiceMonitor tells the Prometheus Operator to scrape kerno automatically.
+# Only useful if you have the Prometheus Operator CRD installed
+# (e.g. via kube-prometheus-stack).
 serviceMonitor:
+  # enabled creates the ServiceMonitor resource. Set to true if you use
+  # the Prometheus Operator. Leave false for annotation-based scraping.
   enabled: false
+
+  # interval is how often Prometheus scrapes kerno's /metrics endpoint.
   interval: 15s
+
+  # scrapeTimeout must be less than interval.
   scrapeTimeout: 10s
 
-# Pod tolerations — by default, run on all nodes including control-plane.
+# ── Tolerations ───────────────────────────────────────────────────────────────
+# By default kerno tolerates all taints so it runs on every node, including
+# control-plane nodes tainted with node-role.kubernetes.io/control-plane:NoSchedule.
+# To restrict kerno to worker nodes only, replace with:
+#   tolerations:
+#     - key: node-role.kubernetes.io/worker
+#       operator: Exists
 tolerations:
   - operator: Exists
 
-# Node selector for restricting kerno to specific nodes.
+# ── Node selector ─────────────────────────────────────────────────────────────
+# Restrict kerno to nodes with specific labels. Empty = all nodes.
+# Example (run only on nodes labelled kerno=enabled):
+#   nodeSelector:
+#     kerno: enabled
 nodeSelector: {}
 
-# Affinity rules.
+# ── Affinity ──────────────────────────────────────────────────────────────────
+# Advanced pod scheduling rules. Rarely needed for a DaemonSet.
 affinity: {}
 
-# Kerno should survive node pressure to report on it.
+# ── Priority class ────────────────────────────────────────────────────────────
+# system-node-critical ensures kerno is not evicted when the node is under
+# memory pressure — important because kerno is what reports that pressure.
+# Change to "" to use the default priority.
 priorityClassName: system-node-critical
 
-# Additional environment variables.
-# Example: set AI provider for kerno doctor --ai
+# ── Extra environment variables ───────────────────────────────────────────────
+# Inject additional env vars into the kerno container.
+# Common use: supply an AI provider API key for `kerno doctor --ai`.
+#
+# Example:
 #   extraEnv:
 #     - name: KERNO_AI_API_KEY
 #       valueFrom:
@@ -99,24 +202,62 @@ priorityClassName: system-node-critical
 #       value: anthropic
 extraEnv: []
 
-# PodDisruptionBudget.
+# ── PodDisruptionBudget ───────────────────────────────────────────────────────
+# Limits how many kerno pods can be unavailable simultaneously during
+# voluntary disruptions (node drains, cluster upgrades).
+# maxUnavailable: 1 — always keep all but one node monitored during drains.
 pdb:
   enabled: true
   maxUnavailable: 1
 
-# Security context for the kerno container.
-# privileged: true is required for eBPF program loading, tracepoint
-# attachment, and reading host cgroup/procfs/sysfs filesystems.
+# ── Security context ──────────────────────────────────────────────────────────
+# privileged: true is required for:
+#   - Loading eBPF programs (CAP_BPF)
+#   - Attaching to kernel tracepoints (CAP_PERFMON)
+#   - Reading /proc/<pid>/... for other processes (CAP_SYS_PTRACE)
 #
-# For a more restrictive setup (requires kernel >= 5.19):
+# Least-privilege alternative (requires kernel >= 5.19):
 #   securityContext:
 #     privileged: false
 #     capabilities:
 #       add: [BPF, PERFMON, SYS_PTRACE, SYS_ADMIN, NET_ADMIN, DAC_READ_SEARCH]
 #       drop: [ALL]
+#
+# Note: DAC_READ_SEARCH is needed to read host /proc/<pid>/fd/* for fd_leak rule.
 securityContext:
   privileged: true
 
-# Host path prefix — Kerno mounts host paths under /host/ to avoid conflicts.
-# All pollers read from /host/proc, /host/sys/fs/cgroup, etc.
+# ── Host path prefix ──────────────────────────────────────────────────────────
+# Kerno mounts host paths under this prefix to avoid collisions with the
+# container's own /proc and /sys. All procfs/sysfs pollers read from
+# /host/proc, /host/sys/fs/cgroup, etc.
+# Only change this if another DaemonSet already uses /host on your nodes.
 hostPathPrefix: /host
+
+# NetworkPolicy configuration.
+# NOTE: Since Kerno runs with 'hostNetwork: true', standard NetworkPolicies
+# do not restrict its traffic in most CNIs without host-firewall configuration.
+networkPolicy:
+  enabled: false
+  prometheus:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: monitoring
+    podSelector:
+      matchLabels:
+        app.kubernetes.io/name: prometheus
+  k8sApiServer:
+    ports:
+      - 443
+      - 6443
+    # Target API server CIDRs. If empty, egress is blocked by default.
+    cidrs: []
+  kubelet:
+    ports:
+      - 10250
+      - 10255
+    # Target Kubelet CIDRs. If empty, egress is blocked by default.
+    cidrs: []
+  additionalIngress: []
+  additionalEgress: []
+

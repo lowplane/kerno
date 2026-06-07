@@ -1,0 +1,77 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kerno
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "kerno.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "kerno.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: {{ .Values.prometheus.port }}
+      {{- if or .Values.networkPolicy.prometheus.namespaceSelector .Values.networkPolicy.prometheus.podSelector }}
+      from:
+        {{- if .Values.networkPolicy.prometheus.namespaceSelector }}
+        - namespaceSelector:
+            {{- toYaml .Values.networkPolicy.prometheus.namespaceSelector | nindent 12 }}
+          {{- if .Values.networkPolicy.prometheus.podSelector }}
+          podSelector:
+            {{- toYaml .Values.networkPolicy.prometheus.podSelector | nindent 12 }}
+          {{- end }}
+        {{- else if .Values.networkPolicy.prometheus.podSelector }}
+        - podSelector:
+            {{- toYaml .Values.networkPolicy.prometheus.podSelector | nindent 12 }}
+        {{- end }}
+      {{- end }}
+    {{- if .Values.networkPolicy.additionalIngress }}
+    {{- toYaml .Values.networkPolicy.additionalIngress | nindent 4 }}
+    {{- end }}
+  egress:
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+      to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+    {{- if .Values.networkPolicy.k8sApiServer.cidrs }}
+    - ports:
+        {{- range .Values.networkPolicy.k8sApiServer.ports }}
+        - protocol: TCP
+          port: {{ . }}
+        {{- end }}
+      to:
+        {{- range .Values.networkPolicy.k8sApiServer.cidrs }}
+        - ipBlock:
+            cidr: {{ . }}
+        {{- end }}
+    {{- end }}
+    {{- if .Values.networkPolicy.kubelet.cidrs }}
+    - ports:
+        {{- range .Values.networkPolicy.kubelet.ports }}
+        - protocol: TCP
+          port: {{ . }}
+        {{- end }}
+      to:
+        {{- range .Values.networkPolicy.kubelet.cidrs }}
+        - ipBlock:
+            cidr: {{ . }}
+        {{- end }}
+    {{- end }}
+    {{- if .Values.networkPolicy.additionalEgress }}
+    {{- toYaml .Values.networkPolicy.additionalEgress | nindent 4 }}
+    {{- end }}
+{{- end }}

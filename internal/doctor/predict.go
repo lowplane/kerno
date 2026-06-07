@@ -109,7 +109,10 @@ func predictFDExhaustion(snapshots []*collector.Signals) []Prediction {
 	}
 
 	etaSecs := remaining / avgRate
-	eta := time.Duration(etaSecs) * time.Second
+	eta, ok := etaDuration(etaSecs)
+	if !ok {
+		return nil
+	}
 
 	// Confidence based on consistency of growth rate.
 	confidence := rateConsistency(rates)
@@ -162,7 +165,10 @@ func predictDiskSaturation(snapshots []*collector.Signals) []Prediction {
 	}
 
 	etaSecs := remaining / slopePerSec
-	eta := time.Duration(etaSecs) * time.Second
+	eta, ok := etaDuration(etaSecs)
+	if !ok {
+		return nil
+	}
 
 	confidence := rateConsistency(latencies) * 0.8 // Lower confidence for latency trends.
 
@@ -211,7 +217,10 @@ func predictSchedDegradation(snapshots []*collector.Signals) []Prediction {
 	}
 
 	etaSecs := remaining / slopePerSec
-	eta := time.Duration(etaSecs) * time.Second
+	eta, ok := etaDuration(etaSecs)
+	if !ok {
+		return nil
+	}
 
 	confidence := rateConsistency(delays) * 0.7
 
@@ -260,7 +269,10 @@ func predictTCPDegradation(snapshots []*collector.Signals) []Prediction {
 	}
 
 	etaSecs := remaining / slopePerSec
-	eta := time.Duration(etaSecs) * time.Second
+	eta, ok := etaDuration(etaSecs)
+	if !ok {
+		return nil
+	}
 
 	confidence := rateConsistency(rates) * 0.75
 

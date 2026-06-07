@@ -170,3 +170,14 @@ func hasActionableFindings(findings []Finding) bool {
 	}
 	return false
 }
+
+// FilterCriticalFindings returns only critical severity findings from the list
+func FilterCriticalFindings(findings []Finding) []Finding {
+	filtered := make([]Finding, 0, len(findings))
+	for i := range findings {
+		if findings[i].Severity == SeverityCritical {
+			filtered = append(filtered, findings[i])
+		}
+	}
+	return filtered
+}

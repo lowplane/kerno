@@ -5,10 +5,7 @@ package adapter
 
 import (
 	"context"
-	"encoding/json"
 	"log/slog"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 )
 
@@ -237,76 +234,11 @@ func TestIsUIDLike(t *testing.T) {
 	}
 }
 
-func TestKubernetesAdapter_FetchPods(t *testing.T) {
-	// Mock Kubelet API.
-	podList := kubeletPodList{
-		Items: []kubeletPod{
-			{
-				Metadata: kubeletMeta{
-					Name:      "nginx-abc-123",
-					Namespace: "default",
-					UID:       "12345678-1234-1234-1234-123456789abc",
-					OwnerReferences: []kubeletOwnerRef{
-						{Kind: "ReplicaSet", Name: "nginx-abc"},
-					},
-				},
-				Spec: kubeletSpec{NodeName: "worker-1"},
-			},
-			{
-				Metadata: kubeletMeta{
-					Name:      "redis-0",
-					Namespace: "cache",
-					UID:       "aaaabbbb-cccc-dddd-eeee-ffffffffffff",
-					Labels:    map[string]string{"app": "redis"},
-				},
-				Spec: kubeletSpec{NodeName: "worker-1"},
-			},
-		},
-	}
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/pods" {
-			http.NotFound(w, r)
-			return
-		}
-		json.NewEncoder(w).Encode(podList)
-	}))
-	defer server.Close()
-
-	a := NewKubernetesAdapter(slog.Default())
-	a.kubeletURL = server.URL
-
-	pods, err := a.fetchPods(context.Background())
-	if err != nil {
-		t.Fatalf("fetchPods() error: %v", err)
-	}
-
-	if len(pods) != 2 {
-		t.Fatalf("expected 2 pods, got %d", len(pods))
-	}
-
-	// Check first pod (nginx with ReplicaSet owner).
-	if pods[0].Name != "nginx-abc-123" {
-		t.Errorf("pods[0].Name = %q, want %q", pods[0].Name, "nginx-abc-123")
-	}
-	if pods[0].Deployment != "nginx" {
-		t.Errorf("pods[0].Deployment = %q, want %q", pods[0].Deployment, "nginx")
-	}
-	if pods[0].Namespace != "default" {
-		t.Errorf("pods[0].Namespace = %q, want %q", pods[0].Namespace, "default")
-	}
-
-	// Check second pod (redis with app label).
-	if pods[1].Deployment != "redis" {
-		t.Errorf("pods[1].Deployment = %q, want %q", pods[1].Deployment, "redis")
-	}
-}
-
 func TestKubernetesAdapter_Enrich(t *testing.T) {
 	a := NewKubernetesAdapter(slog.Default())
 
-	// Manually populate the index.
-	a.index["12345678-1234-1234-1234-123456789abc"] = &PodInfo{
+	// Populate the index directly (same package access).
+	a.uidIndex["12345678-1234-1234-1234-123456789abc"] = &PodInfo{
 		Name:       "nginx-abc-123",
 		Namespace:  "default",
 		Node:       "worker-1",

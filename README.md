@@ -140,9 +140,40 @@ ServiceMonitor for the Prometheus Operator is built-in. Raw manifests live at [`
 
 ---
 
+
 ### 2 · Bare metal · VMs · EC2 · GCE
 
 The same binary, the same command. No Kubernetes required.
+
+#### Native package manager (recommended for production)
+
+On Debian/Ubuntu:
+```bash
+curl -LO https://github.com/optiqor/kerno/releases/latest/download/kerno_<version>_amd64.deb
+sudo apt install ./kerno_<version>_amd64.deb
+```
+
+On RHEL / Fedora / Amazon Linux 2023:
+```bash
+curl -LO https://github.com/optiqor/kerno/releases/latest/download/kerno-<version>-1.x86_64.rpm
+sudo dnf install kerno-<version>-1.x86_64.rpm
+```
+
+Once installed, run:
+
+```bash
+sudo kerno doctor
+```
+
+If you want kerno running persistently as a daemon (for continuous 
+Prometheus metrics):
+
+```bash
+sudo systemctl enable --now kerno
+journalctl -u kerno -f
+```
+
+#### curl installer (quick start / CI)
 
 ```bash
 curl -sfL https://raw.githubusercontent.com/optiqor/kerno/main/scripts/install.sh | sudo bash
@@ -279,6 +310,7 @@ Kerno tags every finding with pod, namespace, node, and workload labels. No `cli
 - Runs with the **minimum capabilities needed** - `CAP_BPF`, `CAP_PERFMON`, `CAP_SYS_PTRACE`, `CAP_NET_ADMIN`, `CAP_DAC_READ_SEARCH` (not `CAP_SYS_ADMIN` for the hot path).
 - Read-only root filesystem, `ProtectSystem=strict` via systemd on bare metal.
 - No outbound network calls. AI integration is opt-in and goes through your configured provider only.
+- **Opt-in NetworkPolicy**: Limit metrics ingress to Prometheus pods, and allow DNS, K8s API server, and Kubelet egress. (Note: Since Kerno runs with `hostNetwork: true`, standard `NetworkPolicy` resources do not enforce restrictions on it in most mainstream CNIs without host-firewall configuration). See [Helm README](deploy/helm/kerno/README.md).
 
 ### Helm values
 
@@ -298,6 +330,9 @@ prometheus:
 serviceMonitor:     # Prometheus Operator
   enabled: true
   interval: 15s
+
+networkPolicy:
+  enabled: false
 
 nodeSelector:
   monitoring: "true"
