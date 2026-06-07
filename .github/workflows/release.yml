@@ -57,12 +57,12 @@ jobs:
       - name: Install cosign
         uses: sigstore/cosign-installer@v3
         with:
-          cosign-release: "v2.4.1"
+          cosign-release: "v2.2.4"
 
       - name: Install cosign
         uses: sigstore/cosign-installer@v3
         with:
-          cosign-release: "v2.4.1"
+          cosign-release: "v2.2.4"
 
       - name: Install Syft
         uses: anchore/sbom-action/download-syft@v0
@@ -154,7 +154,7 @@ jobs:
       - name: Install cosign
         uses: sigstore/cosign-installer@v3
         with:
-          cosign-release: "v2.4.1"
+          cosign-release: "v2.2.4"
 
       - name: Install Syft
         uses: anchore/sbom-action/download-syft@v0
