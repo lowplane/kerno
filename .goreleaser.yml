@@ -46,6 +46,7 @@ checksum:
   name_template: "checksums.txt"
 
 signs:
+  # skip signing in snapshot/PR builds
   - cmd: cosign
     signature: "${artifact}.sig"
     certificate: "${artifact}.pem"
@@ -56,6 +57,7 @@ signs:
       - --output-certificate=${artifact}.pem
       - "${artifact}"
     artifacts: checksum
+    if: "{{ not .IsSnapshot }}"
     output: true
 
 sboms:
