@@ -59,6 +59,11 @@ jobs:
         with:
           cosign-release: "v2.4.1"
 
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: "v2.4.1"
+
       - name: Install Syft
         uses: anchore/sbom-action/download-syft@v0
 
@@ -145,6 +150,11 @@ jobs:
           sudo apt-get update -q
           sudo apt-get install -y --no-install-recommends \
             clang llvm libbpf-dev linux-headers-generic
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: "v2.4.1"
 
       - name: Install Syft
         uses: anchore/sbom-action/download-syft@v0
