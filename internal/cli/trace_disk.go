@@ -162,7 +162,7 @@ func runTraceDisk(ctx context.Context, opts traceDiskOpts) error {
 					event.OpString(),
 					formatLatency(event.Latency()),
 					formatDev(event.Dev),
-					formatBytes(uint64(event.NrBytes)),
+					formatBytes(event.NrBytes),
 				)
 			}
 		}
