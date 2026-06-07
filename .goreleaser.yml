@@ -57,6 +57,7 @@ signs:
       - "${artifact}"
     artifacts: checksum
     output: true
+    if: '{{ not .IsSnapshot }}'
 
 sboms:
   - id: binary-sbom

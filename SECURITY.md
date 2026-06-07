@@ -125,7 +125,7 @@ Kerno runs with elevated privileges (root or `CAP_BPF` + `CAP_PERFMON` + `CAP_SY
 
 ## Disclosure Policy
 
-- We follow [coordinated vulnerability disclosure](https://vuls.cert.org/confluence/display/Wiki/Vulnerability+Disclosure+Policy).
+- We follow [coordinated vulnerability disclosure](https://certcc.github.io/CERT-Guide-to-CVD/).
 - We will credit reporters in security advisories (unless anonymity is requested).
 - We use GitHub Security Advisories for publishing fixes.
 
