@@ -258,6 +258,33 @@ func TestDecodeDiskEventLargeIO(t *testing.T) {
 	}
 }
 
+// TestDecodeDiskEventLargeIO verifies that nr_bytes is not truncated for
+// merged or discard requests whose size exceeds the former __u32 limit (~8 MiB).
+// A 16 MiB discard (nr_sector = 32768) would previously wrap to 0.
+func TestDecodeDiskEventLargeIO(t *testing.T) {
+	const nrSector = 32768 // 16 MiB discard — previously wrapped to 0 in __u32
+	want := DiskEvent{
+		TimestampNs: 2,
+		LatencyNs:   1_000_000,
+		Sector:      8192,
+		Dev:         8,
+		NrBytes:     uint64(nrSector) * 512, // 16_777_216 — fits only in uint64
+		PID:         1,
+		Op:          'W',
+	}
+	copy(want.Comm[:], "kworker")
+
+	data := encode(t, &want)
+	got, err := DecodeDiskEvent(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const wantBytes = uint64(16_777_216)
+	if got.NrBytes != wantBytes {
+		t.Errorf("NrBytes = %d, want %d (large I/O was truncated)", got.NrBytes, wantBytes)
+	}
+}
+
 func TestDiskEventOpStrings(t *testing.T) {
 	cases := []struct {
 		op   byte

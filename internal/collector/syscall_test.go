@@ -137,7 +137,7 @@ func TestSyscallCollectorEntriesCapped(t *testing.T) {
 }
 
 // makeDiskEvent builds a disk event of the given op type.
-func makeDiskEvent(op byte, latencyNs uint64, bytes uint32) *bpf.DiskEvent {
+func makeDiskEvent(op byte, latencyNs uint64, bytes uint64) *bpf.DiskEvent {
 	return &bpf.DiskEvent{
 		LatencyNs: latencyNs,
 		NrBytes:   bytes,

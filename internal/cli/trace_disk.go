@@ -177,7 +177,7 @@ type diskEventOut struct {
 	LatencyNs uint64 `json:"latencyNs"`
 	Dev       string `json:"dev"`
 	Sector    uint64 `json:"sector"`
-	Bytes     uint32 `json:"bytes"`
+	Bytes     uint64 `json:"bytes"`
 }
 
 func diskEventJSON(e *bpf.DiskEvent) diskEventOut {
