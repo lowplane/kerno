@@ -75,8 +75,8 @@ type startOpts struct {
 }
 
 func runStart(ctx context.Context, opts startOpts) (err error) {
-	if err := requireRoot(); err != nil {
-		return err
+	if rootErr := requireRoot(); rootErr != nil {
+		return rootErr
 	}
 
 	logger := slog.Default()
