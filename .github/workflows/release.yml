@@ -166,6 +166,8 @@ jobs:
           version: "~> v2"
           args: release --snapshot --clean
         env:
+          COSIGN_EXPERIMENTAL: ""
+          GORELEASER_SKIP: sign
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload snapshot packages

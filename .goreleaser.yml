@@ -57,7 +57,6 @@ signs:
       - --output-certificate=${artifact}.pem
       - "${artifact}"
     artifacts: checksum
-    if: "{{ not .IsSnapshot }}"
     output: true
 
 sboms:
