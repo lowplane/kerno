@@ -21,7 +21,6 @@ import (
 
 func main() {
 	if err := cli.New().Execute(); err != nil {
-
 		type exitCoder interface {
 			ExitCode() int
 		}
