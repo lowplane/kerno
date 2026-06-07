@@ -230,6 +230,7 @@ func TestDecodeDiskEvent(t *testing.T) {
 	validData := encode(t, &validEvent)
 	oversizedData := append([]byte(nil), validData...)
 	oversizedData = append(oversizedData, []byte{0xEE, 0xFF}...)
+}
 
 // TestDecodeDiskEventLargeIO verifies that nr_bytes is not truncated for
 // merged or discard requests whose size exceeds the former __u32 limit (~8 MiB).
