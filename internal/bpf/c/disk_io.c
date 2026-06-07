@@ -52,7 +52,7 @@ int tracepoint_block_rq_complete(struct trace_event_raw_block_rq_completion *ctx
     e->latency_ns   = latency;
     e->sector        = sector;
     e->dev           = (__u32)ctx->dev;
-    e->nr_bytes      = ctx->nr_sector * 512;
+    e->nr_bytes      = (__u64)ctx->nr_sector * 512;
     e->pid           = (__u32)(bpf_get_current_pid_tgid() >> 32);
 
     // rwbs[0] is the primary op (R/W/D); subsequent positions hold flag
