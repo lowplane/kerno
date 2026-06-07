@@ -64,7 +64,7 @@ func TestRecordDiskIO(t *testing.T) {
 		devLabel string
 		op       byte
 		opLabel  string
-		bytes    uint32
+		bytes    uint64
 	}{
 		{
 			name:     "disk_write",
