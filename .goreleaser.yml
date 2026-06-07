@@ -1,6 +1,5 @@
 # Copyright 2026 Optiqor contributors
 # SPDX-License-Identifier: Apache-2.0
-# https://goreleaser.com/customization/
 
 version: 2
 
@@ -9,9 +8,6 @@ project_name: kerno
 before:
   hooks:
     - go mod tidy
-    # Generate bpf2go bindings (*_bpfel.go) and rewrite their build tag
-    # so the `ebpf` tag selects them over the no-clang stubs in gen_stub.go.
-    # The release workflow installs clang + libbpf-dev before invoking goreleaser.
     - make generate
 
 builds:
@@ -27,7 +23,6 @@ builds:
       - arm64
     flags:
       - -trimpath
-    # `ebpf` tag selects the bpf2go-generated bindings over the no-clang stubs.
     tags:
       - ebpf
     ldflags:
@@ -49,6 +44,31 @@ archives:
 
 checksum:
   name_template: "checksums.txt"
+
+signs:
+  - cmd: cosign
+    signature: "${artifact}.sig"
+    certificate: "${artifact}.pem"
+    args:
+      - sign-blob
+      - --yes
+      - --output-signature=${artifact}.sig
+      - --output-certificate=${artifact}.pem
+      - "${artifact}"
+    artifacts: checksum
+    output: true
+
+sboms:
+  - id: binary-sbom
+    artifacts: binary
+    documents:
+      - "{{ .ArtifactName }}_sbom.cyclonedx.json"
+    args:
+      - "$artifact"
+      - "--file"
+      - "$document"
+      - "--output"
+      - "cyclonedx-json"
 
 changelog:
   sort: asc

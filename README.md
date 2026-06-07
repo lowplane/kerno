@@ -680,6 +680,64 @@ In another shell, `sudo kerno doctor` will catch the induced incident.
 
 ---
 
+## Verifying Release Artifacts
+
+Every Kerno release is signed using [Sigstore](https://docs.sigstore.dev/cosign/keyless/) keyless signing — no private key to manage or trust.
+
+### Verify a container image
+
+```bash
+cosign verify ghcr.io/optiqor/kerno:v0.1.0 \
+  --certificate-identity-regexp '^https://github\.com/optiqor/kerno/\.github/workflows/release\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+### Verify binary checksums
+
+```bash
+VERSION=v0.1.0
+BASE=https://github.com/optiqor/kerno/releases/download/${VERSION}
+
+curl -fsSL ${BASE}/checksums.txt     -o checksums.txt
+curl -fsSL ${BASE}/checksums.txt.sig -o checksums.txt.sig
+curl -fsSL ${BASE}/checksums.txt.pem -o checksums.txt.pem
+
+cosign verify-blob checksums.txt \
+  --signature checksums.txt.sig \
+  --certificate checksums.txt.pem \
+  --certificate-identity-regexp '^https://github\.com/optiqor/kerno/\.github/workflows/release\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+
+curl -fsSL ${BASE}/kerno_${VERSION}_linux_amd64.tar.gz -o kerno.tar.gz
+sha256sum --check --ignore-missing checksums.txt
+```
+
+### Inspect the SBOM
+
+```bash
+VERSION=v0.1.0
+
+# Download SBOM
+curl -fsSL https://github.com/optiqor/kerno/releases/download/${VERSION}/kerno_${VERSION}_sbom.cyclonedx.json \
+  | jq '.metadata.component, [.components[].name]'
+
+# Verify SBOM attestation
+cosign verify-attestation ghcr.io/optiqor/kerno:${VERSION} \
+  --type cyclonedx \
+  --certificate-identity-regexp '^https://github\.com/optiqor/kerno/\.github/workflows/release\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  | jq '.payload | @base64d | fromjson | .predicate.metadata'
+```
+
+### Install cosign
+
+```bash
+brew install cosign                          # macOS
+go install github.com/sigstore/cosign/v2/cmd/cosign@latest  # Go
+```
+
+---
+
 ## Contributing
 
 Contributions welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for:

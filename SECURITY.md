@@ -41,6 +41,78 @@ If you discover a security vulnerability in Kerno, please report it responsibly:
 | Previous minor | ✅ (security fixes only) |
 | Older | ❌ |
 
+---
+
+## Release Artifact Signing & Verification
+
+Kerno uses **keyless Sigstore signing** for all release artifacts. No private key — signing is performed by the GitHub Actions OIDC identity and recorded in the public [Rekor](https://rekor.sigstore.dev) transparency log.
+
+### Signing identity
+
+| Field | Value |
+|-------|-------|
+| **OIDC issuer** | `https://token.actions.githubusercontent.com` |
+| **Certificate identity (regexp)** | `^https://github\.com/optiqor/kerno/\.github/workflows/release\.yml@refs/tags/v` |
+| **Transparency log** | Sigstore / Rekor (public instance) |
+| **Key management** | Keyless — no private key; GitHub OIDC ephemeral cert |
+
+### What is signed
+
+| Artifact | How | Where |
+|----------|-----|-------|
+| Container image (`:v*` tag) | `cosign sign` | OCI registry + Rekor |
+| Container image (`:latest` tag) | `cosign sign` | OCI registry + Rekor |
+| `checksums.txt` (covers all binaries & archives) | `cosign sign-blob` | Release assets (`.sig` + `.pem`) |
+| CycloneDX SBOM | `cosign attest --type cyclonedx` | OCI registry + Rekor |
+
+### Verify a container image
+
+```bash
+cosign verify ghcr.io/optiqor/kerno:v0.1.0 \
+  --certificate-identity-regexp '^https://github\.com/optiqor/kerno/\.github/workflows/release\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+### Verify binary checksums
+
+```bash
+VERSION=v0.1.0
+BASE=https://github.com/optiqor/kerno/releases/download/${VERSION}
+
+curl -fsSL ${BASE}/checksums.txt     -o checksums.txt
+curl -fsSL ${BASE}/checksums.txt.sig -o checksums.txt.sig
+curl -fsSL ${BASE}/checksums.txt.pem -o checksums.txt.pem
+
+cosign verify-blob checksums.txt \
+  --signature checksums.txt.sig \
+  --certificate checksums.txt.pem \
+  --certificate-identity-regexp '^https://github\.com/optiqor/kerno/\.github/workflows/release\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+
+curl -fsSL ${BASE}/kerno_${VERSION}_linux_amd64.tar.gz -o kerno.tar.gz
+sha256sum --check --ignore-missing checksums.txt
+```
+
+### Verify the SBOM attestation
+
+```bash
+cosign verify-attestation ghcr.io/optiqor/kerno:v0.1.0 \
+  --type cyclonedx \
+  --certificate-identity-regexp '^https://github\.com/optiqor/kerno/\.github/workflows/release\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  | jq '.payload | @base64d | fromjson | .predicate.metadata'
+```
+
+### Reporting a tampered artifact
+
+Agar `cosign verify` fail ho kisi official release tag pe — **artifact use mat karo** aur turant report karo:
+
+1. Email karo **team.optiqor@gmail.com** — subject: `[SECURITY] Possible tampered artifact`
+2. `cosign verify` ka poora output aur exact image digest ya file hash include karo
+3. We will investigate and post a GitHub Security Advisory if confirmed
+
+---
+
 ## Security Considerations for Kerno
 
 Kerno runs with elevated privileges (root or `CAP_BPF` + `CAP_PERFMON` + `CAP_SYS_PTRACE`) to load eBPF programs into the kernel. This means:
@@ -59,6 +131,6 @@ Kerno runs with elevated privileges (root or `CAP_BPF` + `CAP_PERFMON` + `CAP_SY
 
 ## Contact
 
-- **Security reports:**  team.optiqor@gmail.com
+- **Security reports:** team.optiqor@gmail.com
 - **General questions:** GitHub Discussions
 - **Maintainer:** Shivam Kumar (@btwshivam)
