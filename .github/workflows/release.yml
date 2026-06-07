@@ -59,17 +59,12 @@ jobs:
         with:
           cosign-release: "v2.2.4"
 
-      - name: Install cosign
-        uses: sigstore/cosign-installer@v3
-        with:
-          cosign-release: "v2.2.4"
-
       - name: Install Syft
         uses: anchore/sbom-action/download-syft@v0
 
       - name: Run GoReleaser
         id: goreleaser
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
           version: "~> v2"
@@ -160,7 +155,7 @@ jobs:
         uses: anchore/sbom-action/download-syft@v0
 
       - name: Run GoReleaser snapshot
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
           version: "~> v2"

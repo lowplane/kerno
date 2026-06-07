@@ -133,7 +133,6 @@ docker_manifests:
     image_templates:
       - "ghcr.io/optiqor/kerno:{{ .Tag }}-amd64"
       - "ghcr.io/optiqor/kerno:{{ .Tag }}-arm64"
-      - "ghcr.io/optiqor/kerno:{{ .Tag }}-arm64"
 
 nfpms:
   - id: kerno-packages
