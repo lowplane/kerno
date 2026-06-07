@@ -717,7 +717,7 @@ In another shell, `sudo kerno doctor` will catch the induced incident.
 
 ## Verifying Release Artifacts
 
-Every Kerno release is signed using [Sigstore](https://docs.sigstore.dev/cosign/keyless/) keyless signing — no private key to manage or trust.
+Every Kerno release is signed using [Sigstore](https://docs.sigstore.dev/cosign/signing/overview/) keyless signing — no private key to manage or trust.
 
 ### Verify a container image
 
