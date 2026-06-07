@@ -164,7 +164,7 @@ jobs:
         with:
           distribution: goreleaser
           version: "~> v2"
-          args: release --snapshot --clean
+          args: release --snapshot --clean --skip=sign
         env:
           COSIGN_EXPERIMENTAL: ""
           GORELEASER_SKIP: sign
