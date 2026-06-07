@@ -140,9 +140,9 @@ type DiskEvent struct {
 	Sector      uint64
 	Dev         uint32
 	PID         uint32
-	NrBytes     uint64     // widened from uint32: merged/discard requests can exceed 8 MiB
+	NrBytes     uint64 // widened from uint32: merged/discard requests can exceed 8 MiB
 	Op          byte
-	Pad0        [7]byte    // re-pad to keep struct size a multiple of 8
+	Pad0        [7]byte // re-pad to keep struct size a multiple of 8
 	Comm        [TaskCommLen]byte
 }
 

@@ -55,6 +55,9 @@ int tracepoint_block_rq_complete(struct trace_event_raw_block_rq_completion *ctx
     e->nr_bytes      = (__u64)ctx->nr_sector * 512;
     e->pid           = (__u32)(bpf_get_current_pid_tgid() >> 32);
 
+    // The verifier disallows variable-index reads off a tracepoint ctx
+    // pointer, so copy rwbs into a local buffer via the helper and
+    // inspect that. With a stack-resident buffer, indexed reads are fine.
     char rwbs[8] = {};
     bpf_probe_read_kernel(rwbs, sizeof(rwbs), ctx->rwbs);
     char op = rwbs[0];
