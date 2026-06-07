@@ -11,7 +11,6 @@ import (
 )
 
 // encode marshals a fixed-size struct to bytes using little-endian
-// (matches eBPF C ring buffer layout on amd64/arm64).
 func encode(t *testing.T, v any) []byte {
 	t.Helper()
 	var buf bytes.Buffer
@@ -21,42 +20,75 @@ func encode(t *testing.T, v any) []byte {
 	return buf.Bytes()
 }
 
-func TestDecodeSyscallEventRoundTrip(t *testing.T) {
-	want := SyscallEvent{
+func TestDecodeSyscallEvent(t *testing.T) {
+	validEvent := SyscallEvent{
 		TimestampNs: 12345,
 		LatencyNs:   1_500_000,
 		CgroupID:    99,
 		PID:         100,
 		TID:         101,
-		SyscallNr:   257, // openat
+		SyscallNr:   257,
 		Ret:         0,
 	}
-	copy(want.Comm[:], "myproc")
+	copy(validEvent.Comm[:], "myproc")
+	validData := encode(t, &validEvent)
+	oversizedData := append([]byte(nil), validData...)
+	oversizedData = append(oversizedData, []byte{0xFF, 0xFE, 0xFD}...)
 
-	data := encode(t, &want)
-	got, err := DecodeSyscallEvent(data)
-	if err != nil {
-		t.Fatalf("DecodeSyscallEvent error: %v", err)
+	tests := []struct {
+		name    string
+		raw     []byte
+		want    *SyscallEvent
+		wantErr bool
+	}{
+		{"exact size", validData, &validEvent, false},
+		{"short buffer", []byte{1, 2, 3}, nil, true},
+		{"oversized buffer", oversizedData, &validEvent, false},
 	}
-	if got.PID != want.PID || got.SyscallNr != want.SyscallNr {
-		t.Errorf("got = %+v, want = %+v", got, want)
-	}
-	if got.CommString() != "myproc" {
-		t.Errorf("CommString = %q, want myproc", got.CommString())
-	}
-	if got.Latency() != want.Latency() {
-		t.Errorf("Latency() = %v, want %v", got.Latency(), want.Latency())
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := DecodeSyscallEvent(tt.raw)
+			if tt.wantErr {
+				if err == nil {
+					t.Error("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got.PID != tt.want.PID {
+				t.Errorf("PID = %d, want %d", got.PID, tt.want.PID)
+			}
+			if got.SyscallNr != tt.want.SyscallNr {
+				t.Errorf("SyscallNr = %d, want %d", got.SyscallNr, tt.want.SyscallNr)
+			}
+			if got.CommString() != tt.want.CommString() {
+				t.Errorf("CommString = %q, want %q", got.CommString(), tt.want.CommString())
+			}
+			if got.Latency() != tt.want.Latency() {
+				t.Errorf("Latency = %v, want %v", got.Latency(), tt.want.Latency())
+			}
+			if got.TimestampNs != tt.want.TimestampNs {
+				t.Errorf("TimestampNs = %d, want %d", got.TimestampNs, tt.want.TimestampNs)
+			}
+			if got.CgroupID != tt.want.CgroupID {
+				t.Errorf("CgroupID = %d, want %d", got.CgroupID, tt.want.CgroupID)
+			}
+			if got.TID != tt.want.TID {
+				t.Errorf("TID = %d, want %d", got.TID, tt.want.TID)
+			}
+			if got.Ret != tt.want.Ret {
+				t.Errorf("Ret = %d, want %d", got.Ret, tt.want.Ret)
+			}
+		})
 	}
 }
 
-func TestDecodeSyscallEventTooShort(t *testing.T) {
-	if _, err := DecodeSyscallEvent([]byte{1, 2, 3}); err == nil {
-		t.Error("expected error on undersized buffer")
-	}
-}
-
-func TestDecodeTCPEventRoundTrip(t *testing.T) {
-	want := TCPEvent{
+func TestDecodeTCPEvent(t *testing.T) {
+	validEvent := TCPEvent{
 		TimestampNs: 9999,
 		PID:         42,
 		SAddr:       binary.BigEndian.Uint32([]byte{10, 0, 0, 1}),
@@ -66,21 +98,283 @@ func TestDecodeTCPEventRoundTrip(t *testing.T) {
 		EventType:   TCPEventRTT,
 		RTTUs:       250,
 	}
-	copy(want.Comm[:], "curl")
+	copy(validEvent.Comm[:], "curl")
+	validData := encode(t, &validEvent)
+	oversizedData := append([]byte(nil), validData...)
+	oversizedData = append(oversizedData, []byte{0xAA, 0xBB}...)
 
-	data := encode(t, &want)
-	got, err := DecodeTCPEvent(data)
-	if err != nil {
-		t.Fatal(err)
+	tests := []struct {
+		name    string
+		raw     []byte
+		want    *TCPEvent
+		wantErr bool
+	}{
+		{"exact size", validData, &validEvent, false},
+		{"short buffer", []byte{1, 2, 3, 4}, nil, true},
+		{"oversized buffer", oversizedData, &validEvent, false},
 	}
-	if got.SrcAddr().String() != "10.0.0.1" {
-		t.Errorf("SrcAddr = %s, want 10.0.0.1", got.SrcAddr())
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := DecodeTCPEvent(tt.raw)
+			if tt.wantErr {
+				if err == nil {
+					t.Error("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got.SrcAddr().String() != tt.want.SrcAddr().String() {
+				t.Errorf("SrcAddr = %s, want %s", got.SrcAddr(), tt.want.SrcAddr())
+			}
+			if got.DstAddr().String() != tt.want.DstAddr().String() {
+				t.Errorf("DstAddr = %s, want %s", got.DstAddr(), tt.want.DstAddr())
+			}
+			if got.RTT().Microseconds() != tt.want.RTT().Microseconds() {
+				t.Errorf("RTT = %v, want %v", got.RTT(), tt.want.RTT())
+			}
+			if got.PID != tt.want.PID {
+				t.Errorf("PID = %d, want %d", got.PID, tt.want.PID)
+			}
+			if got.SPort != tt.want.SPort {
+				t.Errorf("SPort = %d, want %d", got.SPort, tt.want.SPort)
+			}
+			if got.DPort != tt.want.DPort {
+				t.Errorf("DPort = %d, want %d", got.DPort, tt.want.DPort)
+			}
+			if got.EventType != tt.want.EventType {
+				t.Errorf("EventType = %v, want %v", got.EventType, tt.want.EventType)
+			}
+			if got.CommString() != tt.want.CommString() {
+				t.Errorf("CommString = %q, want %q", got.CommString(), tt.want.CommString())
+			}
+		})
 	}
-	if got.DstAddr().String() != "8.8.8.8" {
-		t.Errorf("DstAddr = %s, want 8.8.8.8", got.DstAddr())
+}
+
+func TestDecodeOOMEvent(t *testing.T) {
+	validEvent := OOMEvent{
+		TimestampNs:  555,
+		CgroupID:     1,
+		TotalPages:   1_000_000,
+		RSSPages:     800_000,
+		PID:          7,
+		TriggeredPID: 8,
+		OOMScore:     900,
 	}
-	if got.RTT().Microseconds() != 250 {
-		t.Errorf("RTT = %v, want 250µs", got.RTT())
+	copy(validEvent.Comm[:], "victim")
+	validData := encode(t, &validEvent)
+	oversizedData := append([]byte(nil), validData...)
+	oversizedData = append(oversizedData, []byte{0xCC, 0xDD}...)
+
+	tests := []struct {
+		name    string
+		raw     []byte
+		want    *OOMEvent
+		wantErr bool
+	}{
+		{"exact size", validData, &validEvent, false},
+		{"short buffer", []byte{0x01}, nil, true},
+		{"oversized buffer", oversizedData, &validEvent, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := DecodeOOMEvent(tt.raw)
+			if tt.wantErr {
+				if err == nil {
+					t.Error("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got.RSSPages != tt.want.RSSPages {
+				t.Errorf("RSSPages = %d, want %d", got.RSSPages, tt.want.RSSPages)
+			}
+			if got.CommString() != tt.want.CommString() {
+				t.Errorf("CommString = %q, want %q", got.CommString(), tt.want.CommString())
+			}
+			if got.TotalPages != tt.want.TotalPages {
+				t.Errorf("TotalPages = %d, want %d", got.TotalPages, tt.want.TotalPages)
+			}
+			if got.PID != tt.want.PID {
+				t.Errorf("PID = %d, want %d", got.PID, tt.want.PID)
+			}
+			if got.TriggeredPID != tt.want.TriggeredPID {
+				t.Errorf("TriggeredPID = %d, want %d", got.TriggeredPID, tt.want.TriggeredPID)
+			}
+			if got.OOMScore != tt.want.OOMScore {
+				t.Errorf("OOMScore = %d, want %d", got.OOMScore, tt.want.OOMScore)
+			}
+		})
+	}
+}
+
+func TestDecodeDiskEvent(t *testing.T) {
+	validEvent := DiskEvent{
+		TimestampNs: 1,
+		LatencyNs:   500_000,
+		Sector:      4096,
+		Dev:         8,
+		NrBytes:     4096,
+		PID:         123,
+		Op:          'R',
+	}
+	copy(validEvent.Comm[:], "fio")
+	validData := encode(t, &validEvent)
+	oversizedData := append([]byte(nil), validData...)
+	oversizedData = append(oversizedData, []byte{0xEE, 0xFF}...)
+
+	tests := []struct {
+		name    string
+		raw     []byte
+		want    *DiskEvent
+		wantErr bool
+	}{
+		{"exact size", validData, &validEvent, false},
+		{"short buffer", []byte{0x00}, nil, true},
+		{"oversized buffer", oversizedData, &validEvent, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := DecodeDiskEvent(tt.raw)
+			if tt.wantErr {
+				if err == nil {
+					t.Error("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got.OpString() != tt.want.OpString() {
+				t.Errorf("OpString = %q, want %q", got.OpString(), tt.want.OpString())
+			}
+			if got.CommString() != tt.want.CommString() {
+				t.Errorf("CommString = %q, want %q", got.CommString(), tt.want.CommString())
+			}
+			if got.NrBytes != tt.want.NrBytes {
+				t.Errorf("NrBytes = %d, want %d", got.NrBytes, tt.want.NrBytes)
+			}
+			if got.Latency() != tt.want.Latency() {
+				t.Errorf("Latency = %v, want %v", got.Latency(), tt.want.Latency())
+			}
+		})
+	}
+}
+
+func TestDecodeSchedEvent(t *testing.T) {
+	validEvent := SchedEvent{
+		TimestampNs: 1,
+		RunqDelayNs: 2_000_000,
+		PID:         1,
+		CPU:         0,
+	}
+	copy(validEvent.Comm[:], "kworker")
+	validData := encode(t, &validEvent)
+	oversizedData := append([]byte(nil), validData...)
+	oversizedData = append(oversizedData, []byte{0x11, 0x22}...)
+
+	tests := []struct {
+		name    string
+		raw     []byte
+		want    *SchedEvent
+		wantErr bool
+	}{
+		{"exact size", validData, &validEvent, false},
+		{"short buffer", []byte{0x00}, nil, true},
+		{"oversized buffer", oversizedData, &validEvent, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := DecodeSchedEvent(tt.raw)
+			if tt.wantErr {
+				if err == nil {
+					t.Error("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got.RunqDelay().Microseconds() != tt.want.RunqDelay().Microseconds() {
+				t.Errorf("RunqDelay = %v, want %v", got.RunqDelay(), tt.want.RunqDelay())
+			}
+			if got.PID != tt.want.PID {
+				t.Errorf("PID = %d, want %d", got.PID, tt.want.PID)
+			}
+			if got.CPU != tt.want.CPU {
+				t.Errorf("CPU = %d, want %d", got.CPU, tt.want.CPU)
+			}
+			if got.CommString() != tt.want.CommString() {
+				t.Errorf("CommString = %q, want %q", got.CommString(), tt.want.CommString())
+			}
+		})
+	}
+}
+
+func TestDecodeFDEvent(t *testing.T) {
+	validEvent := FDEvent{
+		TimestampNs: 1,
+		PID:         42,
+		FD:          7,
+		Op:          FDOpOpen,
+	}
+	copy(validEvent.Comm[:], "leakr")
+	validData := encode(t, &validEvent)
+	oversizedData := append([]byte(nil), validData...)
+	oversizedData = append(oversizedData, []byte{0x77, 0x88}...)
+
+	tests := []struct {
+		name    string
+		raw     []byte
+		want    *FDEvent
+		wantErr bool
+	}{
+		{"exact size", validData, &validEvent, false},
+		{"short buffer", []byte{0x00}, nil, true},
+		{"oversized buffer", oversizedData, &validEvent, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := DecodeFDEvent(tt.raw)
+			if tt.wantErr {
+				if err == nil {
+					t.Error("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got.Op != tt.want.Op {
+				t.Errorf("Op = %v, want %v", got.Op, tt.want.Op)
+			}
+			if got.Op.String() != tt.want.Op.String() {
+				t.Errorf("Op.String() = %q, want %q", got.Op.String(), tt.want.Op.String())
+			}
+			if got.PID != tt.want.PID {
+				t.Errorf("PID = %d, want %d", got.PID, tt.want.PID)
+			}
+			if got.FD != tt.want.FD {
+				t.Errorf("FD = %d, want %d", got.FD, tt.want.FD)
+			}
+			if got.CommString() != tt.want.CommString() {
+				t.Errorf("CommString = %q, want %q", got.CommString(), tt.want.CommString())
+			}
+		})
 	}
 }
 
@@ -99,56 +393,6 @@ func TestTCPEventTypeStringRoundTrip(t *testing.T) {
 	}
 }
 
-func TestDecodeOOMEventRoundTrip(t *testing.T) {
-	want := OOMEvent{
-		TimestampNs:  555,
-		CgroupID:     1,
-		TotalPages:   1_000_000,
-		RSSPages:     800_000,
-		PID:          7,
-		TriggeredPID: 8,
-		OOMScore:     900,
-	}
-	copy(want.Comm[:], "victim")
-
-	data := encode(t, &want)
-	got, err := DecodeOOMEvent(data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.RSSPages != want.RSSPages {
-		t.Errorf("RSSPages = %d, want %d", got.RSSPages, want.RSSPages)
-	}
-	if got.CommString() != "victim" {
-		t.Errorf("CommString = %q", got.CommString())
-	}
-}
-
-func TestDecodeDiskEventRoundTrip(t *testing.T) {
-	want := DiskEvent{
-		TimestampNs: 1,
-		LatencyNs:   500_000,
-		Sector:      4096,
-		Dev:         8,
-		NrBytes:     4096,
-		PID:         123,
-		Op:          'R',
-	}
-	copy(want.Comm[:], "fio")
-
-	data := encode(t, &want)
-	got, err := DecodeDiskEvent(data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.OpString() != "read" {
-		t.Errorf("OpString = %q, want read", got.OpString())
-	}
-	if got.CommString() != "fio" {
-		t.Errorf("CommString = %q", got.CommString())
-	}
-}
-
 func TestDiskEventOpStrings(t *testing.T) {
 	cases := []struct {
 		op   byte
@@ -164,47 +408,6 @@ func TestDiskEventOpStrings(t *testing.T) {
 		if got := e.OpString(); got != c.want {
 			t.Errorf("OpString(%c) = %q, want %q", c.op, got, c.want)
 		}
-	}
-}
-
-func TestDecodeSchedEventRoundTrip(t *testing.T) {
-	want := SchedEvent{
-		TimestampNs: 1,
-		RunqDelayNs: 2_000_000,
-		PID:         1,
-		CPU:         0,
-	}
-	copy(want.Comm[:], "kworker")
-
-	data := encode(t, &want)
-	got, err := DecodeSchedEvent(data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.RunqDelay().Microseconds() != 2000 {
-		t.Errorf("RunqDelay = %v, want 2ms", got.RunqDelay())
-	}
-}
-
-func TestDecodeFDEventRoundTrip(t *testing.T) {
-	want := FDEvent{
-		TimestampNs: 1,
-		PID:         42,
-		FD:          7,
-		Op:          FDOpOpen,
-	}
-	copy(want.Comm[:], "leakr")
-
-	data := encode(t, &want)
-	got, err := DecodeFDEvent(data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.Op != FDOpOpen {
-		t.Errorf("Op = %v, want open", got.Op)
-	}
-	if got.Op.String() != "open" {
-		t.Errorf("Op.String() = %q, want open", got.Op.String())
 	}
 }
 
@@ -278,14 +481,12 @@ func TestIsSyscallError(t *testing.T) {
 	if IsSyscallError(100) {
 		t.Error("100 should not be an error")
 	}
-	if !IsSyscallError(0xFFFFFFF5) { // -EAGAIN
+	if !IsSyscallError(0xFFFFFFF5) {
 		t.Error("-EAGAIN (0xFFFFFFF5) should be an error")
 	}
-	if !IsSyscallError(0xFFFFFFFF) { // -EPERM
+	if !IsSyscallError(0xFFFFFFFF) {
 		t.Error("-EPERM should be an error")
 	}
 }
 
-// silenceUnused exists to keep imports referenced when the file is read
-// piecemeal; it's a no-op assertion.
 var _ = net.IPv4(0, 0, 0, 0)

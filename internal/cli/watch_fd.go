@@ -167,7 +167,7 @@ func runWatchFD(ctx context.Context, opts watchFDOpts) error {
 
 			entries := computeFDEntries(snapshot, opts.interval, opts.threshold)
 			if opts.output == "json" {
-				encoder.Encode(fdSummaryJSON(entries, opts.interval))
+				encoder.Encode(fdSummaryJSON(entries, opts.interval, opts.threshold))
 			} else {
 				renderFDSummary(entries, opts.interval, opts.threshold)
 			}
@@ -255,8 +255,9 @@ type fdProcJSONOut struct {
 	GrowthRate float64 `json:"growthRate"`
 }
 
-func fdSummaryJSON(entries []fdSummaryEntry, interval time.Duration) fdSummaryJSONOut {
+func fdSummaryJSON(entries []fdSummaryEntry, interval time.Duration, threshold float64) fdSummaryJSONOut {
 	procs := make([]fdProcJSONOut, len(entries))
+
 	for i, e := range entries {
 		procs[i] = fdProcJSONOut{
 			PID:        e.Key.PID,
@@ -267,10 +268,11 @@ func fdSummaryJSON(entries []fdSummaryEntry, interval time.Duration) fdSummaryJS
 			GrowthRate: e.GrowthRate,
 		}
 	}
+
 	return fdSummaryJSONOut{
 		Timestamp: time.Now().Format(time.RFC3339Nano),
 		Interval:  interval.String(),
-		Threshold: entries[0].GrowthRate, // will be overwritten
+		Threshold: threshold,
 		Processes: procs,
 	}
 }

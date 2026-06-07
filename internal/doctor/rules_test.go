@@ -730,3 +730,22 @@ func TestEvaluate_MultipleFindings(t *testing.T) {
 		}
 	}
 }
+
+func TestFormatBytes(t *testing.T) {
+	cases := []struct {
+		in   uint64
+		want string
+	}{
+		{512, "512B"},
+		{4096, "4.0KB"},
+		{1 << 20, "1.0MB"},
+		{1 << 30, "1.0GB"},
+		{1 << 40, "1.0TB"},
+		{1 << 50, "1.0PB"},
+	}
+	for _, c := range cases {
+		if got := formatBytes(c.in); got != c.want {
+			t.Errorf("formatBytes(%d) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}

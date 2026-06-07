@@ -73,6 +73,26 @@ jobs:
           path: coverage.out
           retention-days: 7
 
+  # ── Integration Tests ────────────────────────────────────────────────────
+  # These Docker-backed tests are isolated behind the integration build tag so
+  # contributors can keep regular unit checks fast and clang-free.
+  integration:
+    name: Integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Verify Docker is available
+        run: docker version
+
+      - name: Run integration tests
+        run: make test-integration
+
   # ── Build ─────────────────────────────────────────────────────────────────
   # `make build-ebpf` installs nothing extra here because the action already
   # has clang available, runs `make generate`, and then `make build GOTAGS=ebpf`
