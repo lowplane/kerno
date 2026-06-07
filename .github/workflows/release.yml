@@ -146,6 +146,9 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             clang llvm libbpf-dev linux-headers-generic
 
+      - name: Install Syft
+        uses: anchore/sbom-action/download-syft@v0
+
       - name: Run GoReleaser snapshot
         uses: goreleaser/goreleaser-action@v7
         with:
