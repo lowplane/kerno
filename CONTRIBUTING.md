@@ -293,7 +293,7 @@ kerno/
 │   │   │   ├── disk_io.c
 │   │   │   ├── sched_delay.c
 │   │   │   └── fd_track.c
-│   │   ├── loader.go           # Loader interface + LoaderSet
+│   │   ├── loader.go           # Loader interface
 │   │   ├── events.go           # Go event structs (mirror C structs)
 │   │   ├── gen_stub.go         # Stub types for dev builds (no clang)
 │   │   ├── syscall_latency.go  # Typed loader for syscall program
@@ -340,7 +340,7 @@ kerno/
 
 - **`internal/`** - All packages are internal; the only public API is the CLI binary.
 - **Build tag strategy** - `gen_stub.go` (`//go:build !ebpf`) provides stub types so `make build` works without clang. `make generate` post-processes the BPF-generated types to require the `ebpf` build tag, making stubs and generated files mutually exclusive.
-- **Loader interface** - Each eBPF program has a typed Go loader implementing a common `Loader` interface, enabling uniform lifecycle management via `LoaderSet`.
+- **Loader interface** - Each eBPF program has a typed Go loader implementing a common `Loader` interface.
 - **Collector interface** - Collectors consume raw events from loaders, aggregate them into typed snapshots, and expose them via a `Registry` for the doctor engine.
 
 ---
@@ -384,7 +384,7 @@ kerno/
 # 1. Create C source in internal/bpf/c/
 # 2. Create Go loader in internal/bpf/
 # 3. Add stub types in gen_stub.go
-# 4. Register in LoaderSet
+# 4. Register in start.go and doctor.go
 # 5. Run: make build-ebpf && make test
 
 # Adding a new CLI command:

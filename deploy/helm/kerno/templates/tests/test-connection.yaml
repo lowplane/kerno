@@ -1,0 +1,75 @@
+# Copyright 2026 Optiqor contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
+#
+# This test pod:
+#   1. Waits for the kerno DaemonSet to have at least one ready pod.
+#   2. Probes /healthz, /readyz, and /metrics on the headless Service
+#      (one endpoint per node — the test hits whichever endpoint DNS resolves first).
+#   3. Verifies that the metrics response contains at least one kerno_ metric.
+#
+# The test pod uses busybox:1.36-musl which provides wget and a POSIX shell.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ .Release.Name }}-test-connection
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "kerno.labels" . | nindent 4 }}
+    app.kubernetes.io/component: test
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  restartPolicy: Never
+  # The test does not need any host access — it talks to kerno over the
+  # headless ClusterIP Service (clusterIP: None → DNS returns pod IPs).
+  containers:
+    - name: connection-test
+      # Use a minimal image that has wget and shell.
+      image: busybox:1.36-musl
+      imagePullPolicy: IfNotPresent
+      command:
+        - /bin/sh
+        - -ec
+        - |
+          TARGET="http://kerno.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.prometheus.port }}"
+
+          echo "── /healthz ──────────────────────────────────────────"
+          wget -qO- --timeout=10 "${TARGET}/healthz" || {
+            echo "FAIL: /healthz did not return 200"
+            exit 1
+          }
+          echo ""
+
+          echo "── /readyz ───────────────────────────────────────────"
+          wget -qO- --timeout=10 "${TARGET}/readyz" || {
+            echo "FAIL: /readyz did not return 200"
+            exit 1
+          }
+          echo ""
+
+          echo "── /metrics (spot-check for kerno_ prefix) ───────────"
+          METRICS=$(wget -qO- --timeout=10 "${TARGET}/metrics") || {
+            echo "FAIL: /metrics endpoint unreachable"
+            exit 1
+          }
+          echo "$METRICS" | grep -q "^kerno_" || {
+            echo "FAIL: /metrics response contains no kerno_ metrics"
+            echo "First 20 lines:"
+            echo "$METRICS" | head -20
+            exit 1
+          }
+          echo "OK — kerno_ metrics present"
+
+          echo ""
+          echo "All checks passed."
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi
+        limits:
+          cpu: 100m
+          memory: 64Mi

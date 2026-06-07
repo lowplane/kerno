@@ -197,6 +197,8 @@ func TestFormatBytes(t *testing.T) {
 		{"kilobytes", 4096, "4.0KB"},
 		{"megabytes", 1048576, "1.0MB"},
 		{"gigabytes", 1073741824, "1.0GB"},
+		{"terabytes", 1 << 40, "1.0TB"},
+		{"petabytes", 1 << 50, "1.0PB"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

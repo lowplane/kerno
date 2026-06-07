@@ -72,6 +72,7 @@ struct tcp_event {
     __u32 rtt_us;      // smoothed RTT in microseconds (for RTT events)
     __u32 retransmits; // total retransmit count
     char  comm[TASK_COMM_LEN];
+    __u8 _pad[4];
 };
 
 // ─── OOM Kill Event ────────────────────────────────────────────────────────

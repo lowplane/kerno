@@ -84,6 +84,7 @@ type TCPEvent struct {
 	RTTUs       uint32
 	Retransmits uint32
 	Comm        [TaskCommLen]byte
+	Pad         [4]byte
 }
 
 // CommString returns the process name as a Go string.

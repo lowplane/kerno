@@ -76,6 +76,22 @@ func TestAnalyzerHappyPath(t *testing.T) {
 	}
 }
 
+func TestAnalyzerUsesDiscardLoggerWhenNil(t *testing.T) {
+	prov := &scriptedProvider{text: `{"summary":"ok"}`}
+
+	a := NewAnalyzer(AnalyzerConfig{Provider: prov})
+	if a.logger == nil {
+		t.Fatal("logger should default when omitted")
+	}
+	resp, err := a.Analyze(context.Background(), doctor.AnalysisRequest{Signals: emptySignals()})
+	if err != nil {
+		t.Fatalf("Analyze error: %v", err)
+	}
+	if resp.Summary != "ok" {
+		t.Errorf("Summary = %q, want ok", resp.Summary)
+	}
+}
+
 func TestAnalyzerMarkdownFencedJSON(t *testing.T) {
 	prov := &scriptedProvider{text: "Here you go:\n```json\n{\"summary\":\"ok\"}\n```\n"}
 
@@ -168,35 +184,73 @@ func TestFindingsFingerprintShape(t *testing.T) {
 
 func TestExtractJSON(t *testing.T) {
 	cases := []struct {
+		name string
 		in   string
 		want string
 	}{
-		{"```json\n{\"a\":1}\n```", "\n{\"a\":1}\n"},
-		{"prelude ```json\n{\"x\":2}\n``` postlude", "\n{\"x\":2}\n"},
-		{"```\n{\"y\":3}\n```", "\n{\"y\":3}\n"},
-		{"{\"raw\":true}", "{\"raw\":true}"},
+		{
+			name: "json fenced block",
+			in:   "```json\n{\"a\":1}\n```",
+			want: "\n{\"a\":1}\n",
+		},
+		{
+			name: "json fenced block with surrounding text",
+			in:   "prelude ```json\n{\"x\":2}\n``` postlude",
+			want: "\n{\"x\":2}\n",
+		},
+		{
+			name: "generic fenced block",
+			in:   "```\n{\"y\":3}\n```",
+			want: "\n{\"y\":3}\n",
+		},
+		{
+			name: "raw json",
+			in:   "{\"raw\":true}",
+			want: "{\"raw\":true}",
+		},
+		{
+			name: "empty input",
+			in:   "",
+			want: "",
+		},
+		{
+			name: "bare fence",
+			in:   "```",
+			want: "```",
+		},
+		{
+			name: "malformed json",
+			in:   "{bad json",
+			want: "{bad json",
+		},
 	}
-	for _, c := range cases {
-		got := extractJSON(c.in)
-		if got != c.want {
-			t.Errorf("extractJSON(%q) = %q, want %q", c.in, got, c.want)
-		}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := extractJSON(tc.in)
+
+			if got != tc.want {
+				t.Fatalf("extractJSON(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
 	}
 }
-
-// ─── FallbackAnalyzer ──────────────────────────────────────────────────────
-
 func TestFallbackAnalyzerEmptyFindings(t *testing.T) {
 	f := NewFallbackAnalyzer()
-	resp, err := f.Analyze(context.Background(), doctor.AnalysisRequest{Signals: emptySignals()})
+
+	resp, err := f.Analyze(context.Background(), doctor.AnalysisRequest{
+		Signals: emptySignals(),
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if !strings.Contains(resp.Summary, "normal thresholds") {
-		t.Errorf("empty Summary = %q, want healthy phrase", resp.Summary)
+		t.Errorf("Summary = %q, want healthy phrase", resp.Summary)
 	}
 }
-
 func TestFallbackAnalyzerCountsBySeverity(t *testing.T) {
 	f := NewFallbackAnalyzer()
 
@@ -207,7 +261,9 @@ func TestFallbackAnalyzerCountsBySeverity(t *testing.T) {
 		{Severity: doctor.SeverityInfo, Title: "info", Cause: "i", Rule: "i", Signal: "fd"},
 	}
 
-	resp, err := f.Analyze(context.Background(), doctor.AnalysisRequest{Findings: findings})
+	resp, err := f.Analyze(context.Background(), doctor.AnalysisRequest{
+		Findings: findings,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -222,15 +278,14 @@ func TestFallbackAnalyzerCountsBySeverity(t *testing.T) {
 		t.Errorf("Summary should highlight first finding: %q", resp.Summary)
 	}
 
-	// Root causes from non-info findings.
 	if len(resp.RootCauses) != 3 {
 		t.Errorf("RootCauses = %d, want 3 (excludes info)", len(resp.RootCauses))
 	}
+
 	if resp.RootCauses[0].Fix != "upgrade ssd" {
-		t.Errorf("first RootCause Fix = %q, want upgrade ssd", resp.RootCauses[0].Fix)
+		t.Errorf("first RootCause Fix = %q", resp.RootCauses[0].Fix)
 	}
 }
-
 func TestDetectSimpleCorrelations(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -244,15 +299,18 @@ func TestDetectSimpleCorrelations(t *testing.T) {
 		{"all four pairs", []string{"diskio", "syscall", "tcp", "sched", "fd", "oom"}, 4},
 		{"unrelated", []string{"foo", "bar"}, 0},
 	}
+
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			findings := make([]doctor.Finding, len(c.signals))
 			for i, sig := range c.signals {
 				findings[i] = doctor.Finding{Signal: sig}
 			}
+
 			cors := detectSimpleCorrelations(findings)
+
 			if len(cors) != c.want {
-				t.Errorf("got %d correlations, want %d (signals=%v)", len(cors), c.want, c.signals)
+				t.Errorf("got %d correlations, want %d", len(cors), c.want)
 			}
 		})
 	}

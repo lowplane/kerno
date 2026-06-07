@@ -24,7 +24,6 @@
    - [5.2 How bpf2go Code Generation Works](#52-how-bpf2go-code-generation-works)
    - [5.3 The Stub System (Building Without Clang)](#53-the-stub-system-building-without-clang)
    - [5.4 Event Types in Go](#54-event-types-in-go)
-   - [5.5 LoaderSet: Managing Multiple Programs](#55-loaderset-managing-multiple-programs)
 6. [Layer 3 - Collector Framework (Aggregation)](#6-layer-3--collector-framework-aggregation)
    - [6.1 The Collector Interface](#61-the-collector-interface)
    - [6.2 The Registry](#62-the-registry)
@@ -153,7 +152,7 @@ kerno/
 │   │   │   ├── disk_io.c
 │   │   │   ├── sched_delay.c
 │   │   │   └── fd_track.c
-│   │   ├── loader.go              ← Loader interface + LoaderSet
+│   │   ├── loader.go              ← Loader interface
 │   │   ├── events.go              ← Go event structs (match C exactly)
 │   │   ├── gen_stub.go            ← Stub objects for non-eBPF builds
 │   │   ├── syscall_latency.go     ← Go loader for syscall_latency
@@ -562,24 +561,6 @@ Each event type has helper methods:
 - `Latency()` / `RunqDelay()` / `RTT()` - converts nanosecond fields to `time.Duration`
 - `SrcAddr()` / `DstAddr()` - converts uint32 to `net.IP`
 - `OpString()` - converts operation byte to "read"/"write"/"sync"
-
-### 5.5 LoaderSet: Managing Multiple Programs
-
-`LoaderSet` provides batch lifecycle management:
-
-```go
-set := bpf.NewLoaderSet(logger,
-    bpf.NewSyscallLatencyLoader(logger),
-    bpf.NewTCPMonitorLoader(logger),
-    bpf.NewDiskIOLoader(logger),
-    // ...
-)
-
-set.LoadAll()   // Load all into kernel (fails on first error)
-defer set.Close()  // Detach and unload all (reverse order)
-```
-
-The `start` command uses individual loading with graceful degradation instead - if one program fails, the others still run.
 
 ---
 

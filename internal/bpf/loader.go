@@ -15,7 +15,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log/slog"
 )
 
 // Loader is the interface that all eBPF program loaders must implement.
@@ -77,56 +76,6 @@ func (t EventType) String() string {
 	default:
 		return fmt.Sprintf("unknown(%d)", t)
 	}
-}
-
-// LoaderSet manages the lifecycle of multiple eBPF program loaders.
-type LoaderSet struct {
-	loaders []Loader
-	closers []io.Closer
-	logger  *slog.Logger
-}
-
-// NewLoaderSet creates a new set of eBPF program loaders.
-func NewLoaderSet(logger *slog.Logger, loaders ...Loader) *LoaderSet {
-	return &LoaderSet{
-		loaders: loaders,
-		logger:  logger,
-	}
-}
-
-// LoadAll loads all eBPF programs into the kernel.
-// Returns an error if any program fails to load, after cleaning up
-// all previously loaded programs.
-func (s *LoaderSet) LoadAll() error {
-	for _, l := range s.loaders {
-		s.logger.Info("loading eBPF program", "name", l.Name())
-
-		closer, err := l.Load()
-		if err != nil {
-			// Clean up everything loaded so far.
-			s.Close()
-			return fmt.Errorf("loading %s: %w", l.Name(), err)
-		}
-		s.closers = append(s.closers, closer)
-
-		s.logger.Info("loaded eBPF program", "name", l.Name())
-	}
-	return nil
-}
-
-// Close detaches and unloads all eBPF programs.
-func (s *LoaderSet) Close() {
-	for i := len(s.closers) - 1; i >= 0; i-- {
-		if err := s.closers[i].Close(); err != nil {
-			s.logger.Warn("error closing eBPF program", "error", err)
-		}
-	}
-	s.closers = nil
-}
-
-// Loaders returns the underlying loaders for event consumption.
-func (s *LoaderSet) Loaders() []Loader {
-	return s.loaders
 }
 
 // closerFunc adapts a plain function to the io.Closer interface.
