@@ -686,7 +686,7 @@ func evalHealthySystem(s *collector.Signals) Finding {
 
 // --- Rule: DNS High Latency --------------------------------------------------
 
-func evalDNSHighLatency(s *collector.Signals, t config.DoctorThresholds) []Finding {
+func evalDNSHighLatency(s *collector.Signals, _ config.DoctorThresholds) []Finding {
 	if s.DNS == nil {
 		return nil
 	}
@@ -732,7 +732,7 @@ func evalDNSHighLatency(s *collector.Signals, t config.DoctorThresholds) []Findi
 
 // --- Rule: DNS Failure Rate --------------------------------------------------
 
-func evalDNSFailureRate(s *collector.Signals, t config.DoctorThresholds) []Finding {
+func evalDNSFailureRate(s *collector.Signals, _ config.DoctorThresholds) []Finding {
 	if s.DNS == nil || s.DNS.TotalRequests == 0 {
 		return nil
 	}
