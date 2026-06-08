@@ -274,12 +274,33 @@ phase_chaos() {
         fi
     done
 
-    # Cascade is longer; just verify it exits.
-    if "$KERNO" chaos --induce cascade --duration 3s --intensity low --yes \
-            >/tmp/verify-chaos-cascade.log 2>&1; then
-        phase_pass "$n" "cascade scenario completes cleanly"
+    # Cascade is longer; run and verify the timeline links them.
+    sudo "$KERNO" chaos --induce cascade --duration 15s --intensity high --yes \
+        >/tmp/verify-chaos-cascade-run.log 2>&1 &
+    local cpid=$!
+    sleep 2
+
+    sudo "$KERNO" --config scripts/verify-config.yaml \
+        doctor --duration 10s --timeline --output json \
+        >/tmp/verify-doctor-cascade.json 2>/tmp/verify-doctor-cascade.log
+
+    wait $cpid 2>/dev/null || true
+
+    local links_count
+    links_count=$(jq '.timeline.links | length' /tmp/verify-doctor-cascade.json 2>/dev/null || echo 0)
+    if [[ "$links_count" -gt 0 ]]; then
+        phase_pass "$n" "cascade timeline generated $links_count links"
+        local causes
+        causes=$(jq -r '.timeline.links[].cause' /tmp/verify-doctor-cascade.json 2>/dev/null | xargs)
+        phase_pass "$n" "timeline links in order: $causes"
     else
-        phase_fail "$n" "cascade scenario errored"
+        # If running in a restricted container or non-root VM where eBPF is disabled,
+        # doctor will degrade gracefully. In this case, we skip/pass if no signals were collected.
+        if jq -e '.signals.diskio == null' /tmp/verify-doctor-cascade.json >/dev/null 2>&1; then
+            phase_skip "$n" "no eBPF signals collected (graceful degradation) — skipping timeline assertion"
+        else
+            phase_fail "$n" "expected causal timeline links under chaos cascade, got 0"
+        fi
     fi
 
     # Verify temp files are cleaned up after every run.

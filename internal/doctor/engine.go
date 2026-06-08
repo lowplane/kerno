@@ -29,6 +29,7 @@ type AnalysisRequest struct {
 	Signals  *collector.Signals
 	Findings []Finding
 	History  []*collector.Signals
+	Timeline *Timeline
 }
 
 // AnalysisResponse contains AI-generated insights.
@@ -88,13 +89,22 @@ type Engine struct {
 
 // NewEngine creates a new diagnostic engine.
 // Pass nil for analyzer to run without AI enrichment.
+// Change the constant in NewEngine:
 func NewEngine(thresholds config.DoctorThresholds, analyzer Analyzer, logger *slog.Logger) *Engine {
 	return &Engine{
 		thresholds: thresholds,
 		analyzer:   analyzer,
 		logger:     logger,
-		maxHistory: 10,
+		maxHistory: 120, // 10 min @ 5s intervals; ~1 MB max
 	}
+}
+
+// History returns a read-only snapshot of the signal history,
+// oldest-first. Safe to call concurrently with Diagnose.
+func (e *Engine) History() []*collector.Signals {
+	out := make([]*collector.Signals, len(e.history))
+	copy(out, e.history)
+	return out
 }
 
 // Diagnose runs the full diagnostic pipeline against collected signals.
@@ -108,6 +118,9 @@ func (e *Engine) Diagnose(ctx context.Context, signals *collector.Signals) (*Rep
 		"duration_ms", time.Since(start).Milliseconds(),
 	)
 
+	// Build timeline.
+	timeline := BuildTimeline(findings, e.history, e.thresholds)
+
 	// Phase 2: Optional AI enrichment.
 	var analysis *AnalysisResponse
 	if e.analyzer != nil && hasActionableFindings(findings) {
@@ -117,6 +130,7 @@ func (e *Engine) Diagnose(ctx context.Context, signals *collector.Signals) (*Rep
 			Signals:  signals,
 			Findings: findings,
 			History:  e.history,
+			Timeline: timeline,
 		})
 		if err != nil {
 			// AI failure is non-fatal — log and continue with deterministic results.
@@ -137,7 +151,8 @@ func (e *Engine) Diagnose(ctx context.Context, signals *collector.Signals) (*Rep
 		Analysis:  analysis,
 		// Carry the raw signals through so the JSON renderer can
 		// surface them for debugging — the pretty renderer ignores it.
-		Signals: signals,
+		Signals:  signals,
+		Timeline: timeline,
 	}
 
 	// Track events collected.

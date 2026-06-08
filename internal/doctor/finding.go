@@ -96,6 +96,11 @@ type Finding struct {
 
 	// Process is the relevant process name, if applicable.
 	Process string
+
+	// FiredAt is the wall-clock time when the underlying metric first crossed
+	// its threshold in the history ring buffer. Zero value means "current
+	// snapshot only" (no history available yet).
+	FiredAt time.Time
 }
 
 // ETAString returns a human-readable ETA string, or empty if no ETA.
@@ -127,6 +132,9 @@ type Report struct {
 
 	// Findings are the ranked diagnostic results.
 	Findings []Finding
+
+	// Timeline is the causal sequence for this report.
+	Timeline *Timeline
 
 	// Stats tracks collection metadata.
 	EventsCollected uint64

@@ -35,6 +35,7 @@ func newDoctorCmd() *cobra.Command {
 		quiet        bool
 		noBanner     bool
 		onlyCritical bool
+		timeline     bool
 	)
 
 	cmd := &cobra.Command{
@@ -85,6 +86,7 @@ Add --ai to enrich findings with AI-powered analysis (requires API key).`,
 				quiet:        quiet,
 				noBanner:     noBanner,
 				onlyCritical: onlyCritical,
+				timeline:     timeline,
 			})
 		},
 	}
@@ -100,6 +102,7 @@ Add --ai to enrich findings with AI-powered analysis (requires API key).`,
 	flags.BoolVarP(&quiet, "quiet", "q", false, "only emit critical/warning findings (CI-friendly)")
 	flags.BoolVar(&noBanner, "no-banner", false, "suppress the ASCII banner block")
 	flags.BoolVar(&onlyCritical, "only-critical", false, "show only critical severity items")
+	flags.BoolVar(&timeline, "timeline", false, "render findings ordered by first-detection timestamp and linked by suspected causation")
 	//nolint:errcheck // RegisterFlagCompletionFunc only returns error on invalid flag name, which is static.
 	_ = cmd.RegisterFlagCompletionFunc("output", func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
 		return []string{"pretty", "json"}, cobra.ShellCompDirectiveNoFileComp
@@ -117,6 +120,7 @@ type doctorOpts struct {
 	quiet        bool
 	noBanner     bool
 	onlyCritical bool
+	timeline     bool
 }
 
 func runDoctor(ctx context.Context, opts doctorOpts) error {
@@ -158,8 +162,9 @@ func runDoctor(ctx context.Context, opts doctorOpts) error {
 		renderer = &doctor.JSONRenderer{Pretty: true}
 	default:
 		renderer = &doctor.PrettyRenderer{
-			NoColor:  viper.GetBool("no_color") || os.Getenv("NO_COLOR") != "" || !isTerminal(),
-			NoBanner: opts.noBanner,
+			NoColor:      viper.GetBool("no_color") || os.Getenv("NO_COLOR") != "" || !isTerminal(),
+			NoBanner:     opts.noBanner,
+			ShowTimeline: opts.timeline,
 		}
 	}
 

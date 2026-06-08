@@ -36,6 +36,11 @@ func Evaluate(signals *collector.Signals, thresholds config.DoctorThresholds) []
 		findings = append(findings, evalHealthySystem(signals))
 	}
 
+	// Set FiredAt on all findings.
+	for i := range findings {
+		findings[i].FiredAt = signals.Timestamp
+	}
+
 	RankFindings(findings)
 	return findings
 }

@@ -61,7 +61,7 @@ func (a *DefaultAnalyzer) Analyze(ctx context.Context, req doctor.AnalysisReques
 	}
 
 	// Build the prompt.
-	userPrompt := BuildUserPrompt(req.Signals, req.Findings, req.History, a.privacy)
+	userPrompt := BuildUserPrompt(req.Signals, req.Findings, req.History, req.Timeline, a.privacy)
 
 	a.logger.Debug("sending to AI provider",
 		"provider", a.provider.Name(),

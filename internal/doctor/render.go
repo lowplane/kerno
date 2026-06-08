@@ -22,8 +22,9 @@ type Renderer interface {
 // PrettyRenderer outputs a human-readable incident report with ANSI colors,
 // box-drawn finding cards, and bar-chart signal visualizations.
 type PrettyRenderer struct {
-	NoColor  bool
-	NoBanner bool
+	NoColor      bool
+	NoBanner     bool
+	ShowTimeline bool
 }
 
 const (
@@ -75,9 +76,15 @@ func (r *PrettyRenderer) Render(w io.Writer, report *Report) error {
 
 	r.renderDegradation(w, report, p)
 	r.renderTriage(w, report, p)
+
+	if r.ShowTimeline && report.Timeline != nil {
+		r.renderTimeline(w, report.Timeline, p)
+	}
+
 	for i := range report.Findings {
 		r.renderFinding(w, &report.Findings[i], p)
 	}
+
 	if analysis, ok := report.Analysis.(*AnalysisResponse); ok && analysis != nil {
 		r.renderAIAnalysis(w, analysis, p)
 	}
@@ -602,6 +609,7 @@ type jsonReport struct {
 	Summary   reportSummary     `json:"summary"`
 	Analysis  *AnalysisResponse `json:"analysis,omitempty"`
 	Signals   any               `json:"signals,omitempty"`
+	Timeline  *jsonTimeline     `json:"timeline,omitempty"`
 }
 
 type jsonFinding struct {
@@ -651,6 +659,33 @@ func (r *JSONRenderer) Render(w io.Writer, report *Report) error {
 
 	if report.Signals != nil {
 		jr.Signals = report.Signals
+	}
+
+	if report.Timeline != nil {
+		events := make([]jsonTimelineEvent, len(report.Timeline.Events))
+		for i, ev := range report.Timeline.Events {
+			events[i] = jsonTimelineEvent{
+				Rule:     ev.FindingRule,
+				Signal:   ev.Signal,
+				FiredAt:  ev.FiredAt,
+				Title:    ev.Title,
+				Evidence: ev.Evidence,
+			}
+		}
+		links := make([]jsonCausalLink, len(report.Timeline.Links))
+		for i, l := range report.Timeline.Links {
+			links[i] = jsonCausalLink{
+				Cause:      l.CauseRule,
+				Effect:     l.EffectRule,
+				Confidence: l.Confidence,
+				GapMs:      l.GapMs,
+			}
+		}
+		jr.Timeline = &jsonTimeline{
+			ID:     report.Timeline.ID,
+			Events: events,
+			Links:  links,
+		}
 	}
 
 	for _, f := range report.Findings {

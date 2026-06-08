@@ -48,7 +48,7 @@ Rules:
 - Return ONLY valid JSON, no markdown or extra text`
 
 // BuildUserPrompt serializes signals and findings into a token-efficient prompt.
-func BuildUserPrompt(signals *collector.Signals, findings []doctor.Finding, history []*collector.Signals, privacy PrivacyMode) string {
+func BuildUserPrompt(signals *collector.Signals, findings []doctor.Finding, history []*collector.Signals, timeline *doctor.Timeline, privacy PrivacyMode) string {
 	var b strings.Builder
 
 	// Host info.
@@ -87,6 +87,28 @@ func BuildUserPrompt(signals *collector.Signals, findings []doctor.Finding, hist
 			}
 		}
 		b.WriteString("\n")
+	}
+
+	// Timeline (if available).
+	if timeline != nil && len(timeline.Links) > 0 {
+		fmt.Fprintf(&b, "CAUSAL TIMELINE (ID: %s):\n", timeline.ID)
+		for _, l := range timeline.Links {
+			causeTitle := l.CauseRule
+			effectTitle := l.EffectRule
+			for _, ev := range timeline.Events {
+				if ev.FindingRule == l.CauseRule {
+					causeTitle = ev.Title
+				}
+				if ev.FindingRule == l.EffectRule {
+					effectTitle = ev.Title
+				}
+			}
+			fmt.Fprintf(&b, "  - %s → %s (%dms, %.0f%% confidence)\n",
+				causeTitle, effectTitle, l.GapMs, l.Confidence*100)
+		}
+		fmt.Fprintf(&b, "\nINSTRUCTION FOR ANALYSIS:\n")
+		fmt.Fprintf(&b, "Reference this timeline by ID (%s) when explaining root causes.\n", timeline.ID)
+		fmt.Fprintf(&b, "Do not repeat raw finding names; reference the timeline chain instead.\n\n")
 	}
 
 	// Raw metrics (token-efficient compact format).
