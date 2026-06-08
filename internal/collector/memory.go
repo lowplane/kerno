@@ -158,6 +158,10 @@ func (c *MemoryCollector) poll() error {
 		}
 	}
 
+	var swapUsed uint64
+	if swapTotal > swapFree {
+		swapUsed = swapTotal - swapFree
+	}
 	c.snap = MemorySnapshot{
 		TotalBytes:            total,
 		UsedBytes:             used,
@@ -165,7 +169,7 @@ func (c *MemoryCollector) poll() error {
 		GrowthRateBytesPerSec: growth,
 		AvailableBytes:        available,
 		SwapTotalBytes:        swapTotal,
-		SwapUsedBytes:         swapTotal - swapFree,
+		SwapUsedBytes:         swapUsed,
 	}
 	c.prev = memSample{used: used, at: now}
 	c.have = true
