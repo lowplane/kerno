@@ -266,63 +266,59 @@ func nullTermString(b []byte) string {
 	return string(b)
 }
 
-
-
-
-
 // --- DNS Monitor Event -------------------------------------------------------
 
 // DNSEventType is the subtype of a DNS event.
 type DNSEventType uint8
 
 const (
-        DNSEventSend DNSEventType = 1
-        DNSEventRecv DNSEventType = 2
+	DNSEventSend DNSEventType = 1
+	DNSEventRecv DNSEventType = 2
 )
 
 // String returns a human-readable name.
 func (t DNSEventType) String() string {
-        switch t {
-        case DNSEventSend:
-                return "send"
-        case DNSEventRecv:
-                return "recv"
-        default:
-                return fmt.Sprintf("unknown(%d)", t)
-        }
+	switch t {
+	case DNSEventSend:
+		return "send"
+	case DNSEventRecv:
+		return "recv"
+	default:
+		return fmt.Sprintf("unknown(%d)", t)
+	}
 }
 
 // DNSEvent matches struct dns_event in kerno.h exactly.
 // Field order and sizes MUST be identical to the C struct.
 type DNSEvent struct {
-        TimestampNs uint64
-        CgroupID    uint64
-        PID         uint32
-        SAddr       uint32
-        DAddr       uint32
-        SPort       uint16
-        DPort       uint16
-        QueryID     uint16
-        EventType   DNSEventType
-        Pad0        uint8
-        Comm        [TaskCommLen]byte
+	TimestampNs uint64
+	CgroupID    uint64
+	PID         uint32
+	SAddr       uint32
+	DAddr       uint32
+	SPort       uint16
+	DPort       uint16
+	QueryID     uint16
+	EventType   DNSEventType
+	Pad0        uint8
+	Comm        [TaskCommLen]byte
 }
 
 // CommString returns the process name as a Go string.
 func (e *DNSEvent) CommString() string {
-        return nullTermString(e.Comm[:])
+	return nullTermString(e.Comm[:])
 }
 
 // SrcAddr returns the source IP address.
 func (e *DNSEvent) SrcAddr() net.IP {
-        ip := make(net.IP, 4)
-        binary.BigEndian.PutUint32(ip, e.SAddr)
-        return ip
+	ip := make(net.IP, 4)
+	binary.BigEndian.PutUint32(ip, e.SAddr)
+	return ip
 }
 
 // DstAddr returns the destination IP address.
 func (e *DNSEvent) DstAddr() net.IP {
-        ip := make(net.IP, 4)
-        binary.BigEndian.PutUint32(ip, e.DAddr)
-        return ip
+	ip := make(net.IP, 4)
+	binary.BigEndian.PutUint32(ip, e.DAddr)
+	return ip
 }

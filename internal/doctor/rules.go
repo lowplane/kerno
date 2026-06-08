@@ -1,4 +1,4 @@
-﻿// Copyright 2026 Optiqor contributors
+// Copyright 2026 Optiqor contributors
 // SPDX-License-Identifier: Apache-2.0
 
 package doctor
@@ -30,6 +30,8 @@ func Evaluate(signals *collector.Signals, thresholds config.DoctorThresholds) []
 	findings = append(findings, evalSyscallErrorRate(signals)...)
 	findings = append(findings, evalMemoryLimitPressure(signals)...)
 	findings = append(findings, evalMemoryHighThrottling(signals)...)
+	findings = append(findings, evalDNSHighLatency(signals, thresholds)...)
+	findings = append(findings, evalDNSFailureRate(signals, thresholds)...)
 
 	// If nothing found, emit "healthy system" info.
 	if len(findings) == 0 {
@@ -682,101 +684,100 @@ func evalHealthySystem(s *collector.Signals) Finding {
 	}
 }
 
-
 // --- Rule: DNS High Latency --------------------------------------------------
 
 func evalDNSHighLatency(s *collector.Signals, t config.DoctorThresholds) []Finding {
-if s.DNS == nil {
-return nil
-}
+	if s.DNS == nil {
+		return nil
+	}
 
-p99 := s.DNS.Latency.P99
-if p99 == 0 {
-return nil
-}
+	p99 := s.DNS.Latency.P99
+	if p99 == 0 {
+		return nil
+	}
 
-warningThreshold := 100 * time.Millisecond
-criticalThreshold := 500 * time.Millisecond
+	warningThreshold := 100 * time.Millisecond
+	criticalThreshold := 500 * time.Millisecond
 
-if p99 < warningThreshold {
-return nil
-}
+	if p99 < warningThreshold {
+		return nil
+	}
 
-sev := SeverityWarning
-thresh := warningThreshold
-if p99 >= criticalThreshold {
-sev = SeverityCritical
-thresh = criticalThreshold
-}
+	sev := SeverityWarning
+	thresh := warningThreshold
+	if p99 >= criticalThreshold {
+		sev = SeverityCritical
+		thresh = criticalThreshold
+	}
 
-return []Finding{{
-Severity:  sev,
-Rule:      "dns_high_latency",
-Title:     "DNS Resolution Latency Elevated",
-Signal:    "dns",
-Cause:     "CoreDNS or upstream DNS resolver is responding slowly",
-Impact:    fmt.Sprintf("Every DNS lookup adds %s — cascades into request timeouts and misleading 'connection refused' errors", p99),
-Evidence:  fmt.Sprintf("DNS P99=%s, P50=%s (warning: %s, critical: %s), %.1f req/s", p99, s.DNS.Latency.P50, warningThreshold, criticalThreshold, s.DNS.RequestRate),
-Fix: []string{
-"Check CoreDNS pod health: kubectl -n kube-system get pods -l k8s-app=kube-dns",
-"Check CoreDNS logs: kubectl -n kube-system logs -l k8s-app=kube-dns",
-"Check DNS query rate: kerno doctor --signal dns",
-"Consider adding DNS caching (ndots tuning, dnsPolicy: None with custom nameservers)",
-},
-Metric:    "dns_latency_p99",
-Value:     float64(p99.Nanoseconds()),
-Threshold: float64(thresh.Nanoseconds()),
-}}
+	return []Finding{{
+		Severity: sev,
+		Rule:     "dns_high_latency",
+		Title:    "DNS Resolution Latency Elevated",
+		Signal:   "dns",
+		Cause:    "CoreDNS or upstream DNS resolver is responding slowly",
+		Impact:   fmt.Sprintf("Every DNS lookup adds %s — cascades into request timeouts and misleading 'connection refused' errors", p99),
+		Evidence: fmt.Sprintf("DNS P99=%s, P50=%s (warning: %s, critical: %s), %.1f req/s", p99, s.DNS.Latency.P50, warningThreshold, criticalThreshold, s.DNS.RequestRate),
+		Fix: []string{
+			"Check CoreDNS pod health: kubectl -n kube-system get pods -l k8s-app=kube-dns",
+			"Check CoreDNS logs: kubectl -n kube-system logs -l k8s-app=kube-dns",
+			"Check DNS query rate: kerno doctor --signal dns",
+			"Consider adding DNS caching (ndots tuning, dnsPolicy: None with custom nameservers)",
+		},
+		Metric:    "dns_latency_p99",
+		Value:     float64(p99.Nanoseconds()),
+		Threshold: float64(thresh.Nanoseconds()),
+	}}
 }
 
 // --- Rule: DNS Failure Rate --------------------------------------------------
 
 func evalDNSFailureRate(s *collector.Signals, t config.DoctorThresholds) []Finding {
-if s.DNS == nil || s.DNS.TotalRequests == 0 {
-return nil
-}
+	if s.DNS == nil || s.DNS.TotalRequests == 0 {
+		return nil
+	}
 
-rate := s.DNS.FailureRate
+	rate := s.DNS.FailureRate
 
-warningThreshold := 1.0  // 1% timeouts
-criticalThreshold := 5.0 // 5% timeouts
+	warningThreshold := 1.0  // 1% timeouts
+	criticalThreshold := 5.0 // 5% timeouts
 
-if rate < warningThreshold {
-return nil
-}
+	if rate < warningThreshold {
+		return nil
+	}
 
-sev := SeverityWarning
-thresh := warningThreshold
-if rate >= criticalThreshold {
-sev = SeverityCritical
-thresh = criticalThreshold
-}
+	sev := SeverityWarning
+	thresh := warningThreshold
+	if rate >= criticalThreshold {
+		sev = SeverityCritical
+		thresh = criticalThreshold
+	}
 
-f := Finding{
-Severity:  sev,
-Rule:      "dns_failure_rate",
-Title:     "DNS Query Failure Rate Elevated",
-Signal:    "dns",
-Cause:     "DNS queries are timing out without a response within 5 seconds",
-Impact:    fmt.Sprintf("%.1f%% of DNS lookups are failing — applications see 'no such host' or hang waiting for resolution", rate),
-Evidence:  fmt.Sprintf("failure rate=%.1f%% (warning: %.1f%%, critical: %.1f%%), %d/%d queries failed, %.1f req/s", rate, warningThreshold, criticalThreshold, s.DNS.TotalFailures, s.DNS.TotalRequests, s.DNS.RequestRate),
-Fix: []string{
-"Check if CoreDNS is reachable: kubectl -n kube-system get svc kube-dns",
-"Check CoreDNS CPU/memory: kubectl -n kube-system top pods -l k8s-app=kube-dns",
-"Test DNS resolution manually: kubectl run -it --rm debug --image=busybox -- nslookup kubernetes.default",
-"Increase CoreDNS replicas if under load: kubectl -n kube-system scale deploy coredns --replicas=3",
-},
-Metric:    "dns_failure_rate_pct",
-Value:     rate,
-Threshold: thresh,
-}
+	f := Finding{
+		Severity: sev,
+		Rule:     "dns_failure_rate",
+		Title:    "DNS Query Failure Rate Elevated",
+		Signal:   "dns",
+		Cause:    "DNS queries are timing out without a response within 5 seconds",
+		Impact:   fmt.Sprintf("%.1f%% of DNS lookups are failing — applications see 'no such host' or hang waiting for resolution", rate),
+		Evidence: fmt.Sprintf("failure rate=%.1f%% (warning: %.1f%%, critical: %.1f%%), %d/%d queries failed, %.1f req/s", rate, warningThreshold, criticalThreshold, s.DNS.TotalFailures, s.DNS.TotalRequests, s.DNS.RequestRate),
+		Fix: []string{
+			"Check if CoreDNS is reachable: kubectl -n kube-system get svc kube-dns",
+			"Check CoreDNS CPU/memory: kubectl -n kube-system top pods -l k8s-app=kube-dns",
+			"Test DNS resolution manually: kubectl run -it --rm debug --image=busybox -- nslookup kubernetes.default",
+			"Increase CoreDNS replicas if under load: kubectl -n kube-system scale deploy coredns --replicas=3",
+		},
+		Metric:    "dns_failure_rate_pct",
+		Value:     rate,
+		Threshold: thresh,
+	}
 
-// Add top failing consumers if available.
-if len(s.DNS.TopConsumers) > 0 {
-top := s.DNS.TopConsumers[0]
-f.Evidence += fmt.Sprintf(", top consumer: %s (pid %d, %d reqs, %d failures)", top.Comm, top.PID, top.Requests, top.Failures)
-f.Process = top.Comm
-}
+	// Add top failing consumers if available.
+	if len(s.DNS.TopConsumers) > 0 {
+		top := s.DNS.TopConsumers[0]
+		f.Evidence += fmt.Sprintf(", top consumer: %s (pid %d, %d reqs, %d failures)", top.Comm, top.PID, top.Requests, top.Failures)
+		f.Process = top.Comm
+	}
 
-return []Finding{f}
+	return []Finding{f}
 }
