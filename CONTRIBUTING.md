@@ -471,6 +471,13 @@ perf(collector): reduce syscall aggregation allocations by 40%
 - All new features require tests.
 - All new CLI commands require documentation.
 
+### Reliability & Panics
+
+Your collector should not panic, but if it does, here's what kerno will do:
+- **Crash Recovery**: The goroutine will be recovered, capturing a full stack trace.
+- **Forensic Logging**: A panic trace will be saved to `/var/log/kerno-panics/` (or your configured `KERNO_PANIC_LOG_DIR`) for post-mortem analysis. If disabled, it logs to stderr.
+- **Crash-Loop Safety**: If a collector panics 5 times within 10 minutes, kerno will permanently disable it for the remainder of the daemon's lifetime and emit a `CRITICAL` alert metric to prevent flapping.
+
 ---
 
 ## Pull Request Guidelines

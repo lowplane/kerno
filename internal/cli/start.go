@@ -21,8 +21,11 @@ import (
 	"github.com/optiqor/kerno/internal/adapter"
 	"github.com/optiqor/kerno/internal/bpf"
 	"github.com/optiqor/kerno/internal/metrics"
+	"github.com/optiqor/kerno/internal/observability"
 	"github.com/optiqor/kerno/internal/version"
 )
+
+var ErrDaemonPanic = errors.New("daemon panic")
 
 func newStartCmd() *cobra.Command {
 	var (
@@ -71,12 +74,19 @@ type startOpts struct {
 	dashboard      bool
 }
 
-func runStart(ctx context.Context, opts startOpts) error {
-	if err := requireRoot(); err != nil {
-		return err
+func runStart(ctx context.Context, opts startOpts) (err error) {
+	if rootErr := requireRoot(); rootErr != nil {
+		return rootErr
 	}
 
 	logger := slog.Default()
+
+	defer func() {
+		if r := recover(); r != nil {
+			observability.HandleDaemonPanic(r, logger)
+			err = ErrDaemonPanic
+		}
+	}()
 
 	logger.Info("starting kerno daemon",
 		"prometheus", opts.prometheus,

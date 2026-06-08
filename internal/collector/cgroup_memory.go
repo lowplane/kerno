@@ -184,7 +184,7 @@ func (c *CgroupMemoryCollector) poll() error {
 }
 
 // Snapshot implements Collector. Returns *CgroupMemorySnapshot or nil.
-func (c *CgroupMemoryCollector) Snapshot() interface{} {
+func (c *CgroupMemoryCollector) Snapshot() any {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.snap == nil {

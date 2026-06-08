@@ -1,19 +1,20 @@
 // Copyright 2026 Optiqor contributors
 // SPDX-License-Identifier: Apache-2.0
 
-// This file provides placeholder types so `make build` works on a fresh
-// clone without clang or libbpf installed.
+// This file provides placeholder types for development without running bpf2go.
+// When you run `go generate ./internal/bpf/...`, bpf2go creates the real
+// *_bpfel.go files that embed compiled eBPF bytecode. Those files will
+// override these stubs via the build tag.
 //
-// Build modes:
-//   - default (`make build`): the `ebpf` tag is OFF, this stub compiles,
-//     the bpf2go-generated `*_bpfel.go` files are excluded. No clang
-//     required. The binary builds but cannot actually load BPF programs.
-//   - real BPF (`make build-ebpf`): the `ebpf` tag is ON, this stub is
-//     excluded, the generated files compile. Requires clang + libbpf.
+// To build with real eBPF support:
+//   1. Install clang + libbpf-dev
+//   2. Run: make generate
+//   3. Run: make build
 //
-// `make generate` post-processes each generated file's build tag to
-// require `ebpf`, which is what makes the two modes mutually exclusive
-// instead of duplicate-declaring on common architectures.
+// This stub file is gated to only compile on architectures bpf2go
+// does NOT generate bindings for. Once `go generate` has produced the
+// _bpfel.go files (on amd64/arm64/...), those provide the real
+// definitions and this file is excluded.
 
 //go:build !ebpf
 

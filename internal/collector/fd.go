@@ -79,7 +79,9 @@ func (c *FDCollector) Start(ctx context.Context) error {
 		return fmt.Errorf("opening fd events: %w", err)
 	}
 
-	go c.consume(runCtx, ch)
+	RunSafeCollectorGoroutine(runCtx, c.Name(), c.logger, func() {
+		c.consume(runCtx, ch)
+	})
 	return nil
 }
 
