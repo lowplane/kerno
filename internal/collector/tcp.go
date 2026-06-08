@@ -87,7 +87,9 @@ func (c *TCPCollector) Start(ctx context.Context) error {
 		return fmt.Errorf("opening tcp events: %w", err)
 	}
 
-	go c.consume(runCtx, ch)
+	RunSafeCollectorGoroutine(runCtx, c.Name(), c.logger, func() {
+		c.consume(runCtx, ch)
+	})
 	return nil
 }
 

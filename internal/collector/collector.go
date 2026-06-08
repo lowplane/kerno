@@ -14,6 +14,9 @@ import (
 	"log/slog"
 	"sync"
 	"time"
+
+	"github.com/optiqor/kerno/internal/metrics"
+	"github.com/optiqor/kerno/internal/observability"
 )
 
 // Collector reads raw eBPF events, aggregates them, and produces typed
@@ -148,4 +151,29 @@ func (r *Registry) Signals(duration time.Duration) *Signals {
 	}
 
 	return s
+}
+
+// RunSafeCollectorGoroutine wraps a collector's core processing loop with panic recovery,
+// and crash-loop safety (by disabling the collector if it panics too frequently).
+// Note: On panic, the goroutine exits with no restart. Callers should not assume self-healing.
+func RunSafeCollectorGoroutine(ctx context.Context, name string, logger *slog.Logger, fn func()) {
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				disabled := observability.GlobalHandler.HandlePanic(name, r, logger)
+				metrics.CollectorPanicsTotal.WithLabelValues(name).Inc()
+				if disabled {
+					logger.Error("collector permanently disabled due to crash-looping", "name", name)
+					metrics.CollectorDisabled.WithLabelValues(name).Set(1)
+				}
+				// Exit the goroutine after panic.
+				return
+			}
+		}()
+
+		// Run the actual collector loop
+		fn()
+		// If we reach here, the collector loop exited normally.
+		// We don't restart; we just let the goroutine exit.
+	}()
 }

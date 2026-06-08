@@ -116,14 +116,15 @@ var FDCloseTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
 
 // ─── Cgroup Memory Metrics ────────────────────────────────────────────────
 
-// CgroupMemoryPressurePct tracks per-container memory usage as a percentage
-// of the cgroup memory limit. Labeled by pod only; namespace label will be
-// added once the Kubernetes enrichment path lands end-to-end.
-var CgroupMemoryPressurePct = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-	Namespace: Namespace,
-	Name:      "cgroup_memory_pressure_pct",
-	Help:      "Per-container memory usage as a percentage of the cgroup memory.max limit.",
-}, []string{"pod"})
+// CgroupMemoryPressurePct tracks memory pressure per cgroup.
+var CgroupMemoryPressurePct = prometheus.NewGaugeVec(
+	prometheus.GaugeOpts{
+		Namespace: Namespace,
+		Name:      "cgroup_memory_pressure_pct",
+		Help:      "Memory pressure percentage per cgroup/pod.",
+	},
+	[]string{"pod"},
+)
 
 // ─── Self-Monitoring Metrics ──────────────────────────────────────────────
 
@@ -139,6 +140,20 @@ var CollectorErrorsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Namespace: Namespace,
 	Name:      "collector_errors_total",
 	Help:      "Total event processing errors per collector.",
+}, []string{"collector"})
+
+// CollectorPanicsTotal counts the number of panics per collector.
+var CollectorPanicsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Namespace: Namespace,
+	Name:      "collector_panics_total",
+	Help:      "Total panics recovered in collector goroutines.",
+}, []string{"collector"})
+
+// CollectorDisabled is set to 1 if a collector is permanently disabled due to crash-looping.
+var CollectorDisabled = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	Namespace: Namespace,
+	Name:      "collector_disabled",
+	Help:      "Set to 1 when a collector is permanently disabled due to panicking too frequently.",
 }, []string{"collector"})
 
 // BPFProgramsLoaded tracks the number of successfully loaded eBPF programs.
@@ -174,11 +189,13 @@ func init() {
 		// FD
 		FDOpenTotal,
 		FDCloseTotal,
-		// Cgroup memory
+		// Cgroup Memory
 		CgroupMemoryPressurePct,
 		// Self-monitoring
 		CollectorEventsTotal,
 		CollectorErrorsTotal,
+		CollectorPanicsTotal,
+		CollectorDisabled,
 		BPFProgramsLoaded,
 		InfoMetric,
 	)

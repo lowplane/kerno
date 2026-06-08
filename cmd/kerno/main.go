@@ -13,6 +13,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -30,6 +31,9 @@ func main() {
 		}
 
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		if errors.Is(err, cli.ErrDaemonPanic) {
+			os.Exit(2)
+		}
 		os.Exit(1)
 	}
 }
