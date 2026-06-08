@@ -107,4 +107,18 @@ func loadFdTrackObjects(obj *fdTrackObjects, opts *ebpf.CollectionOptions) error
 }
 
 func (o *fdTrackObjects) Close() error { return nil }
+// --- DNS Monitor stubs -------------------------------------------------------
+
+type dnsMonitorObjects struct {
+TracepointSysEnterSendmsg *ebpf.Program +""+ebpf:"tracepoint_sys_enter_sendmsg"+""+
+TracepointSysEnterRecvmsg *ebpf.Program +""+ebpf:"tracepoint_sys_enter_recvmsg"+""+
+DnsEvents                 *ebpf.Map     +""+ebpf:"dns_events"+""+
+DnsInflight               *ebpf.Map     +""+ebpf:"dns_inflight"+""+
+}
+
+func loadDnsMonitorObjects(obj *dnsMonitorObjects, opts *ebpf.CollectionOptions) error {
+return fmt.Errorf("eBPF programs not compiled; run 'make generate' first")
+}
+
+func (o *dnsMonitorObjects) Close() error { return nil }
 
