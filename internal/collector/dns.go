@@ -1,5 +1,7 @@
-﻿// Copyright 2026 Optiqor contributors
+// Copyright 2026 Optiqor contributors
 // SPDX-License-Identifier: Apache-2.0
+
+//go:build ebpf
 
 package collector
 

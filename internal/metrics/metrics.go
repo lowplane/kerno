@@ -1,4 +1,4 @@
-﻿// Copyright 2026 Optiqor contributors
+// Copyright 2026 Optiqor contributors
 // SPDX-License-Identifier: Apache-2.0
 
 // Package metrics defines and registers the Prometheus metrics for Kerno.
