@@ -6,6 +6,7 @@ package metrics
 import (
 	"encoding/binary"
 	"log/slog"
+	"strconv"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
@@ -229,7 +230,7 @@ func TestCardinalityLimit(t *testing.T) {
 
 			var got bool
 			for i := 0; i < tt.calls; i++ {
-				got = b.cardinalityOK("test_metric")
+				got = b.cardinalityOK("test_metric", "tuple", strconv.Itoa(i))
 			}
 
 			if got != tt.wantLast {
@@ -242,11 +243,28 @@ func TestCardinalityLimit(t *testing.T) {
 		b := NewBridge(slog.Default())
 
 		for i := 0; i < LabelCardinalityLimit+1; i++ {
-			b.cardinalityOK("test_metric")
+			b.cardinalityOK("test_metric", strconv.Itoa(i))
 		}
 
-		if !b.cardinalityOK("other_metric") {
+		if !b.cardinalityOK("other_metric", "new_tuple") {
 			t.Error("expected cardinalityOK to return true for different metric")
+		}
+	})
+
+	t.Run("existing_tuple_still_allowed_after_limit", func(t *testing.T) {
+		b := NewBridge(slog.Default())
+
+		for i := 0; i < LabelCardinalityLimit; i++ {
+			if !b.cardinalityOK("test_metric", strconv.Itoa(i)) {
+				t.Fatalf("tuple %d rejected before limit", i)
+			}
+		}
+
+		if !b.cardinalityOK("test_metric", "0") {
+			t.Error("expected existing tuple to remain allowed after limit")
+		}
+		if b.cardinalityOK("test_metric", "brand_new_tuple") {
+			t.Error("expected new tuple to be rejected after limit")
 		}
 	})
 }
