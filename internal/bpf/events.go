@@ -1,4 +1,4 @@
-// Copyright 2026 Optiqor contributors
+﻿// Copyright 2026 Optiqor contributors
 // SPDX-License-Identifier: Apache-2.0
 
 package bpf
@@ -16,7 +16,7 @@ const TaskCommLen = 16
 // MaxFilenameLen matches MAX_FILENAME_LEN in kerno.h.
 const MaxFilenameLen = 256
 
-// ─── Syscall Latency Event ─────────────────────────────────────────────────
+// â”€â”€â”€ Syscall Latency Event â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // SyscallEvent matches struct syscall_event in kerno.h.
 // Field order and sizes MUST be identical to the C struct.
@@ -41,7 +41,7 @@ func (e *SyscallEvent) Latency() time.Duration {
 	return time.Duration(e.LatencyNs)
 }
 
-// ─── TCP Monitor Event ─────────────────────────────────────────────────────
+// â”€â”€â”€ TCP Monitor Event â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // TCPEventType is the subtype of a TCP event.
 type TCPEventType uint8
@@ -111,7 +111,7 @@ func (e *TCPEvent) RTT() time.Duration {
 	return time.Duration(e.RTTUs) * time.Microsecond
 }
 
-// ─── OOM Kill Event ────────────────────────────────────────────────────────
+// â”€â”€â”€ OOM Kill Event â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // OOMEvent matches struct oom_event in kerno.h.
 type OOMEvent struct {
@@ -131,7 +131,7 @@ func (e *OOMEvent) CommString() string {
 	return nullTermString(e.Comm[:])
 }
 
-// ─── Disk I/O Event ────────────────────────────────────────────────────────
+// â”€â”€â”€ Disk I/O Event â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // DiskEvent matches struct disk_event in kerno.h.
 type DiskEvent struct {
@@ -170,7 +170,7 @@ func (e *DiskEvent) OpString() string {
 	}
 }
 
-// ─── Scheduler Delay Event ─────────────────────────────────────────────────
+// â”€â”€â”€ Scheduler Delay Event â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // SchedEvent matches struct sched_event in kerno.h.
 type SchedEvent struct {
@@ -192,7 +192,7 @@ func (e *SchedEvent) RunqDelay() time.Duration {
 	return time.Duration(e.RunqDelayNs)
 }
 
-// ─── File Descriptor Track Event ───────────────────────────────────────────
+// â”€â”€â”€ File Descriptor Track Event â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // FDOp is the type of file descriptor operation.
 type FDOp uint8
@@ -230,7 +230,7 @@ func (e *FDEvent) CommString() string {
 	return nullTermString(e.Comm[:])
 }
 
-// ─── File Audit Event ──────────────────────────────────────────────────────
+// â”€â”€â”€ File Audit Event â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // FileEvent matches struct file_event in kerno.h.
 type FileEvent struct {
@@ -254,7 +254,7 @@ func (e *FileEvent) FilenameString() string {
 	return nullTermString(e.Filename[:])
 }
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // nullTermString converts a null-terminated byte slice to a Go string.
 func nullTermString(b []byte) string {
@@ -264,4 +264,65 @@ func nullTermString(b []byte) string {
 		}
 	}
 	return string(b)
+}
+
+
+
+
+
+// --- DNS Monitor Event -------------------------------------------------------
+
+// DNSEventType is the subtype of a DNS event.
+type DNSEventType uint8
+
+const (
+        DNSEventSend DNSEventType = 1
+        DNSEventRecv DNSEventType = 2
+)
+
+// String returns a human-readable name.
+func (t DNSEventType) String() string {
+        switch t {
+        case DNSEventSend:
+                return "send"
+        case DNSEventRecv:
+                return "recv"
+        default:
+                return fmt.Sprintf("unknown(%d)", t)
+        }
+}
+
+// DNSEvent matches struct dns_event in kerno.h exactly.
+// Field order and sizes MUST be identical to the C struct.
+type DNSEvent struct {
+        TimestampNs uint64
+        CgroupID    uint64
+        PID         uint32
+        SAddr       uint32
+        DAddr       uint32
+        SPort       uint16
+        DPort       uint16
+        QueryID     uint16
+        EventType   DNSEventType
+        Pad0        uint8
+        Comm        [TaskCommLen]byte
+}
+
+// CommString returns the process name as a Go string.
+func (e *DNSEvent) CommString() string {
+        return nullTermString(e.Comm[:])
+}
+
+// SrcAddr returns the source IP address.
+func (e *DNSEvent) SrcAddr() net.IP {
+        ip := make(net.IP, 4)
+        binary.BigEndian.PutUint32(ip, e.SAddr)
+        return ip
+}
+
+// DstAddr returns the destination IP address.
+func (e *DNSEvent) DstAddr() net.IP {
+        ip := make(net.IP, 4)
+        binary.BigEndian.PutUint32(ip, e.DAddr)
+        return ip
 }

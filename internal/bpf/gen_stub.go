@@ -1,4 +1,4 @@
-// Copyright 2026 Optiqor contributors
+﻿// Copyright 2026 Optiqor contributors
 // SPDX-License-Identifier: Apache-2.0
 
 // This file provides placeholder types so `make build` works on a fresh
@@ -25,7 +25,7 @@ import (
 	"github.com/cilium/ebpf"
 )
 
-// ─── Syscall Latency stubs ──────────────────────────────────────────────────
+// â”€â”€â”€ Syscall Latency stubs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type syscallLatencyObjects struct {
 	TracepointSysEnter *ebpf.Program `ebpf:"tracepoint_sys_enter"`
@@ -39,7 +39,7 @@ func loadSyscallLatencyObjects(obj *syscallLatencyObjects, opts *ebpf.Collection
 
 func (o *syscallLatencyObjects) Close() error { return nil }
 
-// ─── TCP Monitor stubs ──────────────────────────────────────────────────────
+// â”€â”€â”€ TCP Monitor stubs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type tcpMonitorObjects struct {
 	TracepointTcpRetransmit    *ebpf.Program `ebpf:"tracepoint_tcp_retransmit"`
@@ -53,7 +53,7 @@ func loadTcpMonitorObjects(obj *tcpMonitorObjects, opts *ebpf.CollectionOptions)
 
 func (o *tcpMonitorObjects) Close() error { return nil }
 
-// ─── OOM Track stubs ────────────────────────────────────────────────────────
+// â”€â”€â”€ OOM Track stubs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type oomTrackObjects struct {
 	KprobeOomKill *ebpf.Program `ebpf:"kprobe_oom_kill"`
@@ -66,7 +66,7 @@ func loadOomTrackObjects(obj *oomTrackObjects, opts *ebpf.CollectionOptions) err
 
 func (o *oomTrackObjects) Close() error { return nil }
 
-// ─── Disk I/O stubs ─────────────────────────────────────────────────────────
+// â”€â”€â”€ Disk I/O stubs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type diskIOObjects struct {
 	TracepointBlockRqIssue    *ebpf.Program `ebpf:"tracepoint_block_rq_issue"`
@@ -80,7 +80,7 @@ func loadDiskIOObjects(obj *diskIOObjects, opts *ebpf.CollectionOptions) error {
 
 func (o *diskIOObjects) Close() error { return nil }
 
-// ─── Sched Delay stubs ──────────────────────────────────────────────────────
+// â”€â”€â”€ Sched Delay stubs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type schedDelayObjects struct {
 	TracepointSchedWakeup *ebpf.Program `ebpf:"tracepoint_sched_wakeup"`
@@ -94,7 +94,7 @@ func loadSchedDelayObjects(obj *schedDelayObjects, opts *ebpf.CollectionOptions)
 
 func (o *schedDelayObjects) Close() error { return nil }
 
-// ─── FD Track stubs ─────────────────────────────────────────────────────────
+// â”€â”€â”€ FD Track stubs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type fdTrackObjects struct {
 	TracepointSysExitOpenat *ebpf.Program `ebpf:"tracepoint_sys_exit_openat"`
@@ -107,3 +107,4 @@ func loadFdTrackObjects(obj *fdTrackObjects, opts *ebpf.CollectionOptions) error
 }
 
 func (o *fdTrackObjects) Close() error { return nil }
+

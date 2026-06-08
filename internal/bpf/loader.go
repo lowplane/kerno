@@ -1,4 +1,4 @@
-// Copyright 2026 Optiqor contributors
+﻿// Copyright 2026 Optiqor contributors
 // SPDX-License-Identifier: Apache-2.0
 
 // Package bpf provides the eBPF program loaders and Go event types.
@@ -85,3 +85,5 @@ func (f closerFunc) Close() error {
 	f()
 	return nil
 }
+
+
