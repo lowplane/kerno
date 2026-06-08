@@ -110,10 +110,10 @@ func (o *fdTrackObjects) Close() error { return nil }
 // --- DNS Monitor stubs -------------------------------------------------------
 
 type dnsMonitorObjects struct {
-TracepointSysEnterSendmsg *ebpf.Program +""+ebpf:"tracepoint_sys_enter_sendmsg"+""+
-TracepointSysEnterRecvmsg *ebpf.Program +""+ebpf:"tracepoint_sys_enter_recvmsg"+""+
-DnsEvents                 *ebpf.Map     +""+ebpf:"dns_events"+""+
-DnsInflight               *ebpf.Map     +""+ebpf:"dns_inflight"+""+
+	TracepointSysEnterSendmsg *ebpf.Program `ebpf:"tracepoint_sys_enter_sendmsg""
+	TracepointSysEnterRecvmsg *ebpf.Program `ebpf:"tracepoint_sys_enter_recvmsg""
+	DnsEvents                 *ebpf.Map     `ebpf:"dns_events""
+	DnsInflight               *ebpf.Map     `ebpf:"dns_inflight""
 }
 
 func loadDnsMonitorObjects(obj *dnsMonitorObjects, opts *ebpf.CollectionOptions) error {
