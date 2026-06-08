@@ -24,7 +24,7 @@ type Bridge struct {
 	logger *slog.Logger
 
 	mu       sync.Mutex
-	seen     map[string]int // metric name → cardinality count
+	seen     map[string]map[string]struct{} // metric name -> unique label tuple set
 	cancelFn context.CancelFunc
 }
 
@@ -32,7 +32,7 @@ type Bridge struct {
 func NewBridge(logger *slog.Logger) *Bridge {
 	return &Bridge{
 		logger: logger,
-		seen:   make(map[string]int),
+		seen:   make(map[string]map[string]struct{}),
 	}
 }
 
@@ -62,15 +62,38 @@ func (b *Bridge) Stop() {
 	}
 }
 
-// cardinalityOK returns true if the metric has not exceeded the label
-// cardinality limit. This is a simple counter — not a true cardinality
-// tracker (would need an LRU or HyperLogLog for production), but
-// sufficient as a safety valve.
-func (b *Bridge) cardinalityOK(metric string) bool {
+// cardinalityOK returns true when a metric label tuple can be recorded.
+// Previously seen tuples always remain allowed; only new tuples are rejected
+// after the per-metric cardinality budget is exhausted.
+func (b *Bridge) cardinalityOK(metric string, labels ...string) bool {
+	labelKey := labelsKey(labels...)
+
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.seen[metric]++
-	return b.seen[metric] <= LabelCardinalityLimit
+
+	tuples, ok := b.seen[metric]
+	if !ok {
+		tuples = make(map[string]struct{})
+		b.seen[metric] = tuples
+	}
+
+	if _, ok := tuples[labelKey]; ok {
+		return true
+	}
+	if len(tuples) >= LabelCardinalityLimit {
+		return false
+	}
+
+	tuples[labelKey] = struct{}{}
+	return true
+}
+
+func labelsKey(labels ...string) string {
+	key := ""
+	for _, label := range labels {
+		key += fmt.Sprintf("%d:%s;", len(label), label)
+	}
+	return key
 }
 
 func (b *Bridge) consume(ctx context.Context, name string, ch <-chan bpf.RawEvent) {
@@ -113,11 +136,11 @@ func (b *Bridge) recordSyscall(raw bpf.RawEvent) {
 		CollectorErrorsTotal.WithLabelValues("syscall_latency").Inc()
 		return
 	}
-	if !b.cardinalityOK("syscall") {
-		return
-	}
 	comm := event.CommString()
 	sc := bpf.SyscallName(event.SyscallNr)
+	if !b.cardinalityOK("syscall", sc, comm) {
+		return
+	}
 	SyscallDuration.WithLabelValues(sc, comm).Observe(float64(event.LatencyNs))
 	SyscallTotal.WithLabelValues(sc, comm).Inc()
 }
@@ -128,12 +151,12 @@ func (b *Bridge) recordTCP(raw bpf.RawEvent) {
 		CollectorErrorsTotal.WithLabelValues("tcp_monitor").Inc()
 		return
 	}
-	if !b.cardinalityOK("tcp") {
-		return
-	}
 	src := event.SrcAddr().String()
 	dst := event.DstAddr().String()
 	comm := event.CommString()
+	if !b.cardinalityOK("tcp", src, dst, comm) {
+		return
+	}
 
 	TCPConnectionsTotal.WithLabelValues(src, dst, comm).Inc()
 
@@ -161,11 +184,11 @@ func (b *Bridge) recordDiskIO(raw bpf.RawEvent) {
 		CollectorErrorsTotal.WithLabelValues("disk_io").Inc()
 		return
 	}
-	if !b.cardinalityOK("disk_io") {
-		return
-	}
 	dev := formatDev(event.Dev)
 	op := event.OpString()
+	if !b.cardinalityOK("disk_io", dev, op) {
+		return
+	}
 	DiskIODuration.WithLabelValues(dev, op).Observe(float64(event.LatencyNs))
 	DiskIOBytesTotal.WithLabelValues(dev, op).Add(float64(event.NrBytes))
 }
@@ -176,10 +199,10 @@ func (b *Bridge) recordSchedDelay(raw bpf.RawEvent) {
 		CollectorErrorsTotal.WithLabelValues("sched_delay").Inc()
 		return
 	}
-	if !b.cardinalityOK("sched_delay") {
+	comm := event.CommString()
+	if !b.cardinalityOK("sched_delay", comm) {
 		return
 	}
-	comm := event.CommString()
 	SchedDelay.WithLabelValues(comm).Observe(float64(event.RunqDelayNs))
 }
 
@@ -189,14 +212,17 @@ func (b *Bridge) recordFD(raw bpf.RawEvent) {
 		CollectorErrorsTotal.WithLabelValues("fd_track").Inc()
 		return
 	}
-	if !b.cardinalityOK("fd_track") {
-		return
-	}
 	comm := event.CommString()
 	switch event.Op {
 	case bpf.FDOpOpen:
+		if !b.cardinalityOK("fd_open", comm) {
+			return
+		}
 		FDOpenTotal.WithLabelValues(comm).Inc()
 	case bpf.FDOpClose:
+		if !b.cardinalityOK("fd_close", comm) {
+			return
+		}
 		FDCloseTotal.WithLabelValues(comm).Inc()
 	}
 }
