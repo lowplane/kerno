@@ -1,4 +1,4 @@
-// Copyright 2026 Optiqor contributors
+﻿// Copyright 2026 Optiqor contributors
 // SPDX-License-Identifier: Apache-2.0
 
 // Package metrics defines and registers the Prometheus metrics for Kerno.
@@ -6,7 +6,7 @@
 // All metrics use the "kerno_" namespace prefix. The package exposes typed
 // metric variables that event consumers (the bridge in collector.go) can
 // update directly. A dedicated custom registry is used so that the default
-// Go process metrics are excluded — only Kerno metrics are exposed.
+// Go process metrics are excluded â€” only Kerno metrics are exposed.
 package metrics
 
 import (
@@ -21,7 +21,7 @@ const Namespace = "kerno"
 // and gives us precise control over what /metrics exposes.
 var Registry = prometheus.NewRegistry()
 
-// ─── Syscall Metrics ──────────────────────────────────────────────────────
+// â”€â”€â”€ Syscall Metrics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // SyscallDuration tracks syscall latency distributions.
 var SyscallDuration = prometheus.NewSummaryVec(prometheus.SummaryOpts{
@@ -38,7 +38,7 @@ var SyscallTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Help:      "Total number of traced syscall events.",
 }, []string{"syscall", "process"})
 
-// ─── TCP Metrics ──────────────────────────────────────────────────────────
+// â”€â”€â”€ TCP Metrics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // TCPRTT tracks TCP round-trip time distributions.
 var TCPRTT = prometheus.NewSummaryVec(prometheus.SummaryOpts{
@@ -62,7 +62,7 @@ var TCPConnectionsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Help:      "Total TCP connection events observed.",
 }, []string{"src", "dst", "process"})
 
-// ─── OOM Metrics ──────────────────────────────────────────────────────────
+// â”€â”€â”€ OOM Metrics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // OOMKillsTotal counts the number of OOM kill events.
 var OOMKillsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -71,7 +71,7 @@ var OOMKillsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Help:      "Total OOM kill events observed.",
 }, []string{"process"})
 
-// ─── Disk I/O Metrics ─────────────────────────────────────────────────────
+// â”€â”€â”€ Disk I/O Metrics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // DiskIODuration tracks disk I/O latency distributions.
 var DiskIODuration = prometheus.NewSummaryVec(prometheus.SummaryOpts{
@@ -88,7 +88,7 @@ var DiskIOBytesTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Help:      "Total bytes processed by disk I/O operations.",
 }, []string{"device", "operation"})
 
-// ─── Scheduler Metrics ────────────────────────────────────────────────────
+// â”€â”€â”€ Scheduler Metrics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // SchedDelay tracks CPU run queue delay distributions.
 var SchedDelay = prometheus.NewSummaryVec(prometheus.SummaryOpts{
@@ -98,7 +98,7 @@ var SchedDelay = prometheus.NewSummaryVec(prometheus.SummaryOpts{
 	Objectives: map[float64]float64{0.5: 0.05, 0.95: 0.01, 0.99: 0.001},
 }, []string{"process"})
 
-// ─── FD Metrics ───────────────────────────────────────────────────────────
+// â”€â”€â”€ FD Metrics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // FDOpenTotal tracks the total number of file descriptor opens.
 var FDOpenTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -114,7 +114,7 @@ var FDCloseTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Help:      "Total file descriptor close operations.",
 }, []string{"process"})
 
-// ─── Cgroup Memory Metrics ────────────────────────────────────────────────
+// â”€â”€â”€ Cgroup Memory Metrics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // CgroupMemoryPressurePct tracks per-container memory usage as a percentage
 // of the cgroup memory limit. Labeled by pod only; namespace label will be
@@ -125,7 +125,7 @@ var CgroupMemoryPressurePct = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 	Help:      "Per-container memory usage as a percentage of the cgroup memory.max limit.",
 }, []string{"pod"})
 
-// ─── Self-Monitoring Metrics ──────────────────────────────────────────────
+// â”€â”€â”€ Self-Monitoring Metrics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // CollectorEventsTotal counts events processed per collector.
 var CollectorEventsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -183,3 +183,4 @@ func init() {
 		InfoMetric,
 	)
 }
+
