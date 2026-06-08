@@ -56,6 +56,9 @@ spec:
             - start
             - --prometheus-addr
             - ":{{ .Values.prometheus.port }}"
+            {{- if ne .Values.prometheus.auth.mode "none" }}
+            - --config=/etc/kerno/config.yaml
+            {{- end }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           ports:
@@ -86,24 +89,6 @@ spec:
               value: {{ .Values.log.level }}
             - name: KERNO_LOG_FORMAT
               value: {{ .Values.log.format }}
-            - name: KERNO_PROMETHEUS_AUTH_MODE
-              value: {{ .Values.prometheus.auth.mode | quote }}
-            {{- if eq .Values.prometheus.auth.mode "bearer" }}
-            {{- if .Values.prometheus.auth.tokenSecretName }}
-            - name: KERNO_PROMETHEUS_AUTH_TOKEN_FILE
-              value: "/etc/kerno/auth/bearer/{{ .Values.prometheus.auth.tokenSecretKey }}"
-            {{- end }}
-            {{- end }}
-            {{- if .Values.prometheus.auth.tlsSecretName }}
-            - name: KERNO_PROMETHEUS_AUTH_CERT_FILE
-              value: "/etc/kerno/auth/tls/tls.crt"
-            - name: KERNO_PROMETHEUS_AUTH_KEY_FILE
-              value: "/etc/kerno/auth/tls/tls.key"
-            {{- if eq .Values.prometheus.auth.mode "mtls" }}
-            - name: KERNO_PROMETHEUS_AUTH_CA_CERT_FILE
-              value: "/etc/kerno/auth/tls/ca.crt"
-            {{- end }}
-            {{- end }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -134,6 +119,12 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 5
           volumeMounts:
+            {{- if ne .Values.prometheus.auth.mode "none" }}
+            - name: kerno-config
+              mountPath: /etc/kerno/config.yaml
+              subPath: config.yaml
+              readOnly: true
+            {{- end }}
             {{- if eq .Values.prometheus.auth.mode "bearer" }}
             {{- if .Values.prometheus.auth.tokenSecretName }}
             - name: auth-bearer
@@ -172,6 +163,11 @@ spec:
               mountPath: /host/sys/block
               readOnly: true
       volumes:
+        {{- if ne .Values.prometheus.auth.mode "none" }}
+        - name: kerno-config
+          configMap:
+            name: kerno-config
+        {{- end }}
         {{- if eq .Values.prometheus.auth.mode "bearer" }}
         {{- if .Values.prometheus.auth.tokenSecretName }}
         - name: auth-bearer
