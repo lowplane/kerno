@@ -452,12 +452,15 @@ func buildAnalyzer(c *config.Config, logger *slog.Logger) (doctor.Analyzer, erro
 		privacy = ai.PrivacySummary
 	}
 
-	return ai.NewAnalyzer(ai.AnalyzerConfig{
-		Provider: provider,
-		Cache:    cache,
-		Privacy:  privacy,
-		Logger:   logger,
+return ai.NewAnalyzer(ai.AnalyzerConfig{
+		Provider:    provider,
+		Cache:       cache,
+		Privacy:     privacy,
+		Logger:      logger,
+		MaxTokens:   aiCfg.MaxTokens,
+		Temperature: aiCfg.Temperature,
 	}), nil
+
 }
 
 func runDiagnosticCycle(
