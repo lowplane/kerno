@@ -80,11 +80,3 @@ func (t EventType) String() string {
 		return fmt.Sprintf("unknown(%d)", t)
 	}
 }
-
-// closerFunc adapts a plain function to the io.Closer interface.
-type closerFunc func()
-
-func (f closerFunc) Close() error {
-	f()
-	return nil
-}
