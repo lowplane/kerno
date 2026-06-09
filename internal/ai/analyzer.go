@@ -72,31 +72,97 @@ func (a *DefaultAnalyzer) Analyze(ctx context.Context, req doctor.AnalysisReques
 	a.logger.Debug("sending to AI provider",
 		"provider", a.provider.Name(),
 		"privacy", a.privacy,
-		"findings", len(req.Findings),
+		"prompt_len", len(userPrompt),
 	)
 
-	resp, err := a.provider.Complete(ctx, CompletionRequest{
+	// Call the LLM.
+	completion, err := a.provider.Complete(ctx, CompletionRequest{
 		SystemPrompt: SystemPrompt,
 		UserPrompt:   userPrompt,
 		MaxTokens:    a.maxTokens,
 		Temperature:  a.temperature,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("AI provider error: %w", err)
+		return nil, fmt.Errorf("AI provider %s: %w", a.provider.Name(), err)
 	}
 
-	var result doctor.AnalysisResponse
-	if err := json.Unmarshal([]byte(resp.Text), &result); err != nil {
-		return nil, fmt.Errorf("parsing AI response: %w", err)
-	}
-	result.TokensUsed = resp.TokensUsed
-	result.Model = resp.Model
+	a.logger.Info("AI analysis complete",
+		"provider", a.provider.Name(),
+		"model", completion.Model,
+		"tokens", completion.TokensUsed,
+	)
 
+	// Parse the structured JSON response.
+	response, err := parseAnalysisResponse(completion.Text)
+	if err != nil {
+		// If JSON parsing fails, treat the entire response as a summary.
+		a.logger.Warn("AI response was not valid JSON, using as plain text summary", "error", err)
+		response = &doctor.AnalysisResponse{
+			Summary: completion.Text,
+		}
+	}
+	response.TokensUsed = completion.TokensUsed
+
+	// Cache the result.
 	if a.cache != nil {
 		fingerprint := findingsFingerprint(req.Findings)
-		a.cache.Set(fingerprint, &result)
+		a.cache.Set(fingerprint, response)
 	}
 
-	return &result, nil
+	return response, nil
 }
-	
+
+// parseAnalysisResponse attempts to parse the LLM response as structured JSON.
+func parseAnalysisResponse(text string) (*doctor.AnalysisResponse, error) {
+	jsonText := extractJSON(text)
+	var resp doctor.AnalysisResponse
+	if err := json.Unmarshal([]byte(jsonText), &resp); err != nil {
+		return nil, fmt.Errorf("parsing AI response JSON: %w", err)
+	}
+	return &resp, nil
+}
+
+// extractJSON tries to find a JSON object in the text, handling markdown code blocks.
+func extractJSON(text string) string {
+	if start := findSubstring(text, "```json"); start >= 0 {
+		content := text[start+7:]
+		if end := findSubstring(content, "```"); end >= 0 {
+			return content[:end]
+		}
+	}
+	if start := findSubstring(text, "```"); start >= 0 {
+		content := text[start+3:]
+		if end := findSubstring(content, "```"); end >= 0 {
+			return content[:end]
+		}
+	}
+	return text
+}
+
+func findSubstring(s, substr string) int {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return i
+		}
+	}
+	return -1
+}
+
+// findingsFingerprint creates a cache key from findings.
+func findingsFingerprint(findings []doctor.Finding) string {
+	if len(findings) == 0 {
+		return "healthy"
+	}
+	parts := make([]string, len(findings))
+	for i, f := range findings {
+		parts[i] = fmt.Sprintf("%s:%s", f.Rule, f.Severity)
+	}
+	result := ""
+	for i, p := range parts {
+		if i > 0 {
+			result += "|"
+		}
+		result += p
+	}
+	return result
+}
