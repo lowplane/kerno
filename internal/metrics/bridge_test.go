@@ -344,4 +344,3 @@ func encodeFDEvent(e *bpf.FDEvent) []byte {
 	copy(buf[32:48], e.Comm[:])
 	return buf[:48]
 }
-

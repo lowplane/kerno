@@ -134,4 +134,3 @@ func DecodeSyscallEvent(data []byte) (*SyscallEvent, error) {
 	}
 	return &event, nil
 }
-

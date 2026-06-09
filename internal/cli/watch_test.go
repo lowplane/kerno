@@ -295,4 +295,3 @@ func TestTCPSummaryJSON(t *testing.T) {
 		})
 	}
 }
-

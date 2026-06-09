@@ -319,4 +319,3 @@ func tcpSummaryJSON(entries []tcpSummaryEntry, interval time.Duration) tcpSummar
 		Connections: conns,
 	}
 }
-

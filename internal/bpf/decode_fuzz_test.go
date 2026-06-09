@@ -86,4 +86,3 @@ func FuzzDecodeFDEvent(f *testing.F) {
 		_, _ = DecodeFDEvent(data)
 	})
 }
-

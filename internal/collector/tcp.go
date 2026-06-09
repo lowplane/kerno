@@ -229,4 +229,3 @@ func (c *TCPCollector) Snapshot() any {
 		TopRetransmitters: top,
 	}
 }
-

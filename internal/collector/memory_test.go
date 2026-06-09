@@ -217,4 +217,3 @@ func TestCollectorConcurrentRecord(t *testing.T) {
 			snap.TotalCount, expected)
 	}
 }
-

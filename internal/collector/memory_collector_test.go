@@ -158,4 +158,3 @@ func TestMemoryCollectorEmptySnapshotBeforeStart(t *testing.T) {
 		t.Error("snapshot should be nil before any successful poll")
 	}
 }
-

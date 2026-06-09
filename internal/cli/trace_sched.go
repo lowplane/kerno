@@ -146,4 +146,3 @@ func schedEventJSON(e *bpf.SchedEvent) schedEventOut {
 		RunqDelayNs: e.RunqDelayNs,
 	}
 }
-

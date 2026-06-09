@@ -126,4 +126,3 @@ func DecodeOOMEvent(data []byte) (*OOMEvent, error) {
 	}
 	return &event, nil
 }
-

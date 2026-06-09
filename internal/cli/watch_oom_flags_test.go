@@ -57,4 +57,3 @@ func TestNewWatchOOMCmd_Defaults(t *testing.T) {
 		}
 	}
 }
-

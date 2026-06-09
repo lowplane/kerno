@@ -134,4 +134,3 @@ func DecodeDiskEvent(data []byte) (*DiskEvent, error) {
 	}
 	return &event, nil
 }
-

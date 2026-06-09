@@ -72,4 +72,3 @@ func TestNewDoctorCmd_IntervalParseable(t *testing.T) {
 		t.Errorf("interval = %v, want 5s", val)
 	}
 }
-

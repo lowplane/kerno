@@ -54,7 +54,7 @@ const (
 	EventSchedDelay     EventType = 5
 	EventFDTrack        EventType = 6
 	EventFileAudit      EventType = 7
-        EventDNSMonitor     EventType = 8
+	EventDNSMonitor     EventType = 8
 )
 
 // String returns the human-readable name of the event type.
@@ -88,5 +88,3 @@ func (f closerFunc) Close() error {
 	f()
 	return nil
 }
-
-

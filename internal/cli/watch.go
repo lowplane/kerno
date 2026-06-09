@@ -35,4 +35,3 @@ Requires root privileges for eBPF program loading.`,
 
 	return cmd
 }
-

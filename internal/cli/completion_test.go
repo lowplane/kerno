@@ -26,4 +26,3 @@ func TestCompletionCmd(t *testing.T) {
 		})
 	}
 }
-

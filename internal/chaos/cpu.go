@@ -89,7 +89,7 @@ func (s CPUScenario) Run(ctx context.Context, opts Options) error {
 			// TASK_INTERRUPTIBLE → TASK_RUNNING, which is what
 			// kerno's sched_delay collector measures.
 			runtime.LockOSThread()
-r := rand.New(rand.NewSource(seed)) //nolint:gosec
+			r := rand.New(rand.NewSource(seed)) //nolint:gosec
 			for ctx.Err() == nil {
 				time.Sleep(time.Millisecond)
 				var local float64
@@ -137,4 +137,3 @@ func cpuWorkersFromIntensity(intensity Intensity, ncpu int) int {
 		return ncpu * 4
 	}
 }
-

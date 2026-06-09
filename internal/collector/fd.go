@@ -198,4 +198,3 @@ func (c *FDCollector) Snapshot() any {
 		GrowthRate:  growthRate,
 	}
 }
-

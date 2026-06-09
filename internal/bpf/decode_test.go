@@ -492,4 +492,3 @@ func TestIsSyscallError(t *testing.T) {
 }
 
 var _ = net.IPv4(0, 0, 0, 0)
-

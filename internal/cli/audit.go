@@ -303,4 +303,3 @@ func opName(mask uint32) string {
 		return fmt.Sprintf("UNKNOWN(0x%x)", mask)
 	}
 }
-

@@ -130,4 +130,3 @@ func DecodeDNSEvent(data []byte) (*DNSEvent, error) {
 	}
 	return &event, nil
 }
-

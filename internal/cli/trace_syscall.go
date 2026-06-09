@@ -324,4 +324,3 @@ func syscallEventJSON(e *bpf.SyscallEvent) syscallEventOut {
 // syscallName is a thin alias to bpf.SyscallName so existing CLI code
 // continues to work without churn.
 func syscallName(nr uint32) string { return bpf.SyscallName(nr) }
-

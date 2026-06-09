@@ -178,4 +178,3 @@ func (c *SchedCollector) Snapshot() any {
 		TotalCount: total,
 	}
 }
-

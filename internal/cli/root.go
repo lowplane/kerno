@@ -225,4 +225,3 @@ func isStderrTerminal() bool {
 	}
 	return (fi.Mode() & os.ModeCharDevice) != 0
 }
-

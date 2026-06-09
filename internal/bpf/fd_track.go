@@ -134,4 +134,3 @@ func DecodeFDEvent(data []byte) (*FDEvent, error) {
 	}
 	return &event, nil
 }
-

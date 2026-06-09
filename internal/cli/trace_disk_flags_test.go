@@ -59,4 +59,3 @@ func TestNewTraceDiskCmd_Defaults(t *testing.T) {
 		}
 	}
 }
-

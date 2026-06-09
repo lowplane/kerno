@@ -34,4 +34,3 @@ func main() {
 
 	log.Printf("Generated man pages in %s", manDir)
 }
-

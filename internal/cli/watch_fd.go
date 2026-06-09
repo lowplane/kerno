@@ -278,4 +278,3 @@ func fdSummaryJSON(entries []fdSummaryEntry, interval time.Duration, threshold f
 		Processes: procs,
 	}
 }
-

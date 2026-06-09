@@ -57,4 +57,3 @@ func TestNewWatchFDCmd_Defaults(t *testing.T) {
 		}
 	}
 }
-

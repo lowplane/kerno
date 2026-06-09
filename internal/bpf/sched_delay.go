@@ -134,4 +134,3 @@ func DecodeSchedEvent(data []byte) (*SchedEvent, error) {
 	}
 	return &event, nil
 }
-

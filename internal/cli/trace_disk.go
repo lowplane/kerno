@@ -194,4 +194,3 @@ func diskEventJSON(e *bpf.DiskEvent) diskEventOut {
 		Bytes:     e.NrBytes,
 	}
 }
-

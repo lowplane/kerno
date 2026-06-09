@@ -134,4 +134,3 @@ func DecodeTCPEvent(data []byte) (*TCPEvent, error) {
 	}
 	return &event, nil
 }
-

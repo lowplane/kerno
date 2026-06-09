@@ -273,4 +273,3 @@ func readyzHandler(loaded, total int) http.HandlerFunc {
 		})
 	}
 }
-

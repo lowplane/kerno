@@ -258,4 +258,3 @@ func (c *DNSCollector) Snapshot() any {
 		TopConsumers: consumers,
 	}
 }
-

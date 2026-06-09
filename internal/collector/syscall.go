@@ -186,4 +186,3 @@ func histogramPercentiles(h *aggregator.Histogram) Percentiles {
 		Max: time.Duration(h.Max()),
 	}
 }
-

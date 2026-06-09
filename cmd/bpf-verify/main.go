@@ -132,4 +132,3 @@ func main() {
 		fmt.Printf("  %-20s %d\n", l.Name(), counts[i].Load())
 	}
 }
-

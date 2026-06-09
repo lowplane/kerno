@@ -288,4 +288,3 @@ func TestRegistrySignalsRoundTrip(t *testing.T) {
 		t.Errorf("Syscall.TotalCount = %d, want 50", signals.Syscall.TotalCount)
 	}
 }
-

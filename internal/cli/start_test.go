@@ -136,4 +136,3 @@ func TestReadyzHandlerOK(t *testing.T) {
 		t.Errorf("status field = %v, want ready", body["status"])
 	}
 }
-

@@ -107,6 +107,7 @@ func loadFdTrackObjects(obj *fdTrackObjects, opts *ebpf.CollectionOptions) error
 }
 
 func (o *fdTrackObjects) Close() error { return nil }
+
 // --- DNS Monitor stubs -------------------------------------------------------
 
 type dnsMonitorObjects struct {
@@ -117,10 +118,7 @@ type dnsMonitorObjects struct {
 }
 
 func loadDnsMonitorObjects(obj *dnsMonitorObjects, opts *ebpf.CollectionOptions) error {
-return fmt.Errorf("eBPF programs not compiled; run 'make generate' first")
+	return fmt.Errorf("eBPF programs not compiled; run 'make generate' first")
 }
 
 func (o *dnsMonitorObjects) Close() error { return nil }
-
-
-

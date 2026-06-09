@@ -130,4 +130,3 @@ func readStdin() (string, error) {
 	}
 	return strings.Join(lines, "\n"), nil
 }
-

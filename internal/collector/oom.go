@@ -126,4 +126,3 @@ func (c *OOMCollector) Snapshot() any {
 	copy(out.Events, c.events)
 	return out
 }
-

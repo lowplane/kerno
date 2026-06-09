@@ -133,4 +133,3 @@ func (c *DiskIOCollector) Snapshot() any {
 		WriteBytes:   c.wrBytes,
 	}
 }
-

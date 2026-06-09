@@ -185,4 +185,3 @@ func oomEventJSON(e *bpf.OOMEvent) oomEventOut {
 		TotalBytes:   e.TotalPages * 4096,
 	}
 }
-
