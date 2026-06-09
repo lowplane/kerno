@@ -181,10 +181,11 @@ struct dns_event {
     __u16 dport;
     __u16 query_id;
     __u8  event_type;
-    __u8  _pad0;
+    __u8  _pad;
     char  comm[TASK_COMM_LEN];
 };
 
 #endif // __KERNO_H__
+
 
 
