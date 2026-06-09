@@ -1,3 +1,5 @@
+//go:build linux
+
 // Copyright 2026 Optiqor contributors
 // SPDX-License-Identifier: Apache-2.0
 
@@ -301,3 +303,4 @@ func opName(mask uint32) string {
 		return fmt.Sprintf("UNKNOWN(0x%x)", mask)
 	}
 }
+

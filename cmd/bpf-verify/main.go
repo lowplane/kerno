@@ -1,3 +1,5 @@
+//go:build ebpf
+
 // Copyright 2026 Optiqor contributors
 // SPDX-License-Identifier: Apache-2.0
 
@@ -130,3 +132,4 @@ func main() {
 		fmt.Printf("  %-20s %d\n", l.Name(), counts[i].Load())
 	}
 }
+

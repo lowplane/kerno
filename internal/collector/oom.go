@@ -1,3 +1,5 @@
+//go:build ebpf
+
 // Copyright 2026 Optiqor contributors
 // SPDX-License-Identifier: Apache-2.0
 
@@ -124,3 +126,4 @@ func (c *OOMCollector) Snapshot() any {
 	copy(out.Events, c.events)
 	return out
 }
+

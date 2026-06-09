@@ -1,3 +1,5 @@
+//go:build linux
+
 // Copyright 2026 Optiqor contributors
 // SPDX-License-Identifier: Apache-2.0
 
@@ -32,3 +34,4 @@ func main() {
 
 	log.Printf("Generated man pages in %s", manDir)
 }
+

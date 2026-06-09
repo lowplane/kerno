@@ -1,3 +1,5 @@
+//go:build ebpf
+
 // Copyright 2026 Optiqor contributors
 // SPDX-License-Identifier: Apache-2.0
 
@@ -207,3 +209,4 @@ func formatDev(dev uint32) string {
 	minor := dev & ((1 << 20) - 1)
 	return fmt.Sprintf("%d:%d", major, minor)
 }
+

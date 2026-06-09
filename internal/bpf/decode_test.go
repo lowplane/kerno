@@ -1,3 +1,5 @@
+//go:build linux
+
 // Copyright 2026 Optiqor contributors
 // SPDX-License-Identifier: Apache-2.0
 
@@ -490,3 +492,4 @@ func TestIsSyscallError(t *testing.T) {
 }
 
 var _ = net.IPv4(0, 0, 0, 0)
+

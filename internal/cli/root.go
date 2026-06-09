@@ -1,3 +1,5 @@
+//go:build linux
+
 // Copyright 2026 Optiqor contributors
 // SPDX-License-Identifier: Apache-2.0
 
@@ -223,3 +225,4 @@ func isStderrTerminal() bool {
 	}
 	return (fi.Mode() & os.ModeCharDevice) != 0
 }
+

@@ -1,3 +1,5 @@
+//go:build linux
+
 // Copyright 2026 Optiqor contributors
 // SPDX-License-Identifier: Apache-2.0
 
@@ -70,3 +72,4 @@ func TestNewDoctorCmd_IntervalParseable(t *testing.T) {
 		t.Errorf("interval = %v, want 5s", val)
 	}
 }
+

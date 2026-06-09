@@ -1,3 +1,5 @@
+//go:build linux
+
 // Copyright 2026 Optiqor contributors
 // SPDX-License-Identifier: Apache-2.0
 
@@ -286,3 +288,4 @@ func TestRegistrySignalsRoundTrip(t *testing.T) {
 		t.Errorf("Syscall.TotalCount = %d, want 50", signals.Syscall.TotalCount)
 	}
 }
+

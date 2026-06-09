@@ -54,6 +54,7 @@ const (
 	EventSchedDelay     EventType = 5
 	EventFDTrack        EventType = 6
 	EventFileAudit      EventType = 7
+        EventDNSMonitor     EventType = 8
 )
 
 // String returns the human-readable name of the event type.
@@ -73,6 +74,8 @@ func (t EventType) String() string {
 		return "fd_track"
 	case EventFileAudit:
 		return "file_audit"
+	case EventDNSMonitor:
+		return "dns_monitor"
 	default:
 		return fmt.Sprintf("unknown(%d)", t)
 	}
@@ -85,3 +88,5 @@ func (f closerFunc) Close() error {
 	f()
 	return nil
 }
+
+

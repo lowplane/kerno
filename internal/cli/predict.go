@@ -1,3 +1,5 @@
+//go:build linux
+
 // Copyright 2026 Optiqor contributors
 // SPDX-License-Identifier: Apache-2.0
 
@@ -175,3 +177,4 @@ func formatETA(d time.Duration) string {
 	}
 	return fmt.Sprintf("~%dh %dm", int(d.Hours()), int(d.Minutes())%60)
 }
+

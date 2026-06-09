@@ -1,3 +1,5 @@
+//go:build ebpf
+
 // Copyright 2026 Optiqor contributors
 // SPDX-License-Identifier: Apache-2.0
 
@@ -124,3 +126,4 @@ func DecodeOOMEvent(data []byte) (*OOMEvent, error) {
 	}
 	return &event, nil
 }
+

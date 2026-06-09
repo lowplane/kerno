@@ -1,3 +1,5 @@
+//go:build linux
+
 // Copyright 2026 Optiqor contributors
 // SPDX-License-Identifier: Apache-2.0
 
@@ -55,3 +57,4 @@ func TestNewWatchOOMCmd_Defaults(t *testing.T) {
 		}
 	}
 }
+

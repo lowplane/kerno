@@ -1,3 +1,5 @@
+//go:build ebpf
+
 // Copyright 2026 Optiqor contributors
 // SPDX-License-Identifier: Apache-2.0
 
@@ -128,3 +130,4 @@ func DecodeDNSEvent(data []byte) (*DNSEvent, error) {
 	}
 	return &event, nil
 }
+

@@ -1,3 +1,5 @@
+//go:build linux
+
 // Copyright 2026 Optiqor contributors
 // SPDX-License-Identifier: Apache-2.0
 
@@ -271,3 +273,4 @@ func readyzHandler(loaded, total int) http.HandlerFunc {
 		})
 	}
 }
+

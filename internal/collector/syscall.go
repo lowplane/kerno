@@ -1,3 +1,5 @@
+//go:build ebpf
+
 // Copyright 2026 Optiqor contributors
 // SPDX-License-Identifier: Apache-2.0
 
@@ -184,3 +186,4 @@ func histogramPercentiles(h *aggregator.Histogram) Percentiles {
 		Max: time.Duration(h.Max()),
 	}
 }
+
