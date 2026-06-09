@@ -21,6 +21,7 @@ package bpf
 
 import (
 	"fmt"
+	"log/slog"
 
 	"github.com/cilium/ebpf"
 )
@@ -122,3 +123,13 @@ func loadDnsMonitorObjects(obj *dnsMonitorObjects, opts *ebpf.CollectionOptions)
 }
 
 func (o *dnsMonitorObjects) Close() error { return nil }
+
+// --- Loader stubs (non-ebpf builds) -----------------------------------------
+
+func NewSyscallLatencyLoader(logger *slog.Logger) *syscallLatencyObjects { return nil }
+func NewTCPMonitorLoader(logger *slog.Logger) *tcpMonitorObjects         { return nil }
+func NewOOMTrackLoader(logger *slog.Logger) *oomTrackObjects             { return nil }
+func NewDiskIOLoader(logger *slog.Logger) *diskIOObjects                 { return nil }
+func NewSchedDelayLoader(logger *slog.Logger) *schedDelayObjects         { return nil }
+func NewFDTrackLoader(logger *slog.Logger) *fdTrackObjects               { return nil }
+func NewDNSMonitorLoader(logger *slog.Logger) *dnsMonitorObjects         { return nil }
