@@ -127,10 +127,3 @@ func (l *FDTrackLoader) close() {
 }
 
 // DecodeFDEvent decodes a raw event into a typed FDEvent.
-func DecodeFDEvent(data []byte) (*FDEvent, error) {
-	var event FDEvent
-	if err := binary.Read(bytes.NewReader(data), binary.LittleEndian, &event); err != nil {
-		return nil, fmt.Errorf("decoding fd event: %w", err)
-	}
-	return &event, nil
-}

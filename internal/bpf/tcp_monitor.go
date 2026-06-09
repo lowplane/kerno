@@ -127,10 +127,3 @@ func (l *TCPMonitorLoader) close() {
 }
 
 // DecodeTCPEvent decodes a raw event into a typed TCPEvent.
-func DecodeTCPEvent(data []byte) (*TCPEvent, error) {
-	var event TCPEvent
-	if err := binary.Read(bytes.NewReader(data), binary.LittleEndian, &event); err != nil {
-		return nil, fmt.Errorf("decoding tcp event: %w", err)
-	}
-	return &event, nil
-}

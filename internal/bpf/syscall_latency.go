@@ -127,10 +127,3 @@ func (l *SyscallLatencyLoader) close() {
 }
 
 // DecodeSyscallEvent decodes a raw event into a typed SyscallEvent.
-func DecodeSyscallEvent(data []byte) (*SyscallEvent, error) {
-	var event SyscallEvent
-	if err := binary.Read(bytes.NewReader(data), binary.LittleEndian, &event); err != nil {
-		return nil, fmt.Errorf("decoding syscall event: %w", err)
-	}
-	return &event, nil
-}

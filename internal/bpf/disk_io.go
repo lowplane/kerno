@@ -127,10 +127,3 @@ func (l *DiskIOLoader) close() {
 }
 
 // DecodeDiskEvent decodes a raw event into a typed DiskEvent.
-func DecodeDiskEvent(data []byte) (*DiskEvent, error) {
-	var event DiskEvent
-	if err := binary.Read(bytes.NewReader(data), binary.LittleEndian, &event); err != nil {
-		return nil, fmt.Errorf("decoding disk event: %w", err)
-	}
-	return &event, nil
-}
