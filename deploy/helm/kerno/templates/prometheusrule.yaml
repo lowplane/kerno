@@ -1,0 +1,49 @@
+{{- if .Values.prometheusRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kerno
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "kerno.labels" . | nindent 4 }}
+
+spec:
+  groups:
+    - name: kerno.rules
+      rules:
+        - alert: BPFProgramsNotLoaded
+          expr: kerno_bpf_programs_loaded == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: No eBPF programs loaded
+            description: Kerno has no loaded eBPF programs for more than 5 minutes.
+
+        - alert: CollectorErrorsHigh
+          expr: increase(kerno_collector_errors_total[5m]) > 10
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: High collector error rate
+            description: Collector errors exceeded 10 in the last 5 minutes.
+
+        - alert: OOMKillsDetected
+          expr: increase(kerno_oom_kills_total[5m]) > 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: OOM kill detected
+            description: One or more processes were killed by the OOM killer.
+
+        - alert: HighMemoryPressure
+          expr: kerno_cgroup_memory_pressure_pct > 90
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: High memory pressure
+            description: Container memory usage exceeded 90 percent.
+{{- end }}

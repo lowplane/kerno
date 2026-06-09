@@ -160,6 +160,10 @@ serviceMonitor:
   # scrapeTimeout must be less than interval.
   scrapeTimeout: 10s
 
+prometheusRule:
+
+  enabled: true
+
 # ── Tolerations ───────────────────────────────────────────────────────────────
 # By default kerno tolerates all taints so it runs on every node, including
 # control-plane nodes tainted with node-role.kubernetes.io/control-plane:NoSchedule.
