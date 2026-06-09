@@ -5,6 +5,7 @@ package metrics
 
 import (
 	"encoding/binary"
+	"fmt"
 	"log/slog"
 	"testing"
 
@@ -206,46 +207,47 @@ func TestRecordSchedDelay(t *testing.T) {
 }
 
 func TestCardinalityLimit(t *testing.T) {
-	tests := []struct {
+	cases := []struct {
 		name     string
-		calls    int
+		unique   int
 		wantLast bool
 	}{
-		{
-			name:     "at_limit",
-			calls:    LabelCardinalityLimit,
-			wantLast: true,
-		},
-		{
-			name:     "one_past_limit",
-			calls:    LabelCardinalityLimit + 1,
-			wantLast: false,
-		},
+		{"at limit", LabelCardinalityLimit, true},
+		{"one past limit", LabelCardinalityLimit + 1, false},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
 			b := NewBridge(slog.Default())
-
 			var got bool
-			for i := 0; i < tt.calls; i++ {
-				got = b.cardinalityOK("test_metric")
+			for i := 0; i < c.unique; i++ {
+				got = b.cardinalityOK("test_metric", fmt.Sprintf("k%d", i))
 			}
-
-			if got != tt.wantLast {
-				t.Fatalf("last cardinalityOK() = %v, want %v", got, tt.wantLast)
+			if got != c.wantLast {
+				t.Fatalf("last cardinalityOK() = %v, want %v", got, c.wantLast)
 			}
 		})
 	}
 
+	t.Run("known key passes when full", func(t *testing.T) {
+		b := NewBridge(slog.Default())
+		for i := 0; i < LabelCardinalityLimit; i++ {
+			b.cardinalityOK("test_metric", fmt.Sprintf("k%d", i))
+		}
+		if !b.cardinalityOK("test_metric", "k0") {
+			t.Error("known key should pass even when bucket is full")
+		}
+		if b.cardinalityOK("test_metric", "brand_new") {
+			t.Error("new key should be rejected when bucket is full")
+		}
+	})
+
 	t.Run("different_metric_still_allowed", func(t *testing.T) {
 		b := NewBridge(slog.Default())
-
 		for i := 0; i < LabelCardinalityLimit+1; i++ {
-			b.cardinalityOK("test_metric")
+			b.cardinalityOK("test_metric", fmt.Sprintf("k%d", i))
 		}
-
-		if !b.cardinalityOK("other_metric") {
+		if !b.cardinalityOK("other_metric", "any") {
 			t.Error("expected cardinalityOK to return true for different metric")
 		}
 	})
