@@ -1,10 +1,10 @@
-﻿// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Optiqor contributors.
 //
-// kerno.h â€” Shared definitions for all Kerno eBPF programs.
+// kerno.h — Shared definitions for all Kerno eBPF programs.
 //
 // Every event struct defined here MUST match the corresponding Go struct
-// in the loader (internal/bpf/*.go) exactly â€” same field order, same sizes.
+// in the loader (internal/bpf/*.go) exactly — same field order, same sizes.
 // Use explicit-width types (__u32, __u64, etc.) and pack where needed.
 
 #ifndef __KERNO_H__
@@ -16,19 +16,19 @@
 #include <bpf/bpf_core_read.h>
 #include <bpf/bpf_endian.h>
 
-// â”€â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Constants ──────────────────────────────────────────────────────────────
 
 #define TASK_COMM_LEN  16
 #define MAX_ENTRIES    8192
 #define RINGBUF_SIZE   (256 * 1024)  // 256 KB per ring buffer
 
-// â”€â”€â”€ Severity levels (matches Go Severity type) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Severity levels (matches Go Severity type) ────────────────────────────
 
 #define SEVERITY_INFO     0
 #define SEVERITY_WARNING  1
 #define SEVERITY_CRITICAL 2
 
-// â”€â”€â”€ Event types (discriminator for union-style processing) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Event types (discriminator for union-style processing) ────────────────
 
 #define EVENT_SYSCALL_LATENCY  1
 #define EVENT_TCP_MONITOR      2
@@ -38,7 +38,7 @@
 #define EVENT_FD_TRACK         6
 #define EVENT_FILE_AUDIT       7
 
-// â”€â”€â”€ Syscall Latency Event â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Syscall Latency Event ─────────────────────────────────────────────────
 
 struct syscall_event {
     __u64 timestamp_ns;
@@ -51,7 +51,7 @@ struct syscall_event {
     char  comm[TASK_COMM_LEN];
 };
 
-// â”€â”€â”€ TCP Monitor Event â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── TCP Monitor Event ─────────────────────────────────────────────────────
 
 // TCP event subtypes.
 #define TCP_EVENT_CONNECT     1
@@ -76,7 +76,7 @@ struct tcp_event {
     __u8 _pad[4];
 };
 
-// â”€â”€â”€ OOM Kill Event â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── OOM Kill Event ────────────────────────────────────────────────────────
 
 struct oom_event {
     __u64 timestamp_ns;
@@ -90,7 +90,7 @@ struct oom_event {
     char  comm[TASK_COMM_LEN];
 };
 
-// â”€â”€â”€ Disk I/O Event â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Disk I/O Event ────────────────────────────────────────────────────────
 
 struct disk_event {
     __u64 timestamp_ns;
@@ -104,7 +104,7 @@ struct disk_event {
     char  comm[TASK_COMM_LEN];
 };
 
-// â”€â”€â”€ Scheduler Delay Event â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Scheduler Delay Event ─────────────────────────────────────────────────
 
 struct sched_event {
     __u64 timestamp_ns;
@@ -115,7 +115,7 @@ struct sched_event {
     char  comm[TASK_COMM_LEN];
 };
 
-// â”€â”€â”€ File Descriptor Track Event â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── File Descriptor Track Event ───────────────────────────────────────────
 
 #define FD_OP_OPEN   1
 #define FD_OP_CLOSE  2
@@ -130,7 +130,7 @@ struct fd_event {
     char  comm[TASK_COMM_LEN];
 };
 
-// â”€â”€â”€ File Audit Event â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── File Audit Event ──────────────────────────────────────────────────────
 
 #define MAX_FILENAME_LEN 256
 
@@ -145,7 +145,7 @@ struct file_event {
     char  filename[MAX_FILENAME_LEN];
 };
 
-// â”€â”€â”€ Helper macros â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Helper macros ─────────────────────────────────────────────────────────
 
 // Declare a BPF ring buffer map with the given name.
 #define KERNO_RINGBUF(name) \
@@ -163,5 +163,28 @@ struct file_event {
         __type(value, val_type); \
     } name SEC(".maps")
 
+// --- DNS Monitor Event -------------------------------------------------------
+
+#define EVENT_DNS_MONITOR  8
+
+// DNS event subtypes.
+#define DNS_EVENT_SEND  1
+#define DNS_EVENT_RECV  2
+
+struct dns_event {
+    __u64 timestamp_ns;
+    __u64 cgroup_id;
+    __u32 pid;
+    __u32 saddr;
+    __u32 daddr;
+    __u16 sport;
+    __u16 dport;
+    __u16 query_id;
+    __u8  event_type;
+    __u8  _pad0;
+    char  comm[TASK_COMM_LEN];
+};
+
 #endif // __KERNO_H__
+
 
