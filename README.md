@@ -2,12 +2,12 @@
 
 # KERNO
 
-### The production incident diagnosis engine for Kubernetes
+### The Production Incident Diagnosis Engine for Kubernetes
 
 **Your cluster broke. Your dashboards are green. Users are paging.**
 **Run `kerno doctor`. 30 seconds. Root cause. Plain English.**
 
-<sub>Same single binary runs on bare metal, VMs, EC2, GCE - wherever Linux lives.</sub>
+<sub>Same single binary runs on bare metal, VMs, EC2, GCE — wherever Linux lives.</sub>
 
 [![CI](https://github.com/optiqor/kerno/actions/workflows/ci.yml/badge.svg)](https://github.com/optiqor/kerno/actions/workflows/ci.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/optiqor/kerno)](https://goreportcard.com/report/github.com/optiqor/kerno)
@@ -16,7 +16,7 @@
 [![GHCR](https://img.shields.io/badge/ghcr.io-optiqor%2Fkerno-blue?logo=docker)](https://github.com/optiqor/kerno/pkgs/container/kerno)
 ![Go Version](https://img.shields.io/github/go-mod/go-version/optiqor/kerno)
 
-[**Quick Start**](#quick-start) · [**How It Works**](#how-it-works) · [**Features**](#features) · [**Kubernetes**](#kubernetes-deployment) · [**Docs**](docs/architecture.md)
+[**Introduction**](#what-is-kerno) · [**Features**](#features) · [**Quick Start**](#quick-start) · [**Usage**](#usage) · [**Kubernetes**](#kubernetes-deployment) · [**Contributing**](#contributing) · [**Docs**](docs/architecture.md)
 
 <img src="demo.gif" alt="kerno doctor demo" width="900" />
 
@@ -24,10 +24,35 @@
 
 ---
 
+## Table of Contents
+
+- [What is Kerno?](#what-is-kerno)
+- [Why Kerno?](#why-kerno)
+- [How Kerno Compares](#how-kerno-compares)
+- [Features](#features)
+- [Quick Start](#quick-start)
+  - [Kubernetes](#1--kubernetes-primary)
+  - [Bare Metal / VMs / EC2 / GCE](#2--bare-metal--vms--ec2--gce)
+  - [Docker](#3--docker-ad-hoc)
+  - [Shell Completion](#shell-completion)
+- [Kubernetes Deployment](#kubernetes-deployment)
+- [Usage](#usage)
+- [How It Works](#how-it-works)
+- [The Diagnostic Rules](#the-diagnostic-rules)
+- [Prometheus Metrics](#prometheus-metrics)
+- [Environment & AI Integration](#environment--ai-integration)
+- [Configuration](#configuration)
+- [Building from Source](#building-from-source)
+- [Roadmap](#roadmap)
+- [Contributing](#contributing)
+- [License](#license)
+
+---
+
 ## What is Kerno?
 
 Kerno is a **Kubernetes-native incident diagnosis engine** built on eBPF.
-It runs as a DaemonSet on every node, watches the kernel - not your app - and answers a single question on demand:
+It runs as a DaemonSet on every node, watches the kernel — not your app — and answers one question on demand:
 
 > *Why is production broken right now?*
 
@@ -35,19 +60,21 @@ It runs as a DaemonSet on every node, watches the kernel - not your app - and an
 kubectl -n kerno-system exec ds/kerno -- kerno doctor
 ```
 
-30 seconds later you get a ranked diagnostic report with **plain-English causes, evidence, ETAs, and copy-paste fix steps** - no dashboards to wire, no query language to learn, no agents in your app.
+30 seconds later you get a ranked diagnostic report with **plain-English causes, evidence, ETAs, and copy-paste fix steps** — no dashboards to wire, no query language to learn, no agents in your app.
 
 The kernel knows minutes before your APM. Hours before your users. Kerno makes that visible.
 
-**Same binary outside Kubernetes too.** `curl | bash` it onto any bare-metal box, EC2 instance, or systemd VM and `sudo kerno doctor` works exactly the same.
+**Works outside Kubernetes too.** `curl | bash` it onto any bare-metal box, EC2 instance, or systemd VM and `sudo kerno doctor` works exactly the same.
+
+---
 
 ## Why Kerno?
 
-It's 3am. PagerDuty fires. Latency is up, error budget is burning, and every dashboard you own is **green**.
+It's 3am. PagerDuty fires. Latency is up, error budget is burning — and every dashboard you own is **green**.
 
 - Prometheus says CPU and memory look fine.
 - Datadog APM says your app is healthy.
-- The Grafana panels your SRE spent a weekend building - all green.
+- The Grafana panels your SRE spent a weekend building — all green.
 
 **That's because every tool you have watches your _application_. Nothing is watching the kernel.**
 
@@ -82,51 +109,85 @@ flowchart TB
     style Bare fill:#16213e,stroke:#0f3460,color:#888
 ```
 
-The kernel is where the pain actually lives - disk throttling, TCP retransmits, OOM kills, scheduler contention, FD leaks. The kernel knows minutes before your dashboards. Hours before your users.
-
-Kerno runs as a DaemonSet on every node, streams kernel signals through eBPF with microsecond overhead, and turns them into a diagnostic report that reads like a doctor's note.
-
-```bash
-kubectl -n kerno-system exec ds/kerno -- kerno doctor
-```
-
-One command. 30 seconds later, you get the report shown in the [demo above](#kerno) - ranked findings, plain-English causes, evidence, and copy-paste fix steps.
-
-That's the entire debugging loop - from page to root cause - in a single command.
+The kernel is where the pain actually lives — disk throttling, TCP retransmits, OOM kills, scheduler contention, FD leaks. Kerno runs as a DaemonSet on every node, streams kernel signals through eBPF with microsecond overhead, and turns them into a diagnostic report that reads like a doctor's note.
 
 ---
 
-## How Kerno compares
+## How Kerno Compares
 
 | | Watches | K8s-Native | Incident Report | SLO Mapping | AI Analysis | Install Time |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
-| Prometheus + Grafana | Application | Partial | No | No | No | Hours |
-| Datadog APM | Application | Partial | No | Partial | Yes | Hours |
-| Cilium Tetragon | Security | **Yes** | No | No | No | Minutes |
-| Inspektor Gadget | Container | **Yes** | No | No | No | Minutes |
-| Pixie | Application | **Yes** | No | No | No | Minutes |
-| **Kerno** | **Kernel** | **Yes** | **Yes** | **Yes** | **Yes** | **< 1 min** |
+| Prometheus + Grafana | Application | Partial | ✗ | ✗ | ✗ | Hours |
+| Datadog APM | Application | Partial | ✗ | Partial | ✓ | Hours |
+| Cilium Tetragon | Security | ✓ | ✗ | ✗ | ✗ | Minutes |
+| Inspektor Gadget | Container | ✓ | ✗ | ✗ | ✗ | Minutes |
+| Pixie | Application | ✓ | ✗ | ✗ | ✗ | Minutes |
+| **Kerno** | **Kernel** | **✓** | **✓** | **✓** | **✓** | **< 1 min** |
 
-Kerno is the only eBPF tool in the Kubernetes ecosystem that produces a ranked, human-readable **incident report** - not a firehose of events, not another dashboard, not a query language to learn.
+Kerno is the only eBPF tool in the Kubernetes ecosystem that produces a ranked, human-readable **incident report** — not a firehose of events, not another dashboard, not a query language to learn.
+
+---
+
+## Features
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### Incident Diagnosis
+
+- **`kerno doctor`** — 30-second cluster-wide diagnostic, ranked findings, fix suggestions
+- **`kerno explain`** — AI-powered kernel error explanation (no root needed)
+- **`kerno predict`** — surface failures before they page you
+
+### Real-Time Tracing
+
+- **`kerno trace syscall`** — per-pod syscall latency streaming
+- **`kerno trace disk`** — block I/O latency by device, op, process
+- **`kerno trace sched`** — CPU scheduler run queue delays
+
+</td>
+<td width="50%" valign="top">
+
+### Continuous Monitoring
+
+- **`kerno watch tcp`** — TCP connections, RTT, retransmits
+- **`kerno watch oom`** — OOM kill alerts with pod context
+- **`kerno watch fd`** — FD leak detection via growth rate
+- **`kerno start`** — daemon mode with Prometheus metrics
+
+### Integrations
+
+- **Prometheus** — 16 metrics at `/metrics`, ServiceMonitor support
+- **Kubernetes** — Helm chart + pod enrichment (no API server load)
+- **AI Providers** — Anthropic, OpenAI, Ollama (optional, opt-in)
+- **Systemd** — unit/slice enrichment on bare metal
+
+</td>
+</tr>
+</table>
 
 ---
 
 ## Quick Start
 
-> **Requires:** kernel **5.8+** with BTF (every major managed K8s qualifies: EKS, GKE, AKS, DOKS, Linode, Civo). For raw manifests/Helm you'll need cluster-admin.
+> **Requirements:** Linux kernel **5.8+** with BTF. Every major managed Kubernetes qualifies: EKS, GKE, AKS, DOKS, Linode, Civo. For Helm/raw manifests, you'll need `cluster-admin`.
 
-### 1 · Kubernetes (primary)
+### 1 · Kubernetes (Primary)
 
 ```bash
 helm install kerno ./deploy/helm/kerno \
   -n kerno-system --create-namespace
 ```
 
-Within 30 seconds Kerno is running as a DaemonSet on every node, watching the kernel via eBPF, exposing `/metrics` for Prometheus, and ready for `kerno doctor`.
+Within 30 seconds, Kerno is running as a DaemonSet on every node, watching the kernel via eBPF, exposing `/metrics` for Prometheus, and ready for `kerno doctor`.
 
 ```bash
-# Cluster-wide incident report - 30 seconds of real kernel data
+# Cluster-wide incident report — 30 seconds of real kernel data
 kubectl -n kerno-system exec ds/kerno -- kerno doctor
+
+# Quick 10-second check
+kubectl -n kerno-system exec ds/kerno -- kerno doctor --duration 10s
 
 # CI-friendly: machine-readable JSON, exits non-zero on critical findings
 kubectl -n kerno-system exec ds/kerno -- kerno doctor --output json --exit-code
@@ -140,54 +201,54 @@ ServiceMonitor for the Prometheus Operator is built-in. Raw manifests live at [`
 
 ---
 
-
-### 2 · Bare metal · VMs · EC2 · GCE
+### 2 · Bare Metal · VMs · EC2 · GCE
 
 The same binary, the same command. No Kubernetes required.
 
-#### Native package manager (recommended for production)
+#### Option A — Native Package Manager (recommended for production)
 
-On Debian/Ubuntu:
+**Debian / Ubuntu:**
+
 ```bash
 curl -LO https://github.com/optiqor/kerno/releases/latest/download/kerno_<version>_amd64.deb
 sudo apt install ./kerno_<version>_amd64.deb
-```
-
-On RHEL / Fedora / Amazon Linux 2023:
-```bash
-curl -LO https://github.com/optiqor/kerno/releases/latest/download/kerno-<version>-1.x86_64.rpm
-sudo dnf install kerno-<version>-1.x86_64.rpm
-```
-
-Once installed, run:
-
-```bash
 sudo kerno doctor
 ```
 
-If you want kerno running persistently as a daemon (for continuous 
-Prometheus metrics):
+**RHEL / Fedora / Amazon Linux 2023:**
+
+```bash
+curl -LO https://github.com/optiqor/kerno/releases/latest/download/kerno-<version>-1.x86_64.rpm
+sudo dnf install kerno-<version>-1.x86_64.rpm
+sudo kerno doctor
+```
+
+**Run as a persistent daemon** (continuous Prometheus metrics):
 
 ```bash
 sudo systemctl enable --now kerno
 journalctl -u kerno -f
 ```
 
-#### curl installer (quick start / CI)
+#### Option B — curl Installer (quick start / CI)
 
 ```bash
 curl -sfL https://raw.githubusercontent.com/optiqor/kerno/main/scripts/install.sh | sudo bash
 sudo kerno doctor
 ```
 
-Long-lived systemd service with `/metrics` for Prometheus:
+**Long-lived systemd service** with `/metrics` for Prometheus:
 
 ```bash
 curl -sfL https://raw.githubusercontent.com/optiqor/kerno/main/scripts/install.sh | sudo bash -s -- --daemon
 journalctl -u kerno -f
 ```
 
-### 3 · Docker (ad-hoc, any host with a privileged daemon)
+---
+
+### 3 · Docker (Ad-Hoc)
+
+Any host with a privileged Docker daemon:
 
 ```bash
 docker run --rm --privileged --pid=host \
@@ -198,7 +259,9 @@ docker run --rm --privileged --pid=host \
   ghcr.io/optiqor/kerno:latest doctor
 ```
 
-Multi-arch (`linux/amd64`, `linux/arm64`) images published to GHCR on every release.
+Multi-arch images (`linux/amd64`, `linux/arm64`) are published to GHCR on every release.
+
+---
 
 ### Shell Completion
 
@@ -207,7 +270,7 @@ Enable tab completion for your shell:
 **Bash:**
 
 ```bash
-# Load completions for current session
+# Load for current session
 source <(kerno completion bash)
 
 # Persist across sessions
@@ -217,21 +280,19 @@ echo 'source <(kerno completion bash)' >> ~/.bashrc
 **Zsh:**
 
 ```bash
-# Enable completions (add to ~/.zshrc if not already present)
-echo 'autoload -U compinit; compinit' >> ~/.zshrc
-
-# Load completions for current session
+# Load for current session
 autoload -U compinit && compinit
 kerno completion zsh > "${fpath[1]}/_kerno"
 
-# Persist across sessions - run once, then start new shell
+# Persist across sessions
+echo 'autoload -U compinit; compinit' >> ~/.zshrc
 kerno completion zsh > "${fpath[1]}/_kerno"
 ```
 
 **Fish:**
 
 ```bash
-# Load completions for current session
+# Load for current session
 kerno completion fish | source
 
 # Persist across sessions
@@ -241,7 +302,6 @@ kerno completion fish > ~/.config/fish/completions/kerno.fish
 **PowerShell:**
 
 ```powershell
-# Add to your PowerShell profile
 kerno completion powershell > kerno.ps1
 . ./kerno.ps1
 ```
@@ -250,7 +310,7 @@ kerno completion powershell > kerno.ps1
 
 ## Kubernetes Deployment
 
-Kerno is designed from day one to run as a Kubernetes DaemonSet. One pod per node, one eBPF agent per kernel, zero API server load.
+Kerno is designed from day one to run as a Kubernetes DaemonSet — one pod per node, one eBPF agent per kernel, zero API server load.
 
 ```mermaid
 flowchart TB
@@ -289,13 +349,13 @@ flowchart TB
     style W3 fill:#533483,stroke:#fff,color:#fff
 ```
 
-### Pod enrichment - no API server load
+### Pod Enrichment — No API Server Load
 
-Kerno tags every finding with pod, namespace, node, and workload labels. No `client-go` informers, no watch connections - Kerno reads `/var/lib/kubelet/pods` directly, so even a failing API server doesn't blind the agent. Exactly when you need it most.
+Kerno tags every finding with pod, namespace, node, and workload labels. No `client-go` informers, no watch connections — Kerno reads `/var/lib/kubelet/pods` directly, so even a failing API server doesn't blind the agent. Exactly when you need it most.
 
-### Host mounts - the minimum necessary
+### Required Host Mounts
 
-| Mount | Why |
+| Mount | Purpose |
 |---|---|
 | `/sys/kernel/debug` | tracepoints, kprobes |
 | `/sys/kernel/btf` | CO-RE type resolution |
@@ -305,14 +365,14 @@ Kerno tags every finding with pod, namespace, node, and workload labels. No `cli
 | `/sys/class/net` | per-interface TCP counters |
 | `/sys/block` | per-device disk stats |
 
-### Security posture
+### Security Posture
 
-- Runs with the **minimum capabilities needed** - `CAP_BPF`, `CAP_PERFMON`, `CAP_SYS_PTRACE`, `CAP_NET_ADMIN`, `CAP_DAC_READ_SEARCH` (not `CAP_SYS_ADMIN` for the hot path).
-- Read-only root filesystem, `ProtectSystem=strict` via systemd on bare metal.
-- No outbound network calls. AI integration is opt-in and goes through your configured provider only.
-- **Opt-in NetworkPolicy**: Limit metrics ingress to Prometheus pods, and allow DNS, K8s API server, and Kubelet egress. (Note: Since Kerno runs with `hostNetwork: true`, standard `NetworkPolicy` resources do not enforce restrictions on it in most mainstream CNIs without host-firewall configuration). See [Helm README](deploy/helm/kerno/README.md).
+- Runs with **minimum capabilities**: `CAP_BPF`, `CAP_PERFMON`, `CAP_SYS_PTRACE`, `CAP_NET_ADMIN`, `CAP_DAC_READ_SEARCH` — not `CAP_SYS_ADMIN` for the hot path.
+- Read-only root filesystem; `ProtectSystem=strict` via systemd on bare metal.
+- No outbound network calls. AI integration is opt-in only.
+- **Opt-in NetworkPolicy**: limits metrics ingress to Prometheus pods. Note: since Kerno runs with `hostNetwork: true`, standard `NetworkPolicy` resources do not enforce restrictions without host-firewall configuration. See [Helm README](deploy/helm/kerno/README.md).
 
-### Helm values
+### Helm Values
 
 ```yaml
 image:
@@ -327,7 +387,7 @@ prometheus:
   enabled: true
   port: 9090
 
-serviceMonitor:     # Prometheus Operator
+serviceMonitor:           # Prometheus Operator
   enabled: true
   interval: 15s
 
@@ -338,7 +398,7 @@ nodeSelector:
   monitoring: "true"
 ```
 
-### Verify
+### Verify Installation
 
 ```bash
 kubectl -n kerno-system get ds kerno
@@ -348,50 +408,65 @@ kubectl -n kerno-system exec ds/kerno -- kerno doctor
 
 ---
 
-## Features
+## Usage
 
-<table>
-<tr>
-<td width="50%" valign="top">
+### Incident Diagnosis — "What broke just now?"
 
-### Incident Diagnosis
+```bash
+# The golden command
+kubectl -n kerno-system exec ds/kerno -- kerno doctor
 
-- **`kerno doctor`** - 30-second cluster-wide diagnostic, ranked findings, fix suggestions
-- **`kerno explain`** - AI-powered kernel error explanation (no root needed)
-- **`kerno predict`** - surface failures before they page you
+# Quick 10-second check
+kubectl -n kerno-system exec ds/kerno -- kerno doctor --duration 10s
 
-### Real-Time Tracing
+# JSON for CI/CD, runbooks, Slack bots (non-zero exit on critical)
+kubectl -n kerno-system exec ds/kerno -- kerno doctor --output json --exit-code
 
-- **`kerno trace syscall`** - per-pod syscall latency streaming
-- **`kerno trace disk`** - block I/O latency by device, op, process
-- **`kerno trace sched`** - CPU scheduler run queue delays
+# AI-powered root cause analysis
+kubectl -n kerno-system exec ds/kerno -- kerno doctor --ai
 
-</td>
-<td width="50%" valign="top">
+# Explain a kernel error (no root, no cluster needed)
+kerno explain "BUG: kernel NULL pointer dereference"
+dmesg | tail -5 | kerno explain
 
-### Continuous Monitoring
+# Predict failures before they page you
+kubectl -n kerno-system exec ds/kerno -- kerno predict --snapshots 5 --interval 15s
+```
 
-- **`kerno watch tcp`** - TCP connections, RTT, retransmits
-- **`kerno watch oom`** - OOM kill alerts with pod context
-- **`kerno watch fd`** - FD leak detection via growth rate
-- **`kerno start`** - daemon mode with Prometheus metrics
+### Real-Time Tracing — "Watch it happen"
 
-### Integrations
+```bash
+# Stream every syscall event
+kubectl -n kerno-system exec ds/kerno -- kerno trace syscall
 
-- **Prometheus** - 16 metrics at `/metrics`, ServiceMonitor support
-- **Kubernetes** - Helm chart + pod enrichment (no API server load)
-- **AI Providers** - Anthropic, OpenAI, Ollama (optional, opt-in)
-- **Systemd** - unit/slice enrichment on bare metal
+# Syscalls for a specific pod's PID
+kubectl -n kerno-system exec ds/kerno -- kerno trace syscall --pid 1234
 
-</td>
-</tr>
-</table>
+# Postgres disk writes over 5ms
+kubectl -n kerno-system exec ds/kerno -- kerno trace disk --process postgres --op write --threshold 5ms
+
+# Scheduler delays over 10ms
+kubectl -n kerno-system exec ds/kerno -- kerno trace sched --threshold 10ms
+```
+
+### Continuous Monitoring — "Alert me when…"
+
+```bash
+# TCP connections with retransmits
+kubectl -n kerno-system exec ds/kerno -- kerno watch tcp --retransmits
+
+# Any OOM kill, with pod context
+kubectl -n kerno-system exec ds/kerno -- kerno watch oom --alert
+
+# Processes leaking FDs
+kubectl -n kerno-system exec ds/kerno -- kerno watch fd --threshold 10
+```
 
 ---
 
 ## How It Works
 
-Kerno runs as a lightweight Go agent with six tiny eBPF programs attached to stable tracepoints. When `kerno doctor` runs, it collects 30 seconds of real kernel data, evaluates 11 diagnostic rules deterministically, and emits a ranked incident report. No sampling. No guesswork. No query language.
+Kerno runs as a lightweight Go agent with six tiny eBPF programs attached to stable tracepoints. When `kerno doctor` runs, it collects 30 seconds of real kernel data, evaluates 11 diagnostic rules deterministically, and emits a ranked incident report — no sampling, no guesswork, no query language.
 
 ### Architecture
 
@@ -449,15 +524,15 @@ flowchart TB
     class AI ai
 ```
 
-### Core principles
+### Core Principles
 
-1. **Deterministic first.** The rule engine is pure Go, testable, and runs whether AI is on or off. Every finding has a clear cause, threshold, and fix.
-2. **Zero-copy hot path.** Kernel events land in eBPF ring buffers and are drained via `mmap` - microsecond overhead, no serialization cost.
-3. **No API server load.** Pod enrichment reads the kubelet's local pod manifests. The agent survives API server outages - the moment you need it most.
+1. **Deterministic first.** The rule engine is pure Go, testable, and runs whether or not AI is enabled. Every finding has a clear cause, threshold, and fix.
+2. **Zero-copy hot path.** Kernel events land in eBPF ring buffers and are drained via `mmap` — microsecond overhead, no serialization cost.
+3. **No API server load.** Pod enrichment reads the kubelet's local pod manifests. The agent survives API server outages — the moment you need it most.
 4. **AI is a post-processor.** Optional. Opt-in. Never touches the hot path. The deterministic engine always runs; AI enriches, it never replaces.
-5. **Graceful degradation.** If an eBPF program fails to load on a weird kernel, that collector is skipped with a clear warning. The rest keep working.
+5. **Graceful degradation.** If an eBPF program fails to load on an unusual kernel, that collector is skipped with a clear warning. The rest keep working.
 
-### Data flow
+### Data Flow
 
 ```mermaid
 sequenceDiagram
@@ -505,65 +580,9 @@ Kerno runs 11 deterministic rules against every snapshot. Every rule is explaina
 
 ---
 
-## Usage
-
-### Incident diagnosis - "what broke just now?"
-
-```bash
-# The golden command
-kubectl -n kerno-system exec ds/kerno -- kerno doctor
-
-# Quick 10-second check
-kubectl -n kerno-system exec ds/kerno -- kerno doctor --duration 10s
-
-# JSON for CI/CD, runbooks, Slack bots (non-zero exit on critical)
-kubectl -n kerno-system exec ds/kerno -- kerno doctor --output json --exit-code
-
-# AI-powered root cause analysis
-kubectl -n kerno-system exec ds/kerno -- kerno doctor --ai
-
-# Explain a kernel error (no root, no cluster needed)
-kerno explain "BUG: kernel NULL pointer dereference"
-dmesg | tail -5 | kerno explain
-
-# Predict failures before they page you
-kubectl -n kerno-system exec ds/kerno -- kerno predict --snapshots 5 --interval 15s
-```
-
-### Real-time tracing - "watch it happen"
-
-```bash
-# Every syscall event streaming
-kubectl -n kerno-system exec ds/kerno -- kerno trace syscall
-
-# Only syscalls from a specific pod's PID
-kubectl -n kerno-system exec ds/kerno -- kerno trace syscall --pid 1234
-
-# Postgres disk writes over 5ms
-kubectl -n kerno-system exec ds/kerno -- kerno trace disk --process postgres --op write --threshold 5ms
-
-# Scheduler delays over 10ms
-kubectl -n kerno-system exec ds/kerno -- kerno trace sched --threshold 10ms
-```
-
-### Continuous monitoring - "alert me when…"
-
-```bash
-# TCP connections with retransmits
-kubectl -n kerno-system exec ds/kerno -- kerno watch tcp --retransmits
-
-# Any OOM kill, with pod context
-kubectl -n kerno-system exec ds/kerno -- kerno watch oom --alert
-
-# Processes leaking FDs
-kubectl -n kerno-system exec ds/kerno -- kerno watch fd --threshold 10
-```
-
----
-
 ## Prometheus Metrics
 
-The DaemonSet exposes 16 metrics at `:9090/metrics`. ServiceMonitor is included when the Prometheus Operator is installed.
+The DaemonSet exposes 16 metrics at `:9090/metrics`. A ServiceMonitor is included when the Prometheus Operator is installed.
 
 <details>
 <summary><b>View all 16 metrics</b></summary>
@@ -592,20 +611,32 @@ Health endpoints: `/healthz` and `/readyz` return JSON status.
 
 ---
 
-## Environment & AI
+## Environment & AI Integration
 
-**Environment auto-detection.** Kerno picks one of three adapters and enriches every event - no configuration required:
+### Environment Auto-Detection
 
-- **Kubernetes** (in-cluster token present) → pod, namespace, node, deployment
-- **Systemd** (PID 1 is systemd) → unit, slice, scope
-- **Bare metal** → hostname, cgroup path
+Kerno picks one of three adapters and enriches every event automatically — no configuration required:
 
-**AI (optional).** The AI layer runs **after** the deterministic rule engine - it correlates cross-signals and explains root causes, it never replaces rules. Three providers (**Anthropic**, **OpenAI**, **Ollama** for air-gapped), three privacy modes (`full` / `redacted` / `summary`), TTL cache + token-bucket rate limiting, graceful fallback to a deterministic template on failure. No LLM SDK dependencies - pure `net/http`.
+| Environment | Detection | Enrichment |
+|---|---|---|
+| **Kubernetes** | in-cluster token present | pod, namespace, node, deployment |
+| **Systemd** | PID 1 is systemd | unit, slice, scope |
+| **Bare Metal** | fallback | hostname, cgroup path |
+
+### AI Integration (Optional)
+
+The AI layer runs **after** the deterministic rule engine — it correlates cross-signals and explains root causes, it never replaces rules.
+
+- Three providers: **Anthropic**, **OpenAI**, **Ollama** (for air-gapped environments)
+- Three privacy modes: `full` / `redacted` / `summary`
+- TTL cache + token-bucket rate limiting; graceful fallback to deterministic template on failure
+- No LLM SDK dependencies — pure `net/http`
 
 ```bash
 kubectl -n kerno-system set env ds/kerno \
   KERNO_AI_API_KEY=sk-... \
   KERNO_AI_PROVIDER=anthropic
+
 kubectl -n kerno-system exec ds/kerno -- kerno doctor --ai
 ```
 
@@ -613,7 +644,9 @@ kubectl -n kerno-system exec ds/kerno -- kerno doctor --ai
 
 ## Configuration
 
-Kerno works with **zero configuration**. For custom setups, mount a `config.yaml` or use `KERNO_*` env vars:
+Kerno works with **zero configuration** out of the box. For custom setups, mount a `config.yaml` or use `KERNO_*` environment variables.
+
+**Precedence:** CLI flags > environment variables (`KERNO_*`) > config file > defaults.
 
 ```yaml
 log_level: info
@@ -649,28 +682,14 @@ ai:
   privacy_mode: summary
 ```
 
-**Precedence:** CLI flags > environment variables (`KERNO_*`) > config file > defaults.
-
----
-
-## Roadmap
-
-See [TODO.md](TODO.md) for the full plan. Headlines:
-
-- **v0.1** - DaemonSet, 6 eBPF collectors, 11 rules, Prometheus, AI post-processor, 7 chaos scenarios, 13-phase verify pipeline - **shipped, all gates green on kernel 6.17**
-- **v0.2** - CRD for cluster-wide incident policies, OpenTelemetry OTLP export, Grafana dashboards, sliding-window aggregation
-- **v0.3** - historical incident replay, SLO-linked alerts, Slack / PagerDuty integrations
-- **v1.0** - multi-cluster control plane, managed offering (Optiqor Cloud)
-
 ---
 
 ## Building from Source
 
-```bash
-# Requirements: Go 1.25+
-# Optional for real eBPF: clang 14+, libbpf-dev, llvm, bpftool
+**Requirements:** Go 1.25+. For real eBPF compilation: clang 14+, libbpf-dev, llvm, bpftool.
 
-make build          # Build binary (uses BPF stubs - no clang needed)
+```bash
+make build          # Build binary (uses BPF stubs — no clang needed)
 make generate       # Run bpf2go to produce *_bpfel.go from C sources
 make bpf            # Compile eBPF C programs to .o
 make bpf-verify     # Build the standalone kernel-verifier load harness
@@ -681,7 +700,7 @@ make check          # vet + test + lint
 make verify         # Comprehensive 13-phase production-readiness check
 make manpage        # Generate man pages for all CLI commands
 make demo           # Record demo.gif via vhs (needs vhs + ttyd + ffmpeg)
-make demo-cast      # Record demo.cast via asciinema (alternative to vhs)
+make demo-cast      # Record demo.cast via asciinema
 make docker         # Build Docker image
 ```
 
@@ -695,29 +714,45 @@ sudo apt-get install -y clang llvm libbpf-dev linux-tools-$(uname -r) jq
 make verify         # exits 0 only if all 62 checks pass
 ```
 
-**Inducing real incidents to demo or test rule firing:**
+**Inducing real incidents for testing:**
 
 ```bash
-sudo tc qdisc add dev lo root netem loss 30%   # optional, for tcp-loss
+sudo tc qdisc add dev lo root netem loss 30%   # optional: for tcp-loss scenario
 kerno chaos --induce <scenario> --intensity high --duration 30s
-
-# Available scenarios (kerno chaos --list):
-#   cpu        scheduler_contention
-#   disk-sat   disk_io_bottleneck
-#   fd-leak    fd_leak
-#   memory     oom_imminent
-#   tcp-churn  scheduler_contention
-#   tcp-loss   tcp_retransmit_storm
-#   cascade    multiple
 ```
 
-In another shell, `sudo kerno doctor` will catch the induced incident.
+Available chaos scenarios (`kerno chaos --list`):
+
+| Scenario | Type |
+|---|---|
+| `cpu` | scheduler_contention |
+| `disk-sat` | disk_io_bottleneck |
+| `fd-leak` | fd_leak |
+| `memory` | oom_imminent |
+| `tcp-churn` | scheduler_contention |
+| `tcp-loss` | tcp_retransmit_storm |
+| `cascade` | multiple |
+
+In another terminal, run `sudo kerno doctor` to catch the induced incident.
+
+---
+
+## Roadmap
+
+See [TODO.md](TODO.md) for the full plan. Headlines:
+
+| Version | Status | Highlights |
+|---|---|---|
+| **v0.1** | ✅ Shipped | DaemonSet, 6 eBPF collectors, 11 rules, Prometheus, AI post-processor, 7 chaos scenarios, 13-phase verify pipeline — all gates green on kernel 6.17 |
+| **v0.2** | 🔜 Planned | CRD for cluster-wide incident policies, OpenTelemetry OTLP export, Grafana dashboards, sliding-window aggregation |
+| **v0.3** | 🔜 Planned | Historical incident replay, SLO-linked alerts, Slack / PagerDuty integrations |
+| **v1.0** | 🔜 Planned | Multi-cluster control plane, managed offering (Optiqor Cloud) |
 
 ---
 
 ## Contributing
 
-Contributions welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for:
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting a PR. It covers:
 
 - Development setup and prerequisites
 - Commit message conventions (Conventional Commits)
@@ -730,12 +765,12 @@ For security reports, see [SECURITY.md](SECURITY.md).
 
 ## License
 
-Apache License 2.0 - see [LICENSE](LICENSE).
-
-<div align="center">
+Apache License 2.0 — see [LICENSE](LICENSE) for details.
 
 ---
 
-If Kerno saved your on-call shift, consider leaving a **⭐**  it helps other engineers find the project.
+<div align="center">
+
+If Kerno saved your on-call shift, consider leaving a ⭐ — it helps other engineers find the project.
 
 </div>
