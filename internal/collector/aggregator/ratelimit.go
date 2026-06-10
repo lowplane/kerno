@@ -10,6 +10,10 @@ import (
 	"time"
 )
 
+// RateLimiter is a token-bucket rate limiter with probabilistic sampling
+// fallback. Once the token bucket empties, Allow() passes events at the
+// configured sample rate instead of hard-dropping everything.
+// It is safe for concurrent use.
 type RateLimiter struct {
 	mu         sync.Mutex
 	budget     int64
@@ -22,6 +26,8 @@ type RateLimiter struct {
 	sampledTotal atomic.Int64
 }
 
+// NewRateLimiter creates a RateLimiter with the given events/sec budget.
+// A budget of 0 disables rate limiting (all events pass).
 func NewRateLimiter(budget int64) *RateLimiter {
 	rl := &RateLimiter{
 		budget:     budget,
@@ -32,6 +38,9 @@ func NewRateLimiter(budget int64) *RateLimiter {
 	return rl
 }
 
+// Allow reports whether the current event should be processed.
+// Refills the token bucket proportionally to elapsed time on each call.
+// Once exhausted, falls back to probabilistic sampling at SampleRate().
 func (rl *RateLimiter) Allow() bool {
 	if rl.budget == 0 {
 		return true
@@ -55,7 +64,11 @@ func (rl *RateLimiter) Allow() bool {
 	}
 	rl.mu.Unlock()
 
-	sr := rl.sampleRate.Load().(float64)
+	// Bucket exhausted — fall back to probabilistic sampling.
+	sr, ok := rl.sampleRate.Load().(float64)
+	if !ok {
+		sr = 1.0 // fallback: allow all events
+	}
 	if sr >= 1.0 || rand.Float64() < sr {
 		rl.sampledTotal.Add(1)
 		return true
@@ -64,6 +77,8 @@ func (rl *RateLimiter) Allow() bool {
 	return false
 }
 
+// SetSampleRate updates the sampling fraction in [0.0, 1.0].
+// 1.0 = pass all events; 0.0 = drop all when bucket is empty.
 func (rl *RateLimiter) SetSampleRate(r float64) {
 	if r < 0 {
 		r = 0
@@ -74,10 +89,18 @@ func (rl *RateLimiter) SetSampleRate(r float64) {
 	rl.sampleRate.Store(r)
 }
 
+// SampleRate returns the current sampling fraction.
 func (rl *RateLimiter) SampleRate() float64 {
-	return rl.sampleRate.Load().(float64)
+	sr, ok := rl.sampleRate.Load().(float64)
+	if !ok {
+		return 1.0 // fallback value
+	}
+	return sr
 }
 
+// DropsTotal returns the cumulative events dropped by the sampler.
 func (rl *RateLimiter) DropsTotal() int64 { return rl.dropsTotal.Load() }
 
+// SampledTotal returns cumulative events passed via sampling
+// (after the token bucket was exhausted).
 func (rl *RateLimiter) SampledTotal() int64 { return rl.sampledTotal.Load() }
