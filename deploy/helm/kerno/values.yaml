@@ -60,6 +60,12 @@ prometheus:
   # binds this port on the node it runs on (hostNetwork: true + hostPort).
   # If port 9090 conflicts with another DaemonSet on your nodes, change it here.
   port: 9090
+  healthPort: 9092
+  auth:
+    mode: "none" # none, bearer, or mtls
+    tokenSecretName: ""      # Secret containing the bearer token
+    tokenSecretKey: "token"  # Key within the token Secret
+    tlsSecretName: ""        # Secret containing tls.crt, tls.key, and optionally ca.crt
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 log:

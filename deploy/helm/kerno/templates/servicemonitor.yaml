@@ -14,4 +14,25 @@ spec:
     - port: metrics
       interval: {{ .Values.serviceMonitor.interval }}
       path: /metrics
+      {{- if eq .Values.prometheus.auth.mode "bearer" }}
+      authorization:
+        credentials:
+          name: {{ .Values.prometheus.auth.tokenSecretName }}
+          key: {{ .Values.prometheus.auth.tokenSecretKey }}
+      {{- end }}
+      {{- if eq .Values.prometheus.auth.mode "mtls" }}
+      tlsConfig:
+        ca:
+          secret:
+            name: {{ .Values.prometheus.auth.tlsSecretName }}
+            key: ca.crt
+        cert:
+          secret:
+            name: {{ .Values.prometheus.auth.tlsSecretName }}
+            key: tls.crt
+        keySecret:
+          name: {{ .Values.prometheus.auth.tlsSecretName }}
+          key: tls.key
+        serverName: kerno
+      {{- end }}
 {{- end }}

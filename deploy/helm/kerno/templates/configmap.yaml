@@ -1,0 +1,26 @@
+{{- if ne .Values.prometheus.auth.mode "none" }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kerno-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "kerno.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    prometheus:
+      auth:
+        mode: {{ .Values.prometheus.auth.mode | quote }}
+        {{- if eq .Values.prometheus.auth.mode "bearer" }}
+        {{- if .Values.prometheus.auth.tokenSecretName }}
+        token_file: "/etc/kerno/auth/bearer/{{ .Values.prometheus.auth.tokenSecretKey }}"
+        {{- end }}
+        {{- end }}
+        {{- if .Values.prometheus.auth.tlsSecretName }}
+        cert_file: "/etc/kerno/auth/tls/tls.crt"
+        key_file: "/etc/kerno/auth/tls/tls.key"
+        {{- if eq .Values.prometheus.auth.mode "mtls" }}
+        ca_cert_file: "/etc/kerno/auth/tls/ca.crt"
+        {{- end }}
+        {{- end }}
+{{- end }}

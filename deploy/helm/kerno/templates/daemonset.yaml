@@ -56,12 +56,19 @@ spec:
             - start
             - --prometheus-addr
             - ":{{ .Values.prometheus.port }}"
+            {{- if ne .Values.prometheus.auth.mode "none" }}
+            - --config=/etc/kerno/config.yaml
+            {{- end }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           ports:
             - name: metrics
               containerPort: {{ .Values.prometheus.port }}
               hostPort: {{ .Values.prometheus.port }}
+              protocol: TCP
+            - name: health
+              containerPort: {{ .Values.prometheus.healthPort }}
+              hostPort: {{ .Values.prometheus.healthPort }}
               protocol: TCP
           env:
             # ── Identity (injected from the Downward API) ─────────────────────
@@ -92,34 +99,44 @@ spec:
           startupProbe:
             httpGet:
               path: /healthz
-              port: metrics
+              port: health
             failureThreshold: 12
             periodSeconds: 5
             timeoutSeconds: 3
           livenessProbe:
             httpGet:
               path: /healthz
-              port: metrics
-            initialDelaySeconds: 0
+              port: health
+            initialDelaySeconds: 15
             periodSeconds: 15
             timeoutSeconds: 5
             failureThreshold: 3
           readinessProbe:
             httpGet:
               path: /readyz
-              port: metrics
-            initialDelaySeconds: 0
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 3
-          startupProbe:
-            httpGet:
-              path: /healthz
-              port: metrics
-            failureThreshold: 30
+              port: health
+            initialDelaySeconds: 10
             periodSeconds: 10
             timeoutSeconds: 5
           volumeMounts:
+            {{- if ne .Values.prometheus.auth.mode "none" }}
+            - name: kerno-config
+              mountPath: /etc/kerno/config.yaml
+              subPath: config.yaml
+              readOnly: true
+            {{- end }}
+            {{- if eq .Values.prometheus.auth.mode "bearer" }}
+            {{- if .Values.prometheus.auth.tokenSecretName }}
+            - name: auth-bearer
+              mountPath: /etc/kerno/auth/bearer
+              readOnly: true
+            {{- end }}
+            {{- end }}
+            {{- if .Values.prometheus.auth.tlsSecretName }}
+            - name: auth-tls
+              mountPath: /etc/kerno/auth/tls
+              readOnly: true
+            {{- end }}
             # ── eBPF core (6 programs: syscall, tcp, oom, disk, sched, fd) ──
             - name: sys-kernel-debug
               mountPath: /sys/kernel/debug
@@ -146,6 +163,23 @@ spec:
               mountPath: /host/sys/block
               readOnly: true
       volumes:
+        {{- if ne .Values.prometheus.auth.mode "none" }}
+        - name: kerno-config
+          configMap:
+            name: kerno-config
+        {{- end }}
+        {{- if eq .Values.prometheus.auth.mode "bearer" }}
+        {{- if .Values.prometheus.auth.tokenSecretName }}
+        - name: auth-bearer
+          secret:
+            secretName: {{ .Values.prometheus.auth.tokenSecretName }}
+        {{- end }}
+        {{- end }}
+        {{- if .Values.prometheus.auth.tlsSecretName }}
+        - name: auth-tls
+          secret:
+            secretName: {{ .Values.prometheus.auth.tlsSecretName }}
+        {{- end }}
         - name: sys-kernel-debug
           hostPath:
             path: /sys/kernel/debug
@@ -174,4 +208,3 @@ spec:
           hostPath:
             path: /sys/block
             type: Directory
-            
