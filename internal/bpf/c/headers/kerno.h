@@ -163,4 +163,47 @@ struct file_event {
         __type(value, val_type); \
     } name SEC(".maps")
 
+
+// ─── Per-CPU Backpressure Guard Map (Phase 9.2.4) ──────────────────────────
+
+struct {
+    __uint(type,        BPF_MAP_TYPE_PERCPU_ARRAY);
+    __uint(max_entries, 1);
+    __type(key,         __u32);
+    __type(value,       __u32);
+} cpu_backpressure SEC(".maps");
+
+static __always_inline int kerno_backpressure_active(void)
+{
+    __u32 key = 0;
+    __u32 *val = bpf_map_lookup_elem(&cpu_backpressure, &key);
+    return val && *val;
+}
+
+#define KERNO_BACKPRESSURE() kerno_backpressure_active()
+
+
+// ─── Per-program Drop Counter Map (Phase 9.2.4) ────────────────────────────
+//
+// Incremented by BPF programs when bpf_ringbuf_reserve() returns NULL.
+// Userspace polls this map and exports kerno_ringbuf_drops_total.
+// Key 0 = drop count for this program instance.
+
+struct {
+    __uint(type,        BPF_MAP_TYPE_PERCPU_ARRAY);
+    __uint(max_entries, 1);
+    __type(key,         __u32);
+    __type(value,       __u64);
+} kerno_drop_count SEC(".maps");
+
+static __always_inline void kerno_record_drop(void)
+{
+    __u32 key = 0;
+    __u64 *val = bpf_map_lookup_elem(&kerno_drop_count, &key);
+    if (val)
+        __sync_fetch_and_add(val, 1);
+}
+
+#define KERNO_RECORD_DROP() kerno_record_drop()
+
 #endif // __KERNO_H__

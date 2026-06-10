@@ -109,6 +109,15 @@ func (l *FDTrackLoader) readLoop(ctx context.Context, ch chan<- RawEvent) {
 	}
 }
 
+
+// DropMap returns the per-CPU drop counter map for this program.
+// Returns nil if the program has not been loaded.
+func (l *FDTrackLoader) DropMap() *ebpf.Map {
+	if l.objs == nil {
+		return nil
+	}
+	return l.objs.KernoDropCount
+}
 func (l *FDTrackLoader) close() {
 	if l.reader != nil {
 		l.reader.Close()

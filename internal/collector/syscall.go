@@ -13,6 +13,7 @@ import (
 
 	"github.com/optiqor/kerno/internal/bpf"
 	"github.com/optiqor/kerno/internal/collector/aggregator"
+	"github.com/optiqor/kerno/internal/metrics"
 )
 
 // DefaultSyscallKeyCap caps the number of unique (syscall, comm) keys
@@ -38,6 +39,8 @@ type SyscallCollector struct {
 
 	cancelFn context.CancelFunc
 	done     chan struct{}
+
+	rl *aggregator.RateLimiter
 }
 
 type syscallKey struct {
@@ -66,6 +69,7 @@ func NewSyscallCollectorWithCap(logger *slog.Logger, loader *bpf.SyscallLatencyL
 		cap:    keyCap,
 		keys:   aggregator.NewLRU[syscallKey, *syscallEntry](keyCap),
 		done:   make(chan struct{}),
+			rl:     aggregator.NewRateLimiter(0),
 	}
 }
 
@@ -120,7 +124,15 @@ func (c *SyscallCollector) consume(ctx context.Context, ch <-chan bpf.RawEvent) 
 	}
 }
 
+func (c *SyscallCollector) SetRateLimit(budget int64) {
+	c.rl = aggregator.NewRateLimiter(budget)
+}
+
 func (c *SyscallCollector) record(event *bpf.SyscallEvent) {
+	if !c.rl.Allow() {
+		metrics.CollectorSampledTotal.WithLabelValues("syscall").Inc()
+		return
+	}
 	key := syscallKey{nr: event.SyscallNr, comm: event.CommString()}
 
 	c.mu.Lock()

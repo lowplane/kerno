@@ -28,8 +28,13 @@ int tracepoint_sys_exit_openat(struct trace_event_raw_sys_exit *ctx)
     if (ret < 0)
         return 0;  // Failed open — ignore.
 
+    /* Phase 9.2.4: skip emit when userspace collector is overloaded. */
+    if (KERNO_BACKPRESSURE())
+        return 0;
+
     struct fd_event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
     if (!e)
+        KERNO_RECORD_DROP();
         return 0;
 
     __u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -53,8 +58,13 @@ int tracepoint_sys_exit_close(struct trace_event_raw_sys_exit *ctx)
     if (ctx->ret != 0)
         return 0;  // Failed close — ignore.
 
+    /* Phase 9.2.4: skip emit when userspace collector is overloaded. */
+    if (KERNO_BACKPRESSURE())
+        return 0;
+
     struct fd_event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
     if (!e)
+        KERNO_RECORD_DROP();
         return 0;
 
     __u64 pid_tgid = bpf_get_current_pid_tgid();

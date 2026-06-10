@@ -81,6 +81,29 @@ type CollectorsConfig struct {
 	SchedDelay     bool `mapstructure:"sched_delay" json:"schedDelay"`
 	FDTrack        bool `mapstructure:"fd_track" json:"fdTrack"`
 	FileAudit      bool `mapstructure:"file_audit" json:"fileAudit"`
+
+	// RateLimits configures per-collector event budgets (events/sec).
+	RateLimits CollectorRateLimits `mapstructure:"rate_limits" json:"rateLimits"`
+
+	// Sampling configures the adaptive sampling behaviour.
+	Sampling CollectorSamplingConfig `mapstructure:"sampling" json:"sampling"`
+}
+
+// CollectorRateLimits sets the max events/sec budget per collector before
+// adaptive sampling kicks in. Zero means unlimited.
+type CollectorRateLimits struct {
+	SyscallLatency int64 `mapstructure:"syscall_latency" json:"syscallLatency"`
+	TCPMonitor     int64 `mapstructure:"tcp_monitor"     json:"tcpMonitor"`
+	OOMTrack       int64 `mapstructure:"oom_track"       json:"oomTrack"`
+	DiskIO         int64 `mapstructure:"disk_io"         json:"diskIO"`
+	SchedDelay     int64 `mapstructure:"sched_delay"     json:"schedDelay"`
+	FDTrack        int64 `mapstructure:"fd_track"        json:"fdTrack"`
+}
+
+// CollectorSamplingConfig controls the adaptive sampling behaviour.
+type CollectorSamplingConfig struct {
+	Enabled           bool    `mapstructure:"enabled"             json:"enabled"`
+	TargetOverheadPct float64 `mapstructure:"target_overhead_pct" json:"targetOverheadPct"`
 }
 
 // DoctorConfig controls the diagnostic analysis engine.
@@ -137,7 +160,19 @@ func Default() *Config {
 			DiskIO:         true,
 			SchedDelay:     true,
 			FDTrack:        true,
-			FileAudit:      false, // opt-in: can be noisy
+			FileAudit:   false, // opt-in: can be noisy
+			RateLimits: CollectorRateLimits{
+				SyscallLatency: 500_000,
+				TCPMonitor:     500_000,
+				OOMTrack:       500_000,
+				DiskIO:         500_000,
+				SchedDelay:     200_000,
+				FDTrack:        500_000,
+			},
+			Sampling: CollectorSamplingConfig{
+				Enabled:           true,
+				TargetOverheadPct: 1.0,
+			},
 		},
 		Doctor: DoctorConfig{
 			Duration: 30 * time.Second,

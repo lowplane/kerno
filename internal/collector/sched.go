@@ -13,6 +13,7 @@ import (
 
 	"github.com/optiqor/kerno/internal/bpf"
 	"github.com/optiqor/kerno/internal/collector/aggregator"
+	"github.com/optiqor/kerno/internal/metrics"
 )
 
 const (
@@ -35,6 +36,8 @@ type SchedCollector struct {
 
 	cancelFn context.CancelFunc
 	done     chan struct{}
+
+	rl *aggregator.RateLimiter
 }
 
 type schedKey struct {
@@ -61,6 +64,7 @@ func NewSchedCollectorWithCap(logger *slog.Logger, loader *bpf.SchedDelayLoader,
 		global: aggregator.New(),
 		keys:   aggregator.NewLRU[schedKey, *schedEntry](keyCap),
 		done:   make(chan struct{}),
+			rl:     aggregator.NewRateLimiter(0),
 	}
 }
 
@@ -114,7 +118,15 @@ func (c *SchedCollector) consume(ctx context.Context, ch <-chan bpf.RawEvent) {
 	}
 }
 
+func (c *SchedCollector) SetRateLimit(budget int64) {
+	c.rl = aggregator.NewRateLimiter(budget)
+}
+
 func (c *SchedCollector) record(event *bpf.SchedEvent) {
+	if !c.rl.Allow() {
+		metrics.CollectorSampledTotal.WithLabelValues("sched").Inc()
+		return
+	}
 	key := schedKey{pid: event.PID, comm: event.CommString()}
 
 	c.mu.Lock()

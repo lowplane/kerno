@@ -13,6 +13,7 @@ import (
 
 	"github.com/optiqor/kerno/internal/bpf"
 	"github.com/optiqor/kerno/internal/collector/aggregator"
+	"github.com/optiqor/kerno/internal/metrics"
 )
 
 const (
@@ -35,6 +36,8 @@ type FDCollector struct {
 
 	cancelFn context.CancelFunc
 	done     chan struct{}
+
+	rl *aggregator.RateLimiter
 }
 
 type fdKey struct {
@@ -61,6 +64,7 @@ func NewFDCollectorWithCap(logger *slog.Logger, loader *bpf.FDTrackLoader, keyCa
 		cap:    keyCap,
 		keys:   aggregator.NewLRU[fdKey, *fdEntry](keyCap),
 		done:   make(chan struct{}),
+			rl:     aggregator.NewRateLimiter(0),
 	}
 }
 
@@ -115,7 +119,15 @@ func (c *FDCollector) consume(ctx context.Context, ch <-chan bpf.RawEvent) {
 	}
 }
 
+func (c *FDCollector) SetRateLimit(budget int64) {
+	c.rl = aggregator.NewRateLimiter(budget)
+}
+
 func (c *FDCollector) record(event *bpf.FDEvent) {
+	if !c.rl.Allow() {
+		metrics.CollectorSampledTotal.WithLabelValues("fd").Inc()
+		return
+	}
 	key := fdKey{pid: event.PID, comm: event.CommString()}
 
 	c.mu.Lock()
