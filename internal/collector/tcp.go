@@ -73,7 +73,7 @@ func NewTCPCollectorWithCap(logger *slog.Logger, loader *bpf.TCPMonitorLoader, c
 		conns:   aggregator.NewLRU[tcpConnKey, *tcpConnAgg](connCap),
 		rttHist: aggregator.New(),
 		done:    make(chan struct{}),
-			rl:     aggregator.NewRateLimiter(0),
+		rl:      aggregator.NewRateLimiter(0),
 	}
 }
 

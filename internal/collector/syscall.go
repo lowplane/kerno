@@ -69,7 +69,7 @@ func NewSyscallCollectorWithCap(logger *slog.Logger, loader *bpf.SyscallLatencyL
 		cap:    keyCap,
 		keys:   aggregator.NewLRU[syscallKey, *syscallEntry](keyCap),
 		done:   make(chan struct{}),
-			rl:     aggregator.NewRateLimiter(0),
+		rl:     aggregator.NewRateLimiter(0),
 	}
 }
 

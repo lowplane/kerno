@@ -160,7 +160,7 @@ func Default() *Config {
 			DiskIO:         true,
 			SchedDelay:     true,
 			FDTrack:        true,
-			FileAudit:   false, // opt-in: can be noisy
+			FileAudit:      false, // opt-in: can be noisy
 			RateLimits: CollectorRateLimits{
 				SyscallLatency: 500_000,
 				TCPMonitor:     500_000,

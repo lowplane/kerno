@@ -58,8 +58,8 @@ func (o *tcpMonitorObjects) Close() error { return nil }
 // ─── OOM Track stubs ────────────────────────────────────────────────────────
 
 type oomTrackObjects struct {
-	KprobeOomKill *ebpf.Program `ebpf:"kprobe_oom_kill"`
-	Events        *ebpf.Map     `ebpf:"events"`
+	KprobeOomKill  *ebpf.Program `ebpf:"kprobe_oom_kill"`
+	Events         *ebpf.Map     `ebpf:"events"`
 	KernoDropCount *ebpf.Map     `ebpf:"kerno_drop_count"`
 }
 

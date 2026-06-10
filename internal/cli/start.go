@@ -17,7 +17,6 @@ import (
 	"syscall"
 	"time"
 
-
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 
@@ -147,7 +146,6 @@ func runStart(ctx context.Context, opts startOpts) error {
 
 	// Phase 9.2.4: poll BPF drop counter maps.
 	pollDropMaps(ctx, loaders, logger)
-
 
 	// Phase 2b: Start environment adapter for event enrichment.
 	env := adapter.DetectEnvironment()

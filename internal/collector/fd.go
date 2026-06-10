@@ -64,7 +64,7 @@ func NewFDCollectorWithCap(logger *slog.Logger, loader *bpf.FDTrackLoader, keyCa
 		cap:    keyCap,
 		keys:   aggregator.NewLRU[fdKey, *fdEntry](keyCap),
 		done:   make(chan struct{}),
-			rl:     aggregator.NewRateLimiter(0),
+		rl:     aggregator.NewRateLimiter(0),
 	}
 }
 

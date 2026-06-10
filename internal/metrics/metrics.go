@@ -155,7 +155,6 @@ var InfoMetric = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 	Help:      "Kerno build information.",
 }, []string{"version"})
 
-
 // ─── Backpressure / Rate-limit Metrics (Phase 9.2.4) ─────────────────────
 
 // RingbufDropsTotal counts kernel ringbuf overflow events per program and CPU.

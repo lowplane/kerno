@@ -46,7 +46,7 @@ func NewDiskIOCollector(logger *slog.Logger, loader *bpf.DiskIOLoader) *DiskIOCo
 		writeHist: aggregator.New(),
 		syncHist:  aggregator.New(),
 		done:      make(chan struct{}),
-			rl:     aggregator.NewRateLimiter(0),
+		rl:        aggregator.NewRateLimiter(0),
 	}
 }
 

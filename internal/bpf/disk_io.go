@@ -109,7 +109,6 @@ func (l *DiskIOLoader) readLoop(ctx context.Context, ch chan<- RawEvent) {
 	}
 }
 
-
 // DropMap returns the per-CPU drop counter map for this program.
 // Returns nil if the program has not been loaded.
 func (l *DiskIOLoader) DropMap() *ebpf.Map {

@@ -64,7 +64,7 @@ func NewSchedCollectorWithCap(logger *slog.Logger, loader *bpf.SchedDelayLoader,
 		global: aggregator.New(),
 		keys:   aggregator.NewLRU[schedKey, *schedEntry](keyCap),
 		done:   make(chan struct{}),
-			rl:     aggregator.NewRateLimiter(0),
+		rl:     aggregator.NewRateLimiter(0),
 	}
 }
 

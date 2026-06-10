@@ -739,3 +739,54 @@ Apache License 2.0 - see [LICENSE](LICENSE).
 If Kerno saved your on-call shift, consider leaving a **⭐**  it helps other engineers find the project.
 
 </div>
+
+## Performance and overhead
+
+Kerno is designed to be provably bounded-overhead under any workload.
+Three mechanisms keep it safe under sustained high event rates:
+
+### Ringbuf drop tracking
+When the kernel ringbuf overflows, kerno increments
+`kerno_ringbuf_drops_total{program, cpu}` via a dedicated BPF drop-count
+map polled every 5 seconds. Alert on this metric to know when a node is
+producing events faster than kerno can drain.
+
+### Adaptive sampling
+Each collector has a configurable events/sec budget (default 500K/s,
+200K/s for sched). Once exceeded, probabilistic sampling activates.
+Histogram distribution accuracy is preserved within ±5% even at 80%
+sampling. Configure via:
+
+```yaml
+collectors:
+  rate_limits:
+    syscall_latency: 500000
+    sched_delay: 200000
+  sampling:
+    enabled: true
+    target_overhead_pct: 1.0
+```
+
+### BPF-side backpressure
+When overloaded, userspace sets a per-CPU `cpu_backpressure` eBPF map.
+All six BPF programs check this before `bpf_ringbuf_reserve()` and skip
+emission entirely, preventing overflow at the source.
+
+### Metrics
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `kerno_ringbuf_drops_total` | Counter | Kernel ringbuf overflow events, by program and CPU |
+| `kerno_collector_sampled_total` | Counter | Events dropped by userspace sampler, by collector |
+| `kerno_overhead_pct` | Gauge | kerno CPU overhead — alert if > 2% |
+
+### Recommended alert
+
+```yaml
+- alert: KernoOverloaded
+  expr: kerno_overhead_pct > 2
+  for: 5m
+  annotations:
+    summary: "kerno is the bottleneck on {{ $labels.instance }}"
+```
+
