@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -116,7 +117,7 @@ Add --ai to enrich findings with AI-powered analysis (requires API key).`,
 	flags.StringSliceVar(&sinkURLs, "sink", nil, "webhook sinks (e.g. slack://..., pagerduty://...)")
 	flags.StringVar(&sevFloor, "severity-floor", "warning", "minimum severity to send to sinks (info, warning, critical)")
 	flags.DurationVar(&sinkDedupe, "sink-dedupe", 5*time.Minute, "deduplication window to prevent alert flapping")
-	flags.BoolVar(&dryRunSink, "dry-run-sinks", false, "print payloads instead of sending (useful for debugging sinks)")
+	flags.BoolVar(&dryRunSink, "dry-run-sinks", false, "print finding counts instead of sending (useful for testing sinks)")
 	return cmd
 }
 
@@ -626,27 +627,33 @@ func runDiagnosticCycle(
 		}
 
 		deduped := deduper.Filter(filtered)
+		var wg sync.WaitGroup
 		for _, sink := range activeSinks {
-			var err error
-			if sink.Name() == "pagerduty" {
-				// PagerDuty maintains its own state and needs full list to resolve.
-				if opts.dryRunSinks {
-					logger.Info("dry-run sink (pagerduty)", "findings", len(filtered))
+			wg.Add(1)
+			go func(sink sinks.Sink) {
+				defer wg.Done()
+				var err error
+				if sink.Name() == "pagerduty" {
+					// PagerDuty maintains its own state and needs full list to resolve.
+					if opts.dryRunSinks {
+						logger.Info("dry-run sink (pagerduty)", "findings", len(filtered))
+					} else {
+						err = sink.Send(ctx, filtered)
+					}
 				} else {
-					err = sink.Send(ctx, filtered)
+					// Slack/Discord use deduped list to prevent flapping.
+					if opts.dryRunSinks {
+						logger.Info("dry-run sink", "name", sink.Name(), "findings", len(deduped))
+					} else {
+						err = sink.Send(ctx, deduped)
+					}
 				}
-			} else {
-				// Slack/Discord use deduped list to prevent flapping.
-				if opts.dryRunSinks {
-					logger.Info("dry-run sink", "name", sink.Name(), "findings", len(deduped))
-				} else {
-					err = sink.Send(ctx, deduped)
+				if err != nil {
+					logger.Error("failed to send to sink", "sink", sink.Name(), "error", err)
 				}
-			}
-			if err != nil {
-				logger.Error("failed to send to sink", "sink", sink.Name(), "error", err)
-			}
+			}(sink)
 		}
+		wg.Wait()
 	}
 
 	// Phase 5: Exit code handling for CI/CD.
