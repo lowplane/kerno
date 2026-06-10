@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/optiqor/kerno/internal/bpf"
+
+	"github.com/optiqor/kerno/internal/collector/aggregator"
 )
 
 // MaxOOMEvents caps the per-window OOM event log so a runaway OOMing
@@ -29,6 +31,9 @@ type OOMCollector struct {
 
 	cancelFn context.CancelFunc
 	done     chan struct{}
+
+	// rl is intentionally unused for OOM: every kill is critical and must not be dropped.
+	rl *aggregator.RateLimiter
 }
 
 // NewOOMCollector creates an OOM collector.
@@ -37,6 +42,7 @@ func NewOOMCollector(logger *slog.Logger, loader *bpf.OOMTrackLoader) *OOMCollec
 		logger: logger.With("collector", "oom"),
 		loader: loader,
 		done:   make(chan struct{}),
+		rl:     aggregator.NewRateLimiter(0),
 	}
 }
 
