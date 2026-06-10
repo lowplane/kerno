@@ -155,7 +155,6 @@ func runStart(ctx context.Context, opts startOpts) error {
 	var healthServer *http.Server
 
 	if opts.prometheus {
-
 		metricsMux := http.NewServeMux()
 		metricsHandler := promhttp.HandlerFor(metrics.Registry, promhttp.HandlerOpts{})
 
