@@ -15,7 +15,15 @@ import (
 	"context"
 	"fmt"
 	"io"
+
+	"github.com/cilium/ebpf"
 )
+
+// DropMapper is implemented by loaders that expose a per-CPU BPF drop
+// counter map. Userspace polls this to increment kerno_ringbuf_drops_total.
+type DropMapper interface {
+	DropMap() *ebpf.Map
+}
 
 // Loader is the interface that all eBPF program loaders must implement.
 // Each loader manages the lifecycle of one eBPF program: loading it into

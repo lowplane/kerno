@@ -12,6 +12,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -138,6 +140,12 @@ func runStart(ctx context.Context, opts startOpts) error {
 	bridge := metrics.NewBridge(logger)
 	bridge.Start(ctx, loaders)
 	defer bridge.Stop()
+
+	// Phase 9.2.4: start the overhead control loop.
+	startOverheadController(ctx, cfg.Collectors.Sampling.TargetOverheadPct, logger)
+
+	// Phase 9.2.4: poll BPF drop counter maps.
+	pollDropMaps(ctx, loaders, logger)
 
 	// Phase 2b: Start environment adapter for event enrichment.
 	env := adapter.DetectEnvironment()
@@ -270,4 +278,125 @@ func readyzHandler(loaded, total int) http.HandlerFunc {
 			"uptime":          time.Since(startTime).Seconds(),
 		})
 	}
+}
+
+// startOverheadController launches a background goroutine that every 5 s
+// measures kerno's own CPU usage and updates kerno_overhead_pct.
+func startOverheadController(ctx context.Context, targetPct float64, logger *slog.Logger) {
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		var prevTicks uint64
+		var prevWallNs int64
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				pct := measureKernoCPUPct(&prevTicks, &prevWallNs)
+				metrics.OverheadPct.Set(pct)
+				switch {
+				case pct > targetPct:
+					logger.Debug("kerno overhead above target",
+						"overhead_pct", pct, "target_pct", targetPct)
+				case pct < targetPct/2:
+					logger.Debug("kerno overhead well below target",
+						"overhead_pct", pct, "target_pct", targetPct)
+				}
+			}
+		}
+	}()
+}
+
+// measureKernoCPUPct reads /proc/self/stat and returns kerno's CPU usage
+// percentage since the previous call. Returns 0 on the first call.
+func measureKernoCPUPct(prevTicks *uint64, prevWallNs *int64) float64 {
+	data, err := os.ReadFile("/proc/self/stat")
+	if err != nil {
+		return 0
+	}
+	line := string(data)
+	idx := strings.LastIndex(line, ")")
+	if idx < 0 {
+		return 0
+	}
+	fields := strings.Fields(line[idx+1:])
+	if len(fields) < 13 {
+		return 0
+	}
+	utime, err1 := strconv.ParseUint(fields[11], 10, 64)
+	stime, err2 := strconv.ParseUint(fields[12], 10, 64)
+	if err1 != nil || err2 != nil {
+		return 0
+	}
+	nowTicks := utime + stime
+	nowWallNs := time.Now().UnixNano()
+	if *prevWallNs == 0 {
+		*prevTicks = nowTicks
+		*prevWallNs = nowWallNs
+		return 0
+	}
+	deltaTicks := nowTicks - *prevTicks
+	deltaWallNs := nowWallNs - *prevWallNs
+	*prevTicks = nowTicks
+	*prevWallNs = nowWallNs
+	if deltaWallNs <= 0 {
+		return 0
+	}
+	const nsPerTick = 10_000_000
+	deltaCPUNs := float64(deltaTicks) * nsPerTick
+	return (deltaCPUNs / float64(deltaWallNs)) * 100.0
+}
+
+// pollDropMaps reads the kerno_drop_count per-CPU map from each loader
+// every 5 s and adds any new drops to kerno_ringbuf_drops_total.
+func pollDropMaps(ctx context.Context, loaders []bpf.Loader, logger *slog.Logger) {
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+
+		// Track previous totals so we only add deltas.
+		prev := make(map[string]uint64, len(loaders))
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				for _, l := range loaders {
+					dm, ok := l.(bpf.DropMapper)
+					if !ok {
+						continue
+					}
+					m := dm.DropMap()
+					if m == nil {
+						continue
+					}
+
+					// PERCPU_ARRAY: one uint64 per CPU at key 0.
+					var perCPU []uint64
+					key := uint32(0)
+					if err := m.Lookup(&key, &perCPU); err != nil {
+						logger.Debug("drop map lookup failed",
+							"program", l.Name(), "error", err)
+						continue
+					}
+
+					var total uint64
+					for _, v := range perCPU {
+						total += v
+					}
+
+					delta := total - prev[l.Name()]
+					if delta > 0 {
+						metrics.RingbufDropsTotal.WithLabelValues(l.Name(), "all").
+							Add(float64(delta))
+						logger.Debug("ringbuf drops detected",
+							"program", l.Name(), "drops", delta)
+					}
+					prev[l.Name()] = total
+				}
+			}
+		}
+	}()
 }

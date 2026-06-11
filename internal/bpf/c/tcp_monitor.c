@@ -34,8 +34,13 @@ int tracepoint_tcp_retransmit(struct trace_event_raw_tcp_retransmit_skb *ctx)
     if (ctx->family != AF_INET)
         return 0;
 
+    /* Phase 9.2.4: skip emit when userspace collector is overloaded. */
+    if (KERNO_BACKPRESSURE())
+        return 0;
+
     struct tcp_event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
     if (!e)
+        KERNO_RECORD_DROP();
         return 0;
 
     e->timestamp_ns = bpf_ktime_get_ns();
@@ -82,8 +87,13 @@ int tracepoint_inet_sock_set_state(struct trace_event_raw_inet_sock_set_state *c
         return 0;  // Skip intermediate states.
     }
 
+    /* Phase 9.2.4: skip emit when userspace collector is overloaded. */
+    if (KERNO_BACKPRESSURE())
+        return 0;
+
     struct tcp_event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
     if (!e)
+        KERNO_RECORD_DROP();
         return 0;
 
     e->timestamp_ns = bpf_ktime_get_ns();

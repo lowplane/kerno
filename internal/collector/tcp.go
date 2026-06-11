@@ -13,6 +13,7 @@ import (
 
 	"github.com/optiqor/kerno/internal/bpf"
 	"github.com/optiqor/kerno/internal/collector/aggregator"
+	"github.com/optiqor/kerno/internal/metrics"
 )
 
 const (
@@ -36,6 +37,8 @@ type TCPCollector struct {
 
 	cancelFn context.CancelFunc
 	done     chan struct{}
+
+	rl *aggregator.RateLimiter
 }
 
 type tcpConnKey struct {
@@ -70,6 +73,7 @@ func NewTCPCollectorWithCap(logger *slog.Logger, loader *bpf.TCPMonitorLoader, c
 		conns:   aggregator.NewLRU[tcpConnKey, *tcpConnAgg](connCap),
 		rttHist: aggregator.New(),
 		done:    make(chan struct{}),
+		rl:      aggregator.NewRateLimiter(0),
 	}
 }
 
@@ -123,7 +127,15 @@ func (c *TCPCollector) consume(ctx context.Context, ch <-chan bpf.RawEvent) {
 	}
 }
 
+func (c *TCPCollector) SetRateLimit(budget int64) {
+	c.rl = aggregator.NewRateLimiter(budget)
+}
+
 func (c *TCPCollector) record(event *bpf.TCPEvent) {
+	if !c.rl.Allow() {
+		metrics.CollectorSampledTotal.WithLabelValues("tcp").Inc()
+		return
+	}
 	key := tcpConnKey{
 		saddr: event.SAddr,
 		daddr: event.DAddr,

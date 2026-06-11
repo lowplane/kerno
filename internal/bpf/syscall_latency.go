@@ -109,6 +109,14 @@ func (l *SyscallLatencyLoader) readLoop(ctx context.Context, ch chan<- RawEvent)
 	}
 }
 
+// DropMap returns the per-CPU drop counter map for this program.
+// Returns nil if the program has not been loaded.
+func (l *SyscallLatencyLoader) DropMap() *ebpf.Map {
+	if l.objs == nil {
+		return nil
+	}
+	return l.objs.KernoDropCount
+}
 func (l *SyscallLatencyLoader) close() {
 	if l.reader != nil {
 		l.reader.Close()

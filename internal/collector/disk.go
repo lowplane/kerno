@@ -12,6 +12,7 @@ import (
 
 	"github.com/optiqor/kerno/internal/bpf"
 	"github.com/optiqor/kerno/internal/collector/aggregator"
+	"github.com/optiqor/kerno/internal/metrics"
 )
 
 // DiskIOCollector consumes disk_io eBPF events and aggregates per-op
@@ -32,6 +33,8 @@ type DiskIOCollector struct {
 
 	cancelFn context.CancelFunc
 	done     chan struct{}
+
+	rl *aggregator.RateLimiter
 }
 
 // NewDiskIOCollector creates a disk I/O collector.
@@ -43,6 +46,7 @@ func NewDiskIOCollector(logger *slog.Logger, loader *bpf.DiskIOLoader) *DiskIOCo
 		writeHist: aggregator.New(),
 		syncHist:  aggregator.New(),
 		done:      make(chan struct{}),
+		rl:        aggregator.NewRateLimiter(0),
 	}
 }
 
@@ -96,7 +100,15 @@ func (c *DiskIOCollector) consume(ctx context.Context, ch <-chan bpf.RawEvent) {
 	}
 }
 
+func (c *DiskIOCollector) SetRateLimit(budget int64) {
+	c.rl = aggregator.NewRateLimiter(budget)
+}
+
 func (c *DiskIOCollector) record(event *bpf.DiskEvent) {
+	if !c.rl.Allow() {
+		metrics.CollectorSampledTotal.WithLabelValues("diskio").Inc()
+		return
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 

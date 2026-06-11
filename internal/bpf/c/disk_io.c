@@ -44,8 +44,13 @@ int tracepoint_block_rq_complete(struct trace_event_raw_block_rq_completion *ctx
     __u64 latency = bpf_ktime_get_ns() - *start_ts;
     bpf_map_delete_elem(&io_start, &sector);
 
+    /* Phase 9.2.4: skip emit when userspace collector is overloaded. */
+    if (KERNO_BACKPRESSURE())
+        return 0;
+
     struct disk_event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
     if (!e)
+        KERNO_RECORD_DROP();
         return 0;
 
     e->timestamp_ns = bpf_ktime_get_ns();

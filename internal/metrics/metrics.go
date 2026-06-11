@@ -155,6 +155,29 @@ var InfoMetric = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 	Help:      "Kerno build information.",
 }, []string{"version"})
 
+// ─── Backpressure / Rate-limit Metrics (Phase 9.2.4) ─────────────────────
+
+// RingbufDropsTotal counts kernel ringbuf overflow events per program and CPU.
+var RingbufDropsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Namespace: Namespace,
+	Name:      "ringbuf_drops_total",
+	Help:      "Total events dropped by the kernel ringbuf due to overflow, by program and CPU.",
+}, []string{"program", "cpu"})
+
+// CollectorSampledTotal counts events dropped by the userspace rate-limiter sampler.
+var CollectorSampledTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Namespace: Namespace,
+	Name:      "collector_sampled_total",
+	Help:      "Events dropped by the userspace rate-limiter sampler, by collector.",
+}, []string{"collector"})
+
+// OverheadPct tracks kerno's own estimated CPU overhead as a percentage.
+var OverheadPct = prometheus.NewGauge(prometheus.GaugeOpts{
+	Namespace: Namespace,
+	Name:      "overhead_pct",
+	Help:      "Estimated CPU overhead of kerno itself as a percentage. Alert if > 2.",
+})
+
 func init() {
 	Registry.MustRegister(
 		// Syscall
@@ -181,5 +204,9 @@ func init() {
 		CollectorErrorsTotal,
 		BPFProgramsLoaded,
 		InfoMetric,
+		// Backpressure / rate-limit (Phase 9.2.4)
+		RingbufDropsTotal,
+		CollectorSampledTotal,
+		OverheadPct,
 	)
 }

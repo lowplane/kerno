@@ -53,8 +53,13 @@ int tracepoint_sched_switch(struct trace_event_raw_sched_switch *ctx)
     if (delay < 1000)
         return 0;
 
+    /* Phase 9.2.4: skip emit when userspace collector is overloaded. */
+    if (KERNO_BACKPRESSURE())
+        return 0;
+
     struct sched_event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
     if (!e)
+        KERNO_RECORD_DROP();
         return 0;
 
     e->timestamp_ns  = bpf_ktime_get_ns();
