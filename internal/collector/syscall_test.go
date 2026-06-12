@@ -29,66 +29,154 @@ func makeSyscallEvent(comm string, syscallNr uint32, latencyNs uint64, ret uint3
 	return e
 }
 
-func TestSyscallCollectorAggregates(t *testing.T) {
-	c := NewSyscallCollector(newSilentLogger(), nil)
+func TestSyscallCollectorSnapshots(t *testing.T) {
+	tests := []struct {
+		name string
+		run  func(t *testing.T)
+	}{
+		{
+			name: "aggregates",
+			run: func(t *testing.T) {
+				c := NewSyscallCollector(newSilentLogger(), nil)
 
-	// 100 events for (read, app) with monotonic latency.
-	for i := uint64(1); i <= 100; i++ {
-		c.record(makeSyscallEvent("app", 0, i*1000, 0))
-	}
-	// 50 events for (write, app) with higher latency.
-	for i := uint64(1); i <= 50; i++ {
-		c.record(makeSyscallEvent("app", 1, i*10000, 0))
+				// 100 events for (read, app) with monotonic latency.
+				for i := uint64(1); i <= 100; i++ {
+					c.record(makeSyscallEvent("app", 0, i*1000, 0))
+				}
+				// 50 events for (write, app) with higher latency.
+				for i := uint64(1); i <= 50; i++ {
+					c.record(makeSyscallEvent("app", 1, i*10000, 0))
+				}
+
+				snap := c.Snapshot().(*SyscallSnapshot)
+				if snap.TotalCount != 150 {
+					t.Errorf("TotalCount = %d, want 150", snap.TotalCount)
+				}
+				if len(snap.Entries) != 2 {
+					t.Fatalf("Entries = %d, want 2", len(snap.Entries))
+				}
+
+				// Top entry should be the higher-latency syscall.
+				top := snap.Entries[0]
+				if top.SyscallNr != 1 {
+					t.Errorf("top SyscallNr = %d, want 1 (write — higher p99)", top.SyscallNr)
+				}
+				if top.Name != "write" {
+					t.Errorf("top Name = %q, want %q", top.Name, "write")
+				}
+				if top.Comm != "app" {
+					t.Errorf("top Comm = %q, want %q", top.Comm, "app")
+				}
+				if top.Latency.P99 == 0 {
+					t.Error("top Latency.P99 should be non-zero")
+				}
+				if top.Latency.P50 > top.Latency.P99 {
+					t.Errorf("p50 (%v) > p99 (%v) — non-monotonic", top.Latency.P50, top.Latency.P99)
+				}
+			},
+		},
+		{
+			name: "error tracking",
+			run: func(t *testing.T) {
+				c := NewSyscallCollector(newSilentLogger(), nil)
+
+				for i := 0; i < 80; i++ {
+					c.record(makeSyscallEvent("app", 0, 1000, 0)) // success
+				}
+				for i := 0; i < 20; i++ {
+					// -EAGAIN encoded as a uint32 errno return.
+					c.record(makeSyscallEvent("app", 0, 1000, 0xFFFFFFF5))
+				}
+
+				snap := c.Snapshot().(*SyscallSnapshot)
+				if len(snap.Entries) != 1 {
+					t.Fatalf("Entries = %d, want 1", len(snap.Entries))
+				}
+				entry := snap.Entries[0]
+				if entry.Count != 100 {
+					t.Errorf("Count = %d, want 100", entry.Count)
+				}
+				if entry.ErrorCount != 20 {
+					t.Errorf("ErrorCount = %d, want 20", entry.ErrorCount)
+				}
+			},
+		},
+		{
+			name: "empty snapshot",
+			run: func(t *testing.T) {
+				c := NewSyscallCollector(newSilentLogger(), nil)
+				snap := c.Snapshot().(*SyscallSnapshot)
+				if snap.TotalCount != 0 {
+					t.Errorf("empty TotalCount = %d, want 0", snap.TotalCount)
+				}
+				if len(snap.Entries) != 0 {
+					t.Errorf("empty Entries len = %d, want 0", len(snap.Entries))
+				}
+			},
+		},
+		{
+			name: "single event",
+			run: func(t *testing.T) {
+				c := NewSyscallCollector(newSilentLogger(), nil)
+				c.record(makeSyscallEvent("app", 0, 1000, 0))
+
+				snap := c.Snapshot().(*SyscallSnapshot)
+				if snap.TotalCount != 1 {
+					t.Errorf("TotalCount = %d, want 1", snap.TotalCount)
+				}
+				if len(snap.Entries) != 1 {
+					t.Fatalf("Entries = %d, want 1", len(snap.Entries))
+				}
+				if snap.Entries[0].Count != 1 {
+					t.Errorf("Entries[0].Count = %d, want 1", snap.Entries[0].Count)
+				}
+			},
+		},
+		{
+			name: "exactly threshold",
+			run: func(t *testing.T) {
+				c := NewSyscallCollector(newSilentLogger(), nil)
+				for i := 0; i < MaxSyscallEntriesPerSnapshot; i++ {
+					c.record(makeSyscallEvent("app", uint32(i), uint64(i+1)*1000, 0))
+				}
+
+				snap := c.Snapshot().(*SyscallSnapshot)
+				if len(snap.Entries) != MaxSyscallEntriesPerSnapshot {
+					t.Errorf("Entries = %d, want %d (exactly threshold)",
+						len(snap.Entries), MaxSyscallEntriesPerSnapshot)
+				}
+			},
+		},
+		{
+			name: "top-N boundary",
+			run: func(t *testing.T) {
+				c := NewSyscallCollector(newSilentLogger(), nil)
+				// Create MaxSyscallEntriesPerSnapshot + 1 unique entries.
+				// Set the lowest latency (1000ns) for SyscallNr = 999.
+				// The others get higher latencies (2000ns, 3000ns, ...).
+				c.record(makeSyscallEvent("app", 999, 1000, 0))
+				for i := 1; i <= MaxSyscallEntriesPerSnapshot; i++ {
+					c.record(makeSyscallEvent("app", uint32(i), uint64(i+1)*1000, 0))
+				}
+
+				snap := c.Snapshot().(*SyscallSnapshot)
+				if len(snap.Entries) != MaxSyscallEntriesPerSnapshot {
+					t.Errorf("Entries = %d, want %d (top-N boundary)",
+						len(snap.Entries), MaxSyscallEntriesPerSnapshot)
+				}
+
+				// Verify that SyscallNr = 999 (lowest ranked) is NOT in the snapshot
+				for _, entry := range snap.Entries {
+					if entry.SyscallNr == 999 {
+						t.Error("lowest-ranked entry (SyscallNr 999) should have been excluded")
+					}
+				}
+			},
+		},
 	}
 
-	snap := c.Snapshot().(*SyscallSnapshot)
-	if snap.TotalCount != 150 {
-		t.Errorf("TotalCount = %d, want 150", snap.TotalCount)
-	}
-	if len(snap.Entries) != 2 {
-		t.Fatalf("Entries = %d, want 2", len(snap.Entries))
-	}
-
-	// Top entry should be the higher-latency syscall.
-	top := snap.Entries[0]
-	if top.SyscallNr != 1 {
-		t.Errorf("top SyscallNr = %d, want 1 (write — higher p99)", top.SyscallNr)
-	}
-	if top.Name != "write" {
-		t.Errorf("top Name = %q, want %q", top.Name, "write")
-	}
-	if top.Comm != "app" {
-		t.Errorf("top Comm = %q, want %q", top.Comm, "app")
-	}
-	if top.Latency.P99 == 0 {
-		t.Error("top Latency.P99 should be non-zero")
-	}
-	if top.Latency.P50 > top.Latency.P99 {
-		t.Errorf("p50 (%v) > p99 (%v) — non-monotonic", top.Latency.P50, top.Latency.P99)
-	}
-}
-
-func TestSyscallCollectorErrorTracking(t *testing.T) {
-	c := NewSyscallCollector(newSilentLogger(), nil)
-
-	for i := 0; i < 80; i++ {
-		c.record(makeSyscallEvent("app", 0, 1000, 0)) // success
-	}
-	for i := 0; i < 20; i++ {
-		// -EAGAIN encoded as a uint32 errno return.
-		c.record(makeSyscallEvent("app", 0, 1000, 0xFFFFFFF5))
-	}
-
-	snap := c.Snapshot().(*SyscallSnapshot)
-	if len(snap.Entries) != 1 {
-		t.Fatalf("Entries = %d, want 1", len(snap.Entries))
-	}
-	entry := snap.Entries[0]
-	if entry.Count != 100 {
-		t.Errorf("Count = %d, want 100", entry.Count)
-	}
-	if entry.ErrorCount != 20 {
-		t.Errorf("ErrorCount = %d, want 20", entry.ErrorCount)
+	for _, tc := range tests {
+		t.Run(tc.name, tc.run)
 	}
 }
 
@@ -107,17 +195,6 @@ func TestSyscallCollectorCapEnforced(t *testing.T) {
 	}
 	if got := c.keys.Evicted(); got == 0 {
 		t.Error("expected non-zero Evicted count after exceeding cap")
-	}
-}
-
-func TestSyscallCollectorEmptySnapshot(t *testing.T) {
-	c := NewSyscallCollector(newSilentLogger(), nil)
-	snap := c.Snapshot().(*SyscallSnapshot)
-	if snap.TotalCount != 0 {
-		t.Errorf("empty TotalCount = %d, want 0", snap.TotalCount)
-	}
-	if len(snap.Entries) != 0 {
-		t.Errorf("empty Entries len = %d, want 0", len(snap.Entries))
 	}
 }
 
