@@ -127,14 +127,16 @@ func (e *Engine) Diagnose(ctx context.Context, signals *collector.Signals) (*Rep
 	// Phase 3: Build report.
 	hostname, _ := os.Hostname()
 	report := &Report{
-		Hostname:  hostname,
-		KernelVer: signals.Host.KernelVer,
-		Arch:      runtime.GOARCH,
-		StartTime: signals.Timestamp.Add(-signals.Duration),
-		EndTime:   signals.Timestamp,
-		Duration:  signals.Duration,
-		Findings:  findings,
-		Analysis:  analysis,
+		Hostname:      hostname,
+		KernelVer:     signals.Host.KernelVer,
+		Arch:          runtime.GOARCH,
+		CloudProvider: signals.Host.CloudProvider,
+		InstanceType:  signals.Host.InstanceType,
+		StartTime:     signals.Timestamp.Add(-signals.Duration),
+		EndTime:       signals.Timestamp,
+		Duration:      signals.Duration,
+		Findings:      findings,
+		Analysis:      analysis,
 		// Carry the raw signals through so the JSON renderer can
 		// surface them for debugging — the pretty renderer ignores it.
 		Signals: signals,

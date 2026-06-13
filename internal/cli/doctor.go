@@ -528,6 +528,10 @@ func runDiagnosticCycle(
 	// Phase 2: Gather combined signal snapshot from all collectors.
 	signals := registry.Signals(opts.duration)
 
+	provider, instanceType := adapter.DetectCloud()
+	signals.Host.CloudProvider = provider
+	signals.Host.InstanceType = instanceType
+
 	// Phase 3: Run diagnostic engine (rules + optional AI).
 	report, err := engine.Diagnose(ctx, signals)
 	if err != nil {

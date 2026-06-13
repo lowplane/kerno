@@ -33,10 +33,12 @@ type Signals struct {
 
 // HostInfo identifies the machine being observed.
 type HostInfo struct {
-	Hostname  string `json:"hostname"`
-	KernelVer string `json:"kernelVersion"`
-	OS        string `json:"os"`
-	Arch      string `json:"arch"`
+	Hostname      string `json:"hostname"`
+	KernelVer     string `json:"kernelVersion"`
+	OS            string `json:"os"`
+	Arch          string `json:"arch"`
+	CloudProvider string `json:"cloudProvider,omitempty"`
+	InstanceType  string `json:"instanceType,omitempty"`
 }
 
 // ─── Percentiles ────────────────────────────────────────────────────────────
