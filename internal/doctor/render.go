@@ -149,11 +149,12 @@ func (r *PrettyRenderer) renderHeader(w io.Writer, report *Report, p palette) {
 	}
 	if report.CloudProvider != "" || report.InstanceType != "" {
 		var cloudText string
-		if report.CloudProvider != "" && report.InstanceType != "" {
+		switch {
+		case report.CloudProvider != "" && report.InstanceType != "":
 			cloudText = fmt.Sprintf("%s (%s)", report.CloudProvider, report.InstanceType)
-		} else if report.CloudProvider != "" {
+		case report.CloudProvider != "":
 			cloudText = report.CloudProvider
-		} else {
+		default:
 			cloudText = report.InstanceType
 		}
 		meta = append(meta, metaField(p, "Cloud", cloudText))
