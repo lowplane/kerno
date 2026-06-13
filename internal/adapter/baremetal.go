@@ -46,21 +46,23 @@ func (a *BareMetalAdapter) Enrich(meta *EventMeta) {
 // DetectCloud tries to determine the cloud provider and instance type
 // by reading DMI sysfs files.
 func DetectCloud() (provider, instanceType string) {
-	vendorBytes, _ := os.ReadFile("/sys/class/dmi/id/sys_vendor")
-	vendor := strings.TrimSpace(string(vendorBytes))
-	switch {
-	case strings.Contains(vendor, "Amazon EC2"):
-		provider = "AWS EC2"
-	case strings.Contains(vendor, "Google"):
-		provider = "Google Cloud"
-	case strings.Contains(vendor, "Microsoft Corporation"):
-		provider = "Azure"
+	if vendorBytes, err := os.ReadFile("/sys/class/dmi/id/sys_vendor"); err == nil {
+		vendor := strings.TrimSpace(string(vendorBytes))
+		switch {
+		case strings.Contains(vendor, "Amazon EC2"):
+			provider = "AWS EC2"
+		case strings.Contains(vendor, "Google"):
+			provider = "Google Cloud"
+		case strings.Contains(vendor, "Microsoft Corporation"):
+			provider = "Azure"
+		}
 	}
 
-	productBytes, _ := os.ReadFile("/sys/class/dmi/id/product_name")
-	product := strings.TrimSpace(string(productBytes))
-	if product != "" {
-		instanceType = product
+	if productBytes, err := os.ReadFile("/sys/class/dmi/id/product_name"); err == nil {
+		product := strings.TrimSpace(string(productBytes))
+		if product != "" {
+			instanceType = product
+		}
 	}
 
 	return provider, instanceType
