@@ -133,10 +133,10 @@ func (e *Engine) Diagnose(ctx context.Context, signals *collector.Signals) (*Rep
 		CloudProvider: signals.Host.CloudProvider,
 		InstanceType:  signals.Host.InstanceType,
 		StartTime:     signals.Timestamp.Add(-signals.Duration),
-		EndTime:   signals.Timestamp,
-		Duration:  signals.Duration,
-		Findings:  findings,
-		Analysis:  analysis,
+		EndTime:       signals.Timestamp,
+		Duration:      signals.Duration,
+		Findings:      findings,
+		Analysis:      analysis,
 		// Carry the raw signals through so the JSON renderer can
 		// surface them for debugging — the pretty renderer ignores it.
 		Signals: signals,

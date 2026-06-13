@@ -608,13 +608,13 @@ type jsonReport struct {
 	Arch          string            `json:"arch"`
 	CloudProvider string            `json:"cloudProvider,omitempty"`
 	InstanceType  string            `json:"instanceType,omitempty"`
-	StartTime time.Time         `json:"startTime"`
-	EndTime   time.Time         `json:"endTime"`
-	Duration  string            `json:"duration"`
-	Findings  []jsonFinding     `json:"findings"`
-	Summary   reportSummary     `json:"summary"`
-	Analysis  *AnalysisResponse `json:"analysis,omitempty"`
-	Signals   any               `json:"signals,omitempty"`
+	StartTime     time.Time         `json:"startTime"`
+	EndTime       time.Time         `json:"endTime"`
+	Duration      string            `json:"duration"`
+	Findings      []jsonFinding     `json:"findings"`
+	Summary       reportSummary     `json:"summary"`
+	Analysis      *AnalysisResponse `json:"analysis,omitempty"`
+	Signals       any               `json:"signals,omitempty"`
 }
 
 type jsonFinding struct {
@@ -649,9 +649,9 @@ func (r *JSONRenderer) Render(w io.Writer, report *Report) error {
 		Arch:          report.Arch,
 		CloudProvider: report.CloudProvider,
 		InstanceType:  report.InstanceType,
-		StartTime: report.StartTime,
-		EndTime:   report.EndTime,
-		Duration:  report.Duration.String(),
+		StartTime:     report.StartTime,
+		EndTime:       report.EndTime,
+		Duration:      report.Duration.String(),
 		Summary: reportSummary{
 			Critical:        crit,
 			Warning:         warn,

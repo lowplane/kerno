@@ -67,4 +67,3 @@ func DetectCloud() (provider, instanceType string) {
 
 	return provider, instanceType
 }
-
