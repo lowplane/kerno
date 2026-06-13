@@ -116,9 +116,11 @@ func (f *Finding) ETAString() string {
 // Report is the complete output of a doctor diagnostic run.
 type Report struct {
 	// Host identifies the machine analyzed.
-	Hostname  string
-	KernelVer string
-	Arch      string
+	Hostname      string
+	KernelVer     string
+	Arch          string
+	CloudProvider string
+	InstanceType  string
 
 	// Timing records the analysis window.
 	StartTime time.Time

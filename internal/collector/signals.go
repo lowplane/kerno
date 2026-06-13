@@ -35,8 +35,10 @@ type Signals struct {
 type HostInfo struct {
 	Hostname  string `json:"hostname"`
 	KernelVer string `json:"kernelVersion"`
-	OS        string `json:"os"`
-	Arch      string `json:"arch"`
+	OS            string `json:"os"`
+	Arch          string `json:"arch"`
+	CloudProvider string `json:"cloudProvider,omitempty"`
+	InstanceType  string `json:"instanceType,omitempty"`
 }
 
 // ─── Percentiles ────────────────────────────────────────────────────────────

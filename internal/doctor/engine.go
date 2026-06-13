@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/optiqor/kerno/internal/adapter"
 	"github.com/optiqor/kerno/internal/collector"
 	"github.com/optiqor/kerno/internal/config"
 )
@@ -126,11 +127,14 @@ func (e *Engine) Diagnose(ctx context.Context, signals *collector.Signals) (*Rep
 
 	// Phase 3: Build report.
 	hostname, _ := os.Hostname()
+	provider, instanceType := adapter.DetectCloud()
 	report := &Report{
-		Hostname:  hostname,
-		KernelVer: signals.Host.KernelVer,
-		Arch:      runtime.GOARCH,
-		StartTime: signals.Timestamp.Add(-signals.Duration),
+		Hostname:      hostname,
+		KernelVer:     signals.Host.KernelVer,
+		Arch:          runtime.GOARCH,
+		CloudProvider: provider,
+		InstanceType:  instanceType,
+		StartTime:     signals.Timestamp.Add(-signals.Duration),
 		EndTime:   signals.Timestamp,
 		Duration:  signals.Duration,
 		Findings:  findings,

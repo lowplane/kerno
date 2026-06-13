@@ -147,6 +147,17 @@ func (r *PrettyRenderer) renderHeader(w io.Writer, report *Report, p palette) {
 	if report.Environment != "" {
 		meta = append(meta, metaField(p, "Env", report.Environment))
 	}
+	if report.CloudProvider != "" || report.InstanceType != "" {
+		var cloudText string
+		if report.CloudProvider != "" && report.InstanceType != "" {
+			cloudText = fmt.Sprintf("%s (%s)", report.CloudProvider, report.InstanceType)
+		} else if report.CloudProvider != "" {
+			cloudText = report.CloudProvider
+		} else {
+			cloudText = report.InstanceType
+		}
+		meta = append(meta, metaField(p, "Cloud", cloudText))
+	}
 	kernel := report.KernelVer
 	if kernel != "" && report.Arch != "" {
 		kernel += " · " + report.Arch
@@ -592,9 +603,11 @@ type JSONRenderer struct {
 
 // jsonReport is the JSON-serializable report structure.
 type jsonReport struct {
-	Hostname  string            `json:"hostname"`
-	KernelVer string            `json:"kernelVersion"`
-	Arch      string            `json:"arch"`
+	Hostname      string            `json:"hostname"`
+	KernelVer     string            `json:"kernelVersion"`
+	Arch          string            `json:"arch"`
+	CloudProvider string            `json:"cloudProvider,omitempty"`
+	InstanceType  string            `json:"instanceType,omitempty"`
 	StartTime time.Time         `json:"startTime"`
 	EndTime   time.Time         `json:"endTime"`
 	Duration  string            `json:"duration"`
@@ -631,9 +644,11 @@ func (r *JSONRenderer) Render(w io.Writer, report *Report) error {
 	crit, warn, info := report.CountBySeverity()
 
 	jr := jsonReport{
-		Hostname:  report.Hostname,
-		KernelVer: report.KernelVer,
-		Arch:      report.Arch,
+		Hostname:      report.Hostname,
+		KernelVer:     report.KernelVer,
+		Arch:          report.Arch,
+		CloudProvider: report.CloudProvider,
+		InstanceType:  report.InstanceType,
 		StartTime: report.StartTime,
 		EndTime:   report.EndTime,
 		Duration:  report.Duration.String(),
