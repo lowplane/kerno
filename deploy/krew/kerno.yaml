@@ -1,0 +1,30 @@
+apiVersion: ://github.com
+kind: Plugin
+metadata:
+  name: kerno
+spec:
+  version: "v0.1.0"
+  homepage: "https://github.com"
+  shortDescription: "Execute diagnostic collection check routines via Kerno Doctor"
+  description: |
+    A K8s-native UX plugin that uses client-go to automatically discover 
+    kerno DaemonSet pods, exec into matching pod targets, stream output telemetry, 
+    and output merged aggregate cluster reports cleanly.
+  caveats: |
+    Requires the Kerno DaemonSet to be actively deployed inside your target cluster 
+    and appropriate RBAC context permissions to execute pod subresource exec streams.
+  platforms:
+  - selector:
+      matchLabels:
+        os: linux
+        arch: amd64
+    uri: https://github.com/releases/download/v0.1.0/kubectl-kerno_v0.1.0_linux_amd64.tar.gz
+    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    bin: kubectl-kerno
+  - selector:
+      matchLabels:
+        os: darwin
+        arch: amd64
+    uri: https://github.com/releases/download/v0.1.0/kubectl-kerno_v0.1.0_darwin_amd64.tar.gz
+    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    bin: kubectl-kerno
