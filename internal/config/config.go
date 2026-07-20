@@ -36,6 +36,34 @@ type Config struct {
 
 	// Kubernetes configures the K8s adapter for pod enrichment.
 	Kubernetes KubernetesConfig `mapstructure:"kubernetes" json:"kubernetes"`
+
+	// Audit configures the compliance audit log.
+	Audit AuditConfig `mapstructure:"audit" json:"audit"`
+}
+
+// AuditConfig controls the append-only compliance audit log.
+// Audit records are always written to stderr (via the slog "audit" group)
+// so journald / systemd captures them without any file-system dependency.
+// The file sink is optional but recommended for long-running daemon deployments.
+type AuditConfig struct {
+	// FilePath is the absolute path for the NDJSON audit log file.
+	// Empty string disables the file sink; stderr remains active.
+	// Example: "/var/log/kerno-audit.jsonl"
+	FilePath string `mapstructure:"file_path" json:"filePath"`
+
+	// MaxSizeMB is the maximum file size in megabytes before rotation.
+	// Rotation is handled by lumberjack; the OS log shipper picks up rotated files.
+	// Default: 100 MB.
+	MaxSizeMB int `mapstructure:"max_size_mb" json:"maxSizeMB"`
+
+	// MaxBackups is the number of rotated (old) log files to retain on disk.
+	// 0 means keep all backups.
+	MaxBackups int `mapstructure:"max_backups" json:"maxBackups"`
+
+	// Stderr controls whether audit records are also emitted to stderr
+	// via the slog "audit" group. Defaults to true so systemd / journald
+	// captures them automatically in daemon mode.
+	Stderr bool `mapstructure:"stderr" json:"stderr"`
 }
 
 // AIConfig controls the optional AI analysis layer.
@@ -109,6 +137,10 @@ type DoctorThresholds struct {
 type PrometheusConfig struct {
 	Enabled bool   `mapstructure:"enabled" json:"enabled"`
 	Addr    string `mapstructure:"addr" json:"addr"`
+	// BearerToken, when non-empty, requires callers of /metrics to supply
+	// "Authorization: Bearer <token>". Mismatches are recorded as auth.failure
+	// audit events. Empty = no authentication (rely on network controls).
+	BearerToken string `mapstructure:"bearer_token" json:"bearerToken"`
 }
 
 // DashboardConfig controls the embedded web dashboard.
@@ -175,6 +207,12 @@ func Default() *Config {
 			Enabled:    false,
 			Kubeconfig: "",
 		},
+		Audit: AuditConfig{
+			FilePath:   "/var/log/kerno-audit.jsonl",
+			MaxSizeMB:  100,
+			MaxBackups: 0,
+			Stderr:     true,
+		},
 	}
 }
 
@@ -230,6 +268,10 @@ func (c *Config) Validate() error {
 
 	if c.Dashboard.Enabled && c.Dashboard.Addr == "" {
 		return fmt.Errorf("dashboard.addr must be set when dashboard is enabled")
+	}
+
+	if c.Audit.MaxSizeMB < 0 {
+		return fmt.Errorf("audit.max_size_mb must be >= 0, got %d", c.Audit.MaxSizeMB)
 	}
 
 	return nil

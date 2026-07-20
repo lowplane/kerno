@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/optiqor/kerno/internal/audit"
 	"github.com/optiqor/kerno/internal/collector"
 	"github.com/optiqor/kerno/internal/config"
 )
@@ -34,7 +35,7 @@ func TestEngineDiagnoseContinuesWhenAnalyzerFails(t *testing.T) {
 	}
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	engine := NewEngine(config.Default().Doctor.Thresholds, failingAnalyzer{}, logger)
+	engine := NewEngine(config.Default().Doctor.Thresholds, failingAnalyzer{}, audit.Noop(), logger)
 
 	report, err := engine.Diagnose(context.Background(), signals)
 	if err != nil {

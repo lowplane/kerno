@@ -5,21 +5,19 @@ package doctor
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"log/slog"
 	"os"
 	"runtime"
 	"time"
 
+	"github.com/optiqor/kerno/internal/audit"
 	"github.com/optiqor/kerno/internal/collector"
 	"github.com/optiqor/kerno/internal/config"
 )
 
-// Analyzer is the optional AI analysis interface. When non-nil, the engine
-// calls it after rule evaluation to enrich findings with natural language
-// diagnosis, cross-signal correlation, and root cause analysis.
-//
-// This interface lives here (not in the ai package) to avoid import cycles.
-// The ai package implements it.
+// Analyzer is the optional AI analysis interface.
 type Analyzer interface {
 	Analyze(ctx context.Context, req AnalysisRequest) (*AnalysisResponse, error)
 }
@@ -33,23 +31,12 @@ type AnalysisRequest struct {
 
 // AnalysisResponse contains AI-generated insights.
 type AnalysisResponse struct {
-	// Summary is a plain-English diagnosis paragraph.
-	Summary string `json:"summary"`
-
-	// Correlations are cross-signal patterns detected by AI.
+	Summary      string        `json:"summary"`
 	Correlations []Correlation `json:"correlations,omitempty"`
-
-	// RootCauses are prioritized explanations with fix suggestions.
-	RootCauses []RootCause `json:"rootCauses,omitempty"`
-
-	// Anomalies are deviations from baseline behavior.
-	Anomalies []Anomaly `json:"anomalies,omitempty"`
-
-	// TrendSummary describes what's changing over time (continuous mode).
-	TrendSummary string `json:"trendSummary,omitempty"`
-
-	// TokensUsed tracks LLM token consumption for cost monitoring.
-	TokensUsed int `json:"tokensUsed"`
+	RootCauses   []RootCause   `json:"rootCauses,omitempty"`
+	Anomalies    []Anomaly     `json:"anomalies,omitempty"`
+	TrendSummary string        `json:"trendSummary,omitempty"`
+	TokensUsed   int           `json:"tokensUsed"`
 }
 
 // Correlation describes a cross-signal pattern.
@@ -86,17 +73,23 @@ type Engine struct {
 
 	analyzer   Analyzer
 	logger     *slog.Logger
+	auditLog   *audit.Logger
 	history    []*collector.Signals
 	maxHistory int
 }
 
 // NewEngine creates a new diagnostic engine.
 // Pass nil for analyzer to run without AI enrichment.
-func NewEngine(thresholds config.DoctorThresholds, analyzer Analyzer, logger *slog.Logger) *Engine {
+// Pass audit.Noop() for auditLog to disable audit emission.
+func NewEngine(thresholds config.DoctorThresholds, analyzer Analyzer, auditLog *audit.Logger, logger *slog.Logger) *Engine {
+	if auditLog == nil {
+		auditLog = audit.Noop()
+	}
 	return &Engine{
 		thresholds: thresholds,
 		analyzer:   analyzer,
 		logger:     logger,
+		auditLog:   auditLog,
 		maxHistory: 10,
 	}
 }
@@ -105,7 +98,7 @@ func NewEngine(thresholds config.DoctorThresholds, analyzer Analyzer, logger *sl
 func (e *Engine) Diagnose(ctx context.Context, signals *collector.Signals) (*Report, error) {
 	start := time.Now()
 
-	// Phase 1: Evaluate deterministic rules.
+	// Phase 1: Deterministic rule evaluation.
 	findings := Evaluate(signals, e.thresholds)
 	e.logger.Debug("rules evaluated",
 		"findings", len(findings),
@@ -129,6 +122,10 @@ func (e *Engine) Diagnose(ctx context.Context, signals *collector.Signals) (*Rep
 
 	// Phase 3: Build the report.
 	hostname, _ := os.Hostname()
+
+	// cycleID links this Diagnose run to all its audit records.
+	cycleID := fmt.Sprintf("cycle-%s", signals.Timestamp.UTC().Format("20060102-150405"))
+
 	report := &Report{
 		Hostname:  hostname,
 		KernelVer: signals.Host.KernelVer,
@@ -151,10 +148,39 @@ func (e *Engine) Diagnose(ctx context.Context, signals *collector.Signals) (*Rep
 		report.EventsCollected += signals.Sched.TotalCount
 	}
 
-	// Phase 4: Append to the history ring buffer.
+	// Phase 4: Emit finding.emit audit records for every WARNING/CRITICAL finding.
+	// INFO findings skipped — too noisy for compliance log.
+	for i := range findings {
+		f := &findings[i]
+		if f.Severity < SeverityWarning {
+			continue
+		}
+		e.auditLog.RecordFindingEmit(
+			f.Rule,
+			f.Severity.String(),
+			"log",
+			hashFinding(f),
+			cycleID,
+		)
+	}
+
+	// Phase 5: Append to history ring buffer.
 	e.appendHistory(signals)
 
 	return report, nil
+}
+
+// EmitFinding audit-logs a single finding being dispatched to a named sink
+// (e.g. "slack", "pagerduty"). Call this from the sink dispatcher after
+// Diagnose() so the audit record carries the real sink name.
+func (e *Engine) EmitFinding(f *Finding, sink, cycleID string) {
+	e.auditLog.RecordFindingEmit(
+		f.Rule,
+		f.Severity.String(),
+		sink,
+		hashFinding(f),
+		cycleID,
+	)
 }
 
 func (e *Engine) appendHistory(signals *collector.Signals) {
@@ -162,6 +188,24 @@ func (e *Engine) appendHistory(signals *collector.Signals) {
 	if len(e.history) > e.maxHistory {
 		e.history = e.history[1:]
 	}
+}
+
+// hashFinding returns a 16-char FNV-1a fingerprint of the finding's
+// non-PII fields for payload traceability.
+func hashFinding(f *Finding) string {
+	payload, err := json.Marshal(struct {
+		Rule     string `json:"rule"`
+		Severity string `json:"severity"`
+		Title    string `json:"title"`
+	}{
+		Rule:     f.Rule,
+		Severity: f.Severity.String(),
+		Title:    f.Title,
+	})
+	if err != nil {
+		return "hash-error"
+	}
+	return audit.HashPayload(string(payload))
 }
 
 // hasActionableFindings returns true if there is at least one WARNING or

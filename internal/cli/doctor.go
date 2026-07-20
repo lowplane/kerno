@@ -17,6 +17,7 @@ import (
 
 	"github.com/optiqor/kerno/internal/adapter"
 	"github.com/optiqor/kerno/internal/ai"
+	"github.com/optiqor/kerno/internal/audit"
 	"github.com/optiqor/kerno/internal/bpf"
 	"github.com/optiqor/kerno/internal/collector"
 	"github.com/optiqor/kerno/internal/config"
@@ -137,19 +138,28 @@ func runDoctor(ctx context.Context, opts doctorOpts) error {
 	// Resolve thresholds from config.
 	thresholds := cfg.Doctor.Thresholds
 
-	// Build optional AI analyzer.
+	auditLog, err := audit.New(audit.Config{
+		FilePath:   cfg.Audit.FilePath,
+		MaxSizeMB:  cfg.Audit.MaxSizeMB,
+		MaxBackups: cfg.Audit.MaxBackups,
+		Stderr:     cfg.Audit.Stderr,
+	})
+	if err != nil {
+		logger.Warn("audit logger init failed in doctor, using noop", "error", err)
+		auditLog = audit.Noop()
+	}
+
 	var analyzer doctor.Analyzer
 	if opts.aiEnabled {
 		var err error
-		analyzer, err = buildAnalyzer(cfg, logger)
+		analyzer, err = buildAnalyzer(cfg, logger, auditLog)
 		if err != nil {
 			// AI setup failure is non-fatal — warn and continue without AI.
 			logger.Warn("AI analysis unavailable, continuing with rule-based diagnostics", "error", err)
 		}
 	}
 
-	// Create the diagnostic engine.
-	engine := doctor.NewEngine(thresholds, analyzer, logger)
+	engine := doctor.NewEngine(thresholds, analyzer, auditLog, logger)
 
 	// Select renderer.
 	var renderer doctor.Renderer
@@ -230,10 +240,7 @@ func buildCollectors(ctx context.Context, logger *slog.Logger) collectorBuildRes
 	type loaderRegistration struct {
 		name    string
 		enabled bool
-		// build creates the loader, calls Load() on it, and returns a
-		// Collector ready to be registered. On Load() failure, returns
-		// (nil, nil, error) so the caller can log + skip.
-		build func() (collector.Collector, io.Closer, error)
+		build   func() (collector.Collector, io.Closer, error)
 	}
 
 	// Captured so we can inject a pod enricher after the registration loop.
@@ -373,10 +380,7 @@ func buildCollectors(ctx context.Context, logger *slog.Logger) collectorBuildRes
 	// stays empty and LookupByPath returns ("", "") — a no-op.
 	if cgroupColl != nil {
 		kubeAdapter := adapter.NewKubernetesAdapter(logger)
-		// Start in a goroutine so a slow or absent Kubelet does not block
-		// the doctor startup. Enrichment is best-effort: early polls may
-		// have empty namespace; later polls will have it once the index is built.
-		go func() { _ = kubeAdapter.Start(ctx) }() //nolint:errcheck // Start always returns nil
+		go func() { _ = kubeAdapter.Start(ctx) }()
 		cgroupColl.SetEnricher(kubeAdapter)
 		closers = append(closers, func() { kubeAdapter.Stop() })
 	}
@@ -414,7 +418,8 @@ func classifyLoadError(err error) string {
 }
 
 // buildAnalyzer constructs the AI analyzer from configuration.
-func buildAnalyzer(c *config.Config, logger *slog.Logger) (doctor.Analyzer, error) {
+// auditLog is passed through so every AI call emits an audit record.
+func buildAnalyzer(c *config.Config, logger *slog.Logger, auditLog *audit.Logger) (doctor.Analyzer, error) {
 	aiCfg := c.AI
 
 	// Build the LLM provider.
@@ -457,6 +462,7 @@ func buildAnalyzer(c *config.Config, logger *slog.Logger) (doctor.Analyzer, erro
 		Cache:    cache,
 		Privacy:  privacy,
 		Logger:   logger,
+		AuditLog: auditLog, // wire audit log into analyzer
 	}), nil
 }
 
@@ -498,7 +504,7 @@ func runDiagnosticCycle(
 					n += snap.Sched.TotalCount
 				}
 				if snap.OOM != nil && snap.OOM.Count > 0 {
-					n += uint64(snap.OOM.Count) //nolint:gosec // Count is a slice len; non-negative
+					n += uint64(snap.OOM.Count) //nolint:gosec
 				}
 				if snap.DiskIO != nil {
 					n += snap.DiskIO.TotalReads + snap.DiskIO.TotalWrites + snap.DiskIO.TotalSyncs

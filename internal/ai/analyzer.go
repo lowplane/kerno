@@ -9,7 +9,9 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"time"
 
+	"github.com/optiqor/kerno/internal/audit"
 	"github.com/optiqor/kerno/internal/doctor"
 )
 
@@ -20,6 +22,7 @@ type DefaultAnalyzer struct {
 	cache    *Cache
 	privacy  PrivacyMode
 	logger   *slog.Logger
+	auditLog *audit.Logger // nil-safe: all audit.Logger methods handle nil receiver
 }
 
 // AnalyzerConfig holds configuration for constructing a DefaultAnalyzer.
@@ -28,6 +31,7 @@ type AnalyzerConfig struct {
 	Cache    *Cache
 	Privacy  PrivacyMode
 	Logger   *slog.Logger
+	AuditLog *audit.Logger // optional; pass audit.Noop() to disable
 }
 
 // NewAnalyzer creates a DefaultAnalyzer.
@@ -40,28 +44,49 @@ func NewAnalyzer(cfg AnalyzerConfig) *DefaultAnalyzer {
 	if logger == nil {
 		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 	}
+	auditLog := cfg.AuditLog
+	if auditLog == nil {
+		auditLog = audit.Noop()
+	}
 	return &DefaultAnalyzer{
 		provider: cfg.Provider,
 		cache:    cfg.Cache,
 		privacy:  privacy,
 		logger:   logger,
+		auditLog: auditLog,
 	}
 }
 
 // Analyze implements doctor.Analyzer. It serializes signals and findings into
 // a prompt, sends it to the LLM, and parses the structured JSON response.
+// Every AI call — cached or live — emits an audit record.
 func (a *DefaultAnalyzer) Analyze(ctx context.Context, req doctor.AnalysisRequest) (*doctor.AnalysisResponse, error) {
+	// Build the prompt first so we know its size for the audit record.
+	userPrompt := BuildUserPrompt(req.Signals, req.Findings, req.History, a.privacy)
+
+	// Redact the prompt BEFORE any logging or audit emission.
+	// We don't log the prompt body, but we do record how much was stripped
+	// so compliance reviewers can verify redaction ran.
+	_, redactions := audit.Redact(userPrompt)
+
 	// Check cache first.
 	if a.cache != nil {
 		fingerprint := findingsFingerprint(req.Findings)
 		if cached, ok := a.cache.Get(fingerprint); ok {
 			a.logger.Debug("AI cache hit", "fingerprint", fingerprint)
+			// Cache hits still produce an audit record so the log is complete.
+			a.auditLog.RecordAICall(
+				a.provider.Name(),
+				"cached", // model unknown for cache hits
+				cached.TokensUsed,
+				len(userPrompt),
+				0, // response size not re-measured on cache hit
+				redactions,
+				0, // duration 0 — served from cache
+			)
 			return cached, nil
 		}
 	}
-
-	// Build the prompt.
-	userPrompt := BuildUserPrompt(req.Signals, req.Findings, req.History, a.privacy)
 
 	a.logger.Debug("sending to AI provider",
 		"provider", a.provider.Name(),
@@ -69,12 +94,25 @@ func (a *DefaultAnalyzer) Analyze(ctx context.Context, req doctor.AnalysisReques
 		"prompt_len", len(userPrompt),
 	)
 
-	// Call the LLM.
+	// Call the LLM — measure wall-clock duration for the audit record.
+	start := time.Now()
 	completion, err := a.provider.Complete(ctx, CompletionRequest{
 		SystemPrompt: SystemPrompt,
 		UserPrompt:   userPrompt,
 	})
+	durationMs := time.Since(start).Milliseconds()
+
 	if err != nil {
+		// Emit an audit record even on failure so the log is append-only complete.
+		a.auditLog.RecordAICall(
+			a.provider.Name(),
+			"unknown", // model unknown on error
+			0,
+			len(userPrompt),
+			0,
+			redactions,
+			durationMs,
+		)
 		return nil, fmt.Errorf("AI provider %s: %w", a.provider.Name(), err)
 	}
 
@@ -82,6 +120,17 @@ func (a *DefaultAnalyzer) Analyze(ctx context.Context, req doctor.AnalysisReques
 		"provider", a.provider.Name(),
 		"model", completion.Model,
 		"tokens", completion.TokensUsed,
+	)
+
+	// Emit the audit record — no prompt/response bodies, only metadata.
+	a.auditLog.RecordAICall(
+		a.provider.Name(),
+		completion.Model,
+		completion.TokensUsed,
+		len(userPrompt),
+		len(completion.Text),
+		redactions,
+		durationMs,
 	)
 
 	// Parse the structured JSON response.
