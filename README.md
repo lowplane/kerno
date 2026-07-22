@@ -666,11 +666,13 @@ See [TODO.md](TODO.md) for the full plan. Headlines:
 
 ## Building from Source
 
+> **Note:** If you update Go or install new build dependencies after cloning the repository, run a clean rebuild to ensure all generated binaries and artifacts use the latest toolchain.
+
 ```bash
 # Requirements: Go 1.25+
 # Optional for real eBPF: clang 14+, libbpf-dev, llvm, bpftool
 
-make build          # Build binary (uses BPF stubs - no clang needed)
+make build        # Build binary (uses BPF stubs - no clang needed)
 make generate       # Run bpf2go to produce *_bpfel.go from C sources
 make bpf            # Compile eBPF C programs to .o
 make bpf-verify     # Build the standalone kernel-verifier load harness
