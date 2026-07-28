@@ -14,7 +14,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"syscall"
 	"testing"
 	"time"
@@ -104,12 +103,22 @@ func TestStartCommandServesHealthAndStopsCleanly(t *testing.T) {
 func integrationRepoRoot(t *testing.T) string {
 	t.Helper()
 
-	_, filename, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("resolve integration test filename")
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get working directory: %v", err)
 	}
 
-	return filepath.Clean(filepath.Join(filepath.Dir(filename), "..", ".."))
+	dir := wd
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			t.Fatal("could not find go.mod in any parent directory")
+		}
+		dir = parent
+	}
 }
 
 func buildKernoBinary(t *testing.T, ctx context.Context, repoRoot string) string {
