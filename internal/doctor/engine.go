@@ -77,9 +77,13 @@ type Anomaly struct {
 }
 
 // Engine orchestrates the full doctor diagnostic pipeline:
-// collect signals → evaluate rules → (optional AI) → render report.
+//
+//	collect signals → evaluate rules → (optional AI enrichment) → render report
 type Engine struct {
+	// thresholds are set at construction time and are read-only after that.
+	// Changing thresholds requires a daemon restart (restart-required config class).
 	thresholds config.DoctorThresholds
+
 	analyzer   Analyzer
 	logger     *slog.Logger
 	history    []*collector.Signals
@@ -97,7 +101,7 @@ func NewEngine(thresholds config.DoctorThresholds, analyzer Analyzer, logger *sl
 	}
 }
 
-// Diagnose runs the full diagnostic pipeline against collected signals.
+// Diagnose runs the full diagnostic pipeline against the supplied signals.
 func (e *Engine) Diagnose(ctx context.Context, signals *collector.Signals) (*Report, error) {
 	start := time.Now()
 
@@ -108,7 +112,7 @@ func (e *Engine) Diagnose(ctx context.Context, signals *collector.Signals) (*Rep
 		"duration_ms", time.Since(start).Milliseconds(),
 	)
 
-	// Phase 2: Optional AI enrichment.
+	// Phase 2: Optional AI enrichment (non-fatal on failure).
 	var analysis *AnalysisResponse
 	if e.analyzer != nil && hasActionableFindings(findings) {
 		e.logger.Info("running AI analysis")
@@ -119,12 +123,11 @@ func (e *Engine) Diagnose(ctx context.Context, signals *collector.Signals) (*Rep
 			History:  e.history,
 		})
 		if err != nil {
-			// AI failure is non-fatal — log and continue with deterministic results.
 			e.logger.Warn("AI analysis failed, continuing with rule-based results", "error", err)
 		}
 	}
 
-	// Phase 3: Build report.
+	// Phase 3: Build the report.
 	hostname, _ := os.Hostname()
 	report := &Report{
 		Hostname:  hostname,
@@ -135,12 +138,12 @@ func (e *Engine) Diagnose(ctx context.Context, signals *collector.Signals) (*Rep
 		Duration:  signals.Duration,
 		Findings:  findings,
 		Analysis:  analysis,
-		// Carry the raw signals through so the JSON renderer can
-		// surface them for debugging — the pretty renderer ignores it.
+		// Raw signals are carried through for the JSON renderer; the
+		// pretty renderer ignores this field.
 		Signals: signals,
 	}
 
-	// Track events collected.
+	// Track event counts for the report summary.
 	if signals.Syscall != nil {
 		report.EventsCollected += signals.Syscall.TotalCount
 	}
@@ -148,7 +151,7 @@ func (e *Engine) Diagnose(ctx context.Context, signals *collector.Signals) (*Rep
 		report.EventsCollected += signals.Sched.TotalCount
 	}
 
-	// Phase 4: Append to history ring buffer.
+	// Phase 4: Append to the history ring buffer.
 	e.appendHistory(signals)
 
 	return report, nil
@@ -161,7 +164,8 @@ func (e *Engine) appendHistory(signals *collector.Signals) {
 	}
 }
 
-// hasActionableFindings returns true if there are any WARNING or CRITICAL findings.
+// hasActionableFindings returns true if there is at least one WARNING or
+// CRITICAL finding — the threshold below which AI enrichment is not worthwhile.
 func hasActionableFindings(findings []Finding) bool {
 	for i := range findings {
 		if findings[i].Severity >= SeverityWarning {

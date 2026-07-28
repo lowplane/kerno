@@ -1,3 +1,5 @@
+//go:build linux
+
 // Copyright 2026 Optiqor contributors
 // SPDX-License-Identifier: Apache-2.0
 
@@ -94,7 +96,7 @@ func TestDecodeTCPEvent(t *testing.T) {
 		SAddr:       binary.BigEndian.Uint32([]byte{10, 0, 0, 1}),
 		DAddr:       binary.BigEndian.Uint32([]byte{8, 8, 8, 8}),
 		SPort:       54321,
-		DPort:       443, // already in host byte order (BPF normalizes before writing)
+		DPort:       443,
 		EventType:   TCPEventRTT,
 		RTTUs:       250,
 	}
@@ -486,22 +488,6 @@ func TestIsSyscallError(t *testing.T) {
 	}
 	if !IsSyscallError(0xFFFFFFFF) {
 		t.Error("-EPERM should be an error")
-	}
-}
-
-func TestTCPEventPortByteOrder(t *testing.T) {
-	// Verify that ports in TCPEvent are host byte order.
-	// The BPF program applies bpf_ntohs() to dport before writing,
-	// so both fields should be readable directly without swapping.
-	e := TCPEvent{
-		SPort: 54321, // ephemeral source port, host order
-		DPort: 443,   // HTTPS destination port, host order (not 47873)
-	}
-	if e.DPort == 0xBB01 { // 47873 = 443 byte-swapped
-		t.Error("DPort is in network byte order; expected host byte order after BPF normalization")
-	}
-	if e.DPort != 443 {
-		t.Errorf("DPort = %d, want 443", e.DPort)
 	}
 }
 

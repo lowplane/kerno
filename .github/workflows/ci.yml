@@ -90,6 +90,9 @@ jobs:
       - name: Verify Docker is available
         run: docker version
 
+      - name: Build Docker image
+        run: docker build -t kerno:local .
+
       - name: Run integration tests
         run: make test-integration
 
@@ -180,6 +183,9 @@ jobs:
         with:
           context: .
           push: false
-          tags: ghcr.io/optiqor/kerno:ci
+          tags: |
+           ghcr.io/optiqor/kerno:ci
+           kerno:local
+          load: true      
           cache-from: type=gha
           cache-to: type=gha,mode=max

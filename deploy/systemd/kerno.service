@@ -12,6 +12,11 @@
 #
 # Logs:
 #   journalctl -u kerno -f
+#
+# Hot-reload config without restarting:
+#   sudo systemctl reload kerno
+#   # or equivalently:
+#   sudo kill -HUP $(pidof kerno)
 
 [Unit]
 Description=Kerno — eBPF kernel diagnostic engine
@@ -21,21 +26,31 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+ExecStart=/usr/local/bin/kerno start
+
+# Hot-reload via SIGHUP 
+# `systemctl reload kerno` sends SIGHUP to the main process.
+# Kerno re-reads /etc/kerno/config.yaml and applies safe changes live
+# (log level, doctor thresholds, prometheus address, AI config).
+# Changes to collector enable/disable flags are logged as warnings and
+# require a full restart.
+ExecReload=/bin/kill -HUP $MAINPID
+
 ExecStart=/usr/bin/kerno start
 Restart=on-failure
 RestartSec=5s
 
-# ── Security hardening ───────────────────────────────────────────────
+# Security hardening
 # Kerno needs elevated privileges for eBPF, but we lock down everything else.
 User=root
 Group=root
 
 # Capabilities required for eBPF program loading and tracepoint attachment.
-# CAP_BPF:       load eBPF programs, create maps
-# CAP_PERFMON:   attach to perf events and tracepoints
-# CAP_SYS_PTRACE: read /proc/<pid>/cgroup for other processes
-# CAP_SYS_ADMIN: fallback for older kernels where CAP_BPF is not sufficient
-# CAP_NET_ADMIN: read conntrack table, network stats
+# CAP_BPF:            load eBPF programs, create maps
+# CAP_PERFMON:        attach to perf events and tracepoints
+# CAP_SYS_PTRACE:     read /proc/<pid>/cgroup for other processes
+# CAP_SYS_ADMIN:      fallback for older kernels where CAP_BPF is not sufficient
+# CAP_NET_ADMIN:      read conntrack table, network stats
 # CAP_DAC_READ_SEARCH: read cgroup/sysfs files owned by other users
 AmbientCapabilities=CAP_BPF CAP_PERFMON CAP_SYS_PTRACE CAP_SYS_ADMIN CAP_NET_ADMIN CAP_DAC_READ_SEARCH
 
@@ -51,17 +66,17 @@ ReadOnlyPaths=/proc /sys /dev/kmsg /var/log
 # Allow writing to BPF filesystem for map pinning.
 ReadWritePaths=/sys/fs/bpf
 
-# ── Resource limits ──────────────────────────────────────────────────
+# Resource limits 
 MemoryMax=512M
 CPUQuota=100%
 TasksMax=256
 
-# ── Logging ──────────────────────────────────────────────────────────
+# Logging 
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=kerno
 
-# ── Environment ──────────────────────────────────────────────────────
+# Environment 
 # Config file location (optional — kerno works with zero config).
 Environment=KERNO_LOG_FORMAT=json
 EnvironmentFile=-/etc/kerno/env

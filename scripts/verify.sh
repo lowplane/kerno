@@ -394,6 +394,67 @@ phase_daemon() {
         phase_fail "$n" "/metrics has no kerno_ metrics at all"
     fi
 
+
+    # SIGHUP hot-reload test:
+    # 1. Write a new config with a different log_level and tighter thresholds.
+    # 2. Send SIGHUP to the daemon.
+    # 3. Wait briefly for the reload to settle.
+    # 4. Check the daemon log for the reload success message.
+    # 5. Verify the daemon is still alive (no crash).
+    echo "     [SIGHUP hot-reload]"
+    cat >/tmp/verify-sighup-config.yaml <<'YAML'
+log_level: debug
+log_format: json
+doctor:
+  duration: 30s
+  thresholds:
+    syscall_p99_warning_ns: 50000000
+    syscall_p99_critical_ns: 250000000
+    tcp_retransmit_pct: 1.0
+    oom_memory_pct: 90.0
+    disk_p99_warning_ns: 50000000
+    disk_p99_critical_ns: 200000000
+    sched_delay_warning_ns: 5000000
+    sched_delay_critical_ns: 20000000
+    fd_growth_per_sec: 10.0
+prometheus:
+  enabled: true
+  addr: ":19099"
+ai:
+  enabled: false
+YAML
+    cp /tmp/verify-sighup-config.yaml /tmp/verify-active-config.yaml
+    sudo kill -HUP "$dpid" 2>/dev/null
+    sleep 3
+    if sudo kill -0 "$dpid" 2>/dev/null; then
+        phase_pass "$n" "daemon still alive after SIGHUP (no crash)"
+    else
+        phase_fail "$n" "daemon crashed after SIGHUP"
+        return 1
+    fi
+    if grep -q "config reloaded" /tmp/verify-daemon.log 2>/dev/null; then
+        local applied
+        applied=$(grep "config reloaded" /tmp/verify-daemon.log | tail -1)
+        phase_pass "$n" "SIGHUP: reload logged"
+    else
+        phase_fail "$n" "SIGHUP: config reloaded not found in daemon log"
+    fi
+    if grep -q "log level changed" /tmp/verify-daemon.log 2>/dev/null; then
+        phase_pass "$n" "SIGHUP: log level hot-swap confirmed in daemon log"
+    else
+        phase_skip "$n" "SIGHUP: log level change line not found (may already be debug)"
+    fi
+    if curl -sf "localhost:$port/metrics" >/dev/null 2>/dev/null; then
+        phase_pass "$n" "SIGHUP: /metrics still responsive after reload"
+    else
+        phase_fail "$n" "SIGHUP: /metrics not responding after reload"
+    fi
+    if grep -q "ExecReload=/bin/kill -HUP" deploy/systemd/kerno.service; then
+        phase_pass "$n" "kerno.service has ExecReload line"
+    else
+        phase_fail "$n" "kerno.service missing ExecReload line"
+    fi
+
     # Graceful shutdown.
     sudo kill -INT $dpid 2>/dev/null || true
     local stopped=0
