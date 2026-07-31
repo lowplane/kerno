@@ -12,9 +12,13 @@ on:
 permissions:
   contents: write
   packages: write
+  # Required for keyless cosign signing via GitHub OIDC
+  id-token: write
 
 env:
   GO_VERSION: "1.25"
+  REGISTRY: ghcr.io
+  IMAGE: ghcr.io/optiqor/kerno
 
 jobs:
   release:
@@ -50,12 +54,75 @@ jobs:
       - name: Set up QEMU (multi-arch)
         uses: docker/setup-qemu-action@v4
 
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: "v2.2.4"
+
+      - name: Install Syft
+        uses: anchore/sbom-action/download-syft@v0
+
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v7
+        id: goreleaser
+        uses: goreleaser/goreleaser-action@v2
         with:
           distribution: goreleaser
           version: "~> v2"
           args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract image digest (versioned tag)
+        id: digest-tag
+        run: |
+          TAG="${{ github.ref_name }}"
+          DIGEST=$(docker buildx imagetools inspect "${{ env.IMAGE }}:${TAG}" \
+            --format '{{json .Manifest}}' | jq -r '.digest')
+          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Sign container image (versioned tag)
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+        run: |
+          cosign sign --yes \
+            "${{ env.IMAGE }}:${{ steps.digest-tag.outputs.tag }}@${{ steps.digest-tag.outputs.digest }}"
+
+      - name: Extract image digest (latest tag)
+        id: digest-latest
+        run: |
+          DIGEST=$(docker buildx imagetools inspect "${{ env.IMAGE }}:latest" \
+            --format '{{json .Manifest}}' | jq -r '.digest')
+          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+
+      - name: Sign container image (latest tag)
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+        run: |
+          cosign sign --yes \
+            "${{ env.IMAGE }}:latest@${{ steps.digest-latest.outputs.digest }}"
+
+      - name: Generate SBOM (container image)
+        uses: anchore/sbom-action@v0
+        with:
+          image: "${{ env.IMAGE }}:${{ steps.digest-tag.outputs.tag }}"
+          format: cyclonedx-json
+          output-file: "${{ github.workspace }}/kerno_${{ steps.digest-tag.outputs.tag }}_sbom.cyclonedx.json"
+          artifact-name: "kerno_${{ steps.digest-tag.outputs.tag }}_sbom.cyclonedx.json"
+
+      - name: Attest SBOM to image (versioned tag)
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+        run: |
+          cosign attest --yes \
+            --predicate "${{ github.workspace }}/kerno_${{ steps.digest-tag.outputs.tag }}_sbom.cyclonedx.json" \
+            --type cyclonedx \
+            "${{ env.IMAGE }}:${{ steps.digest-tag.outputs.tag }}@${{ steps.digest-tag.outputs.digest }}"
+
+      - name: Upload SBOM to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: "${{ github.workspace }}/kerno_${{ steps.digest-tag.outputs.tag }}_sbom.cyclonedx.json"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   
@@ -79,13 +146,23 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             clang llvm libbpf-dev linux-headers-generic
 
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: "v2.2.4"
+
+      - name: Install Syft
+        uses: anchore/sbom-action/download-syft@v0
+
       - name: Run GoReleaser snapshot
-        uses: goreleaser/goreleaser-action@v7
+        uses: goreleaser/goreleaser-action@v2
         with:
           distribution: goreleaser
           version: "~> v2"
-          args: release --snapshot --clean
+          args: release --snapshot --clean --skip=sign
         env:
+          COSIGN_EXPERIMENTAL: ""
+          GORELEASER_SKIP: sign
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload snapshot packages
