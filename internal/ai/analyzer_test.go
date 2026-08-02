@@ -36,12 +36,15 @@ type scriptedProvider struct {
 	model  string
 	err    error
 	calls  atomic.Uint64
+
+	lastReq CompletionRequest
 }
 
 func (p *scriptedProvider) Name() string { return "scripted" }
 
-func (p *scriptedProvider) Complete(_ context.Context, _ CompletionRequest) (*CompletionResponse, error) {
+func (p *scriptedProvider) Complete(_ context.Context, req CompletionRequest) (*CompletionResponse, error) {
 	p.calls.Add(1)
+	p.lastReq = req
 	if p.err != nil {
 		return nil, p.err
 	}
@@ -89,6 +92,37 @@ func TestAnalyzerUsesDiscardLoggerWhenNil(t *testing.T) {
 	}
 	if resp.Summary != "ok" {
 		t.Errorf("Summary = %q, want ok", resp.Summary)
+	}
+}
+
+func TestAnalyzerWiresConfiguredMaxTokensAndTemperature(t *testing.T) {
+	cases := []struct {
+		name        string
+		maxTokens   int
+		temperature float64
+	}{
+		{"configured values ride the request", 2048, 0.7},
+		{"zero stays zero so provider keeps its default", 0, 0},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			prov := &scriptedProvider{text: `{"summary":"ok"}`}
+			a := NewAnalyzer(AnalyzerConfig{
+				Provider:    prov,
+				Logger:      newSilentAILogger(),
+				MaxTokens:   c.maxTokens,
+				Temperature: c.temperature,
+			})
+			if _, err := a.Analyze(context.Background(), doctor.AnalysisRequest{Signals: emptySignals()}); err != nil {
+				t.Fatalf("Analyze error: %v", err)
+			}
+			if prov.lastReq.MaxTokens != c.maxTokens {
+				t.Errorf("request MaxTokens = %d, want %d", prov.lastReq.MaxTokens, c.maxTokens)
+			}
+			if prov.lastReq.Temperature != c.temperature {
+				t.Errorf("request Temperature = %v, want %v", prov.lastReq.Temperature, c.temperature)
+			}
+		})
 	}
 }
 

@@ -453,10 +453,12 @@ func buildAnalyzer(c *config.Config, logger *slog.Logger) (doctor.Analyzer, erro
 	}
 
 	return ai.NewAnalyzer(ai.AnalyzerConfig{
-		Provider: provider,
-		Cache:    cache,
-		Privacy:  privacy,
-		Logger:   logger,
+		Provider:    provider,
+		Cache:       cache,
+		Privacy:     privacy,
+		Logger:      logger,
+		MaxTokens:   aiCfg.MaxTokens,
+		Temperature: aiCfg.Temperature,
 	}), nil
 }
 
