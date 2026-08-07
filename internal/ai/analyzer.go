@@ -16,18 +16,22 @@ import (
 // DefaultAnalyzer implements doctor.Analyzer by sending findings to an LLM
 // provider and parsing the structured response.
 type DefaultAnalyzer struct {
-	provider Provider
-	cache    *Cache
-	privacy  PrivacyMode
-	logger   *slog.Logger
+	provider    Provider
+	cache       *Cache
+	privacy     PrivacyMode
+	logger      *slog.Logger
+	maxTokens   int
+	temperature float64
 }
 
 // AnalyzerConfig holds configuration for constructing a DefaultAnalyzer.
 type AnalyzerConfig struct {
-	Provider Provider
-	Cache    *Cache
-	Privacy  PrivacyMode
-	Logger   *slog.Logger
+	Provider    Provider
+	Cache       *Cache
+	Privacy     PrivacyMode
+	Logger      *slog.Logger
+	MaxTokens   int
+	Temperature float64
 }
 
 // NewAnalyzer creates a DefaultAnalyzer.
@@ -41,10 +45,12 @@ func NewAnalyzer(cfg AnalyzerConfig) *DefaultAnalyzer {
 		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 	}
 	return &DefaultAnalyzer{
-		provider: cfg.Provider,
-		cache:    cfg.Cache,
-		privacy:  privacy,
-		logger:   logger,
+		provider:    cfg.Provider,
+		cache:       cfg.Cache,
+		privacy:     privacy,
+		logger:      logger,
+		maxTokens:   cfg.MaxTokens,
+		temperature: cfg.Temperature,
 	}
 }
 
@@ -73,6 +79,8 @@ func (a *DefaultAnalyzer) Analyze(ctx context.Context, req doctor.AnalysisReques
 	completion, err := a.provider.Complete(ctx, CompletionRequest{
 		SystemPrompt: SystemPrompt,
 		UserPrompt:   userPrompt,
+		MaxTokens:    a.maxTokens,
+		Temperature:  a.temperature,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("AI provider %s: %w", a.provider.Name(), err)
@@ -106,9 +114,7 @@ func (a *DefaultAnalyzer) Analyze(ctx context.Context, req doctor.AnalysisReques
 
 // parseAnalysisResponse attempts to parse the LLM response as structured JSON.
 func parseAnalysisResponse(text string) (*doctor.AnalysisResponse, error) {
-	// Try to extract JSON from the response (LLMs sometimes wrap in markdown).
 	jsonText := extractJSON(text)
-
 	var resp doctor.AnalysisResponse
 	if err := json.Unmarshal([]byte(jsonText), &resp); err != nil {
 		return nil, fmt.Errorf("parsing AI response JSON: %w", err)
@@ -118,21 +124,18 @@ func parseAnalysisResponse(text string) (*doctor.AnalysisResponse, error) {
 
 // extractJSON tries to find a JSON object in the text, handling markdown code blocks.
 func extractJSON(text string) string {
-	// Look for ```json ... ``` blocks.
 	if start := findSubstring(text, "```json"); start >= 0 {
 		content := text[start+7:]
 		if end := findSubstring(content, "```"); end >= 0 {
 			return content[:end]
 		}
 	}
-	// Look for ``` ... ``` blocks.
 	if start := findSubstring(text, "```"); start >= 0 {
 		content := text[start+3:]
 		if end := findSubstring(content, "```"); end >= 0 {
 			return content[:end]
 		}
 	}
-	// Try the raw text as-is.
 	return text
 }
 
@@ -146,8 +149,6 @@ func findSubstring(s, substr string) int {
 }
 
 // findingsFingerprint creates a cache key from findings.
-// It uses rule names and severities, not exact values, so similar
-// situations share cache entries.
 func findingsFingerprint(findings []doctor.Finding) string {
 	if len(findings) == 0 {
 		return "healthy"
@@ -156,7 +157,6 @@ func findingsFingerprint(findings []doctor.Finding) string {
 	for i, f := range findings {
 		parts[i] = fmt.Sprintf("%s:%s", f.Rule, f.Severity)
 	}
-	// Simple concatenation — good enough for cache key.
 	result := ""
 	for i, p := range parts {
 		if i > 0 {
