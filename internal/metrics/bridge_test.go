@@ -64,7 +64,7 @@ func TestRecordDiskIO(t *testing.T) {
 		devLabel string
 		op       byte
 		opLabel  string
-		bytes    uint32
+		bytes    uint64
 	}{
 		{
 			name:     "disk_write",
@@ -298,12 +298,12 @@ func encodeDiskEvent(e *bpf.DiskEvent) []byte {
 	binary.LittleEndian.PutUint64(buf[8:], e.LatencyNs)
 	binary.LittleEndian.PutUint64(buf[16:], e.Sector)
 	binary.LittleEndian.PutUint32(buf[24:], e.Dev)
-	binary.LittleEndian.PutUint32(buf[28:], e.NrBytes)
-	binary.LittleEndian.PutUint32(buf[32:], e.PID)
-	buf[36] = e.Op
-	// pad [37:40]
-	copy(buf[40:56], e.Comm[:])
-	return buf[:56]
+	binary.LittleEndian.PutUint32(buf[28:], e.PID)
+	binary.LittleEndian.PutUint64(buf[32:], e.NrBytes)
+	buf[40] = e.Op
+	// pad [41:48]
+	copy(buf[48:64], e.Comm[:])
+	return buf[:64]
 }
 
 func encodeOOMEvent(e *bpf.OOMEvent) []byte {

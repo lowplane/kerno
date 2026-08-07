@@ -273,6 +273,50 @@ func TestDecodeDiskEvent(t *testing.T) {
 	}
 }
 
+// TestDecodeDiskEventLargeIO verifies that nr_bytes is not truncated for
+// merged or discard requests whose size exceeds the former __u32 limit (~8 MiB).
+func TestDecodeDiskEventLargeIO(t *testing.T) {
+	const nrSector = 32768
+	want := DiskEvent{
+		TimestampNs: 2,
+		LatencyNs:   1_000_000,
+		Sector:      8192,
+		Dev:         8,
+		NrBytes:     uint64(nrSector) * 512,
+		PID:         1,
+		Op:          'W',
+	}
+	copy(want.Comm[:], "kworker")
+
+	data := encode(t, &want)
+	got, err := DecodeDiskEvent(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const wantBytes = uint64(16_777_216)
+	if got.NrBytes != wantBytes {
+		t.Errorf("NrBytes = %d, want %d (large I/O was truncated)", got.NrBytes, wantBytes)
+	}
+}
+
+func TestDiskEventOpStrings(t *testing.T) {
+	cases := []struct {
+		op   byte
+		want string
+	}{
+		{'R', "read"},
+		{'W', "write"},
+		{'S', "sync"},
+		{'X', "unknown(X)"},
+	}
+	for _, c := range cases {
+		e := DiskEvent{Op: c.op}
+		if got := e.OpString(); got != c.want {
+			t.Errorf("OpString(%c) = %q, want %q", c.op, got, c.want)
+		}
+	}
+}
+
 func TestDecodeSchedEvent(t *testing.T) {
 	validEvent := SchedEvent{
 		TimestampNs: 1,
@@ -391,24 +435,6 @@ func TestTCPEventTypeStringRoundTrip(t *testing.T) {
 	for k, want := range cases {
 		if got := k.String(); got != want {
 			t.Errorf("%d.String() = %q, want %q", k, got, want)
-		}
-	}
-}
-
-func TestDiskEventOpStrings(t *testing.T) {
-	cases := []struct {
-		op   byte
-		want string
-	}{
-		{'R', "read"},
-		{'W', "write"},
-		{'S', "sync"},
-		{'X', "unknown(X)"},
-	}
-	for _, c := range cases {
-		e := DiskEvent{Op: c.op}
-		if got := e.OpString(); got != c.want {
-			t.Errorf("OpString(%c) = %q, want %q", c.op, got, c.want)
 		}
 	}
 }

@@ -104,11 +104,11 @@ func (c *DiskIOCollector) record(event *bpf.DiskEvent) {
 	case 'R':
 		c.readHist.Record(event.LatencyNs)
 		c.reads++
-		c.rdBytes += uint64(event.NrBytes)
+		c.rdBytes += event.NrBytes
 	case 'W':
 		c.writeHist.Record(event.LatencyNs)
 		c.writes++
-		c.wrBytes += uint64(event.NrBytes)
+		c.wrBytes += event.NrBytes
 	case 'S':
 		c.syncHist.Record(event.LatencyNs)
 		c.syncs++
