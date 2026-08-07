@@ -155,6 +155,22 @@ var InfoMetric = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 	Help:      "Kerno build information.",
 }, []string{"version"})
 
+// ─── Sink Metrics ─────────────────────────────────────────────────────────
+
+// SinksDedupedTotal counts findings dropped by the deduplicator.
+var SinksDedupedTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Namespace: Namespace,
+	Name:      "sinks_deduped_total",
+	Help:      "Total findings dropped by the deduplicator.",
+}, []string{"sink"})
+
+// SinksFailedTotal counts findings that failed to send after retries.
+var SinksFailedTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Namespace: Namespace,
+	Name:      "sinks_failed_total",
+	Help:      "Total findings that failed to send after retries.",
+}, []string{"sink"})
+
 func init() {
 	Registry.MustRegister(
 		// Syscall
@@ -181,5 +197,8 @@ func init() {
 		CollectorErrorsTotal,
 		BPFProgramsLoaded,
 		InfoMetric,
+		// Sinks
+		SinksDedupedTotal,
+		SinksFailedTotal,
 	)
 }

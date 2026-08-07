@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -21,6 +22,7 @@ import (
 	"github.com/optiqor/kerno/internal/collector"
 	"github.com/optiqor/kerno/internal/config"
 	"github.com/optiqor/kerno/internal/doctor"
+	"github.com/optiqor/kerno/internal/sinks"
 )
 
 func newDoctorCmd() *cobra.Command {
@@ -35,6 +37,10 @@ func newDoctorCmd() *cobra.Command {
 		quiet        bool
 		noBanner     bool
 		onlyCritical bool
+		sinkURLs     []string
+		sevFloor     string
+		sinkDedupe   time.Duration
+		dryRunSink   bool
 	)
 
 	cmd := &cobra.Command{
@@ -76,15 +82,19 @@ Add --ai to enrich findings with AI-powered analysis (requires API key).`,
 			}
 
 			return runDoctor(cmd.Context(), doctorOpts{
-				duration:     duration,
-				exitCode:     exitCode,
-				continuous:   continuous,
-				interval:     interval,
-				output:       output,
-				aiEnabled:    aiEnabled,
-				quiet:        quiet,
-				noBanner:     noBanner,
-				onlyCritical: onlyCritical,
+				duration:      duration,
+				exitCode:      exitCode,
+				continuous:    continuous,
+				interval:      interval,
+				output:        output,
+				aiEnabled:     aiEnabled,
+				quiet:         quiet,
+				noBanner:      noBanner,
+				onlyCritical:  onlyCritical,
+				sinkURLs:      sinkURLs,
+				severityFloor: sevFloor,
+				sinkDedupe:    sinkDedupe,
+				dryRunSinks:   dryRunSink,
 			})
 		},
 	}
@@ -104,19 +114,27 @@ Add --ai to enrich findings with AI-powered analysis (requires API key).`,
 	_ = cmd.RegisterFlagCompletionFunc("output", func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
 		return []string{"pretty", "json"}, cobra.ShellCompDirectiveNoFileComp
 	})
+	flags.StringSliceVar(&sinkURLs, "sink", nil, "webhook sinks (e.g. slack://..., pagerduty://...)")
+	flags.StringVar(&sevFloor, "severity-floor", "warning", "minimum severity to send to sinks (info, warning, critical)")
+	flags.DurationVar(&sinkDedupe, "sink-dedupe", 5*time.Minute, "deduplication window to prevent alert flapping")
+	flags.BoolVar(&dryRunSink, "dry-run-sinks", false, "print finding counts instead of sending (useful for testing sinks)")
 	return cmd
 }
 
 type doctorOpts struct {
-	duration     time.Duration
-	exitCode     bool
-	continuous   bool
-	interval     time.Duration
-	output       string
-	aiEnabled    bool
-	quiet        bool
-	noBanner     bool
-	onlyCritical bool
+	duration      time.Duration
+	exitCode      bool
+	continuous    bool
+	interval      time.Duration
+	output        string
+	aiEnabled     bool
+	quiet         bool
+	noBanner      bool
+	onlyCritical  bool
+	sinkURLs      []string
+	severityFloor string
+	sinkDedupe    time.Duration
+	dryRunSinks   bool
 }
 
 func runDoctor(ctx context.Context, opts doctorOpts) error {
@@ -173,6 +191,17 @@ func runDoctor(ctx context.Context, opts doctorOpts) error {
 		}
 	}()
 
+	// Build sinks
+	var activeSinks []sinks.Sink
+	if len(opts.sinkURLs) > 0 {
+		var err error
+		activeSinks, err = sinks.BuildSinks(opts.sinkURLs, logger)
+		if err != nil {
+			return fmt.Errorf("building sinks: %w", err)
+		}
+	}
+	deduper := sinks.NewDeduper(opts.sinkDedupe)
+
 	// Start collectors once for the lifetime of runDoctor.
 	if err := build.registry.StartAll(ctx); err != nil {
 		logger.Warn("one or more collectors failed to start", "error", err)
@@ -181,7 +210,7 @@ func runDoctor(ctx context.Context, opts doctorOpts) error {
 
 	// Run the diagnostic loop (once, or continuous).
 	for {
-		if err := runDiagnosticCycle(ctx, engine, build, renderer, opts, logger); err != nil {
+		if err := runDiagnosticCycle(ctx, engine, build, renderer, opts, activeSinks, deduper, logger); err != nil {
 			return err
 		}
 
@@ -466,6 +495,8 @@ func runDiagnosticCycle(
 	build collectorBuildResult,
 	renderer doctor.Renderer,
 	opts doctorOpts,
+	activeSinks []sinks.Sink,
+	deduper *sinks.Deduper,
 	logger *slog.Logger,
 ) error {
 	registry := build.registry
@@ -571,6 +602,58 @@ func runDiagnosticCycle(
 		}
 	} else if err := renderer.Render(os.Stdout, report); err != nil {
 		return fmt.Errorf("rendering report: %w", err)
+	}
+
+	// Phase 4.5: Sink export
+	if len(activeSinks) > 0 {
+		// Filter by severity floor
+		var minSev doctor.Severity
+		switch strings.ToLower(opts.severityFloor) {
+		case "info":
+			minSev = doctor.SeverityInfo
+		case "warning":
+			minSev = doctor.SeverityWarning
+		case "critical":
+			minSev = doctor.SeverityCritical
+		default:
+			minSev = doctor.SeverityWarning
+		}
+
+		var filtered []doctor.Finding
+		for _, f := range report.Findings {
+			if f.Severity >= minSev {
+				filtered = append(filtered, f)
+			}
+		}
+
+		deduped := deduper.Filter(filtered)
+		var wg sync.WaitGroup
+		for _, sink := range activeSinks {
+			wg.Add(1)
+			go func(sink sinks.Sink) {
+				defer wg.Done()
+				var err error
+				if sink.Name() == "pagerduty" {
+					// PagerDuty maintains its own state and needs full list to resolve.
+					if opts.dryRunSinks {
+						logger.Info("dry-run sink (pagerduty)", "findings", len(filtered))
+					} else {
+						err = sink.Send(ctx, filtered)
+					}
+				} else {
+					// Slack/Discord use deduped list to prevent flapping.
+					if opts.dryRunSinks {
+						logger.Info("dry-run sink", "name", sink.Name(), "findings", len(deduped))
+					} else {
+						err = sink.Send(ctx, deduped)
+					}
+				}
+				if err != nil {
+					logger.Error("failed to send to sink", "sink", sink.Name(), "error", err)
+				}
+			}(sink)
+		}
+		wg.Wait()
 	}
 
 	// Phase 5: Exit code handling for CI/CD.
