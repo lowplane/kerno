@@ -148,6 +148,20 @@ var BPFProgramsLoaded = prometheus.NewGauge(prometheus.GaugeOpts{
 	Help:      "Number of eBPF programs currently loaded.",
 })
 
+// BPFProgramLoaded tracks per-program load result: 1 = loaded, 0 = failed.
+var BPFProgramLoaded = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	Namespace: Namespace,
+	Name:      "bpf_program_loaded",
+	Help:      "1 if the eBPF program loaded successfully, 0 otherwise.",
+}, []string{"program"})
+
+// BPFProgramLoadErrorsTotal counts load failures per program and reason.
+var BPFProgramLoadErrorsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Namespace: Namespace,
+	Name:      "bpf_program_load_errors_total",
+	Help:      "Cumulative eBPF program load failures by program and reason.",
+}, []string{"program", "reason"})
+
 // InfoMetric provides build/version info as labels.
 var InfoMetric = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 	Namespace: Namespace,
@@ -180,6 +194,8 @@ func init() {
 		CollectorEventsTotal,
 		CollectorErrorsTotal,
 		BPFProgramsLoaded,
+		BPFProgramLoaded,
+		BPFProgramLoadErrorsTotal,
 		InfoMetric,
 	)
 }
