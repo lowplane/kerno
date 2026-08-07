@@ -46,7 +46,8 @@ func TestInfoString(t *testing.T) {
 
 func TestInfoShort(t *testing.T) {
 	info := Info{Version: "v1.2.3"}
-	if got := info.Short(); got != "kerno v1.2.3" {
-		t.Errorf("Short() = %q, want %q", got, "kerno v1.2.3")
+
+	if got := info.Short(); got != "v1.2.3" {
+		t.Errorf("Short() = %q, want %q", got, "v1.2.3")
 	}
 }
