@@ -680,3 +680,33 @@ func (r *JSONRenderer) Render(w io.Writer, report *Report) error {
 	}
 	return enc.Encode(jr)
 }
+
+type MarkdownRenderer struct{}
+
+func (m *MarkdownRenderer) Render(w io.Writer, r *Report) error {
+	var sb strings.Builder
+
+	sb.WriteString("# 🩺 Kerno Doctor - Diagnostic Report\n\n")
+	sb.WriteString("## 📊 Executive Summary\n\n")
+	sb.WriteString("| Rule ID | Description | Severity |\n")
+	sb.WriteString("| :---: | :--- | :--- |\n")
+
+	for _, f := range r.Findings {
+		sb.WriteString(fmt.Sprintf("| %s | %s | %s |\n", f.Rule, f.Title, f.Severity))
+	}
+
+	sb.WriteString("\n---\n\n")
+
+	// Add detailed sections for each finding
+	for _, f := range r.Findings {
+		sb.WriteString(fmt.Sprintf("### 🔍 Finding: %s\n", f.Title))
+		sb.WriteString(fmt.Sprintf("**Severity:** %s\n\n", f.Severity))
+		sb.WriteString(fmt.Sprintf("**Cause:** %s\n\n", f.Cause))
+		sb.WriteString(fmt.Sprintf("**Evidence:** %s\n\n", f.Evidence))
+		sb.WriteString(fmt.Sprintf("**Fix:** %s\n\n", f.Fix))
+		sb.WriteString("---\n\n")
+	}
+
+	_, err := io.WriteString(w, sb.String())
+	return err
+}
