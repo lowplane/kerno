@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"text/tabwriter"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -35,6 +36,7 @@ func newDoctorCmd() *cobra.Command {
 		quiet        bool
 		noBanner     bool
 		onlyCritical bool
+		listRules    bool
 	)
 
 	cmd := &cobra.Command{
@@ -61,6 +63,11 @@ Add --ai to enrich findings with AI-powered analysis (requires API key).`,
   sudo kerno doctor --ai`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if listRules {
+				printRuleCatalog(os.Stdout)
+				return nil
+			}
+
 			// Inherit --output from root if not set via doctor flag.
 			if output == "" {
 				output, _ = cmd.Root().PersistentFlags().GetString("output")
@@ -100,11 +107,30 @@ Add --ai to enrich findings with AI-powered analysis (requires API key).`,
 	flags.BoolVarP(&quiet, "quiet", "q", false, "only emit critical/warning findings (CI-friendly)")
 	flags.BoolVar(&noBanner, "no-banner", false, "suppress the ASCII banner block")
 	flags.BoolVar(&onlyCritical, "only-critical", false, "show only critical severity items")
+	flags.BoolVar(&listRules, "list-rules", false, "list all diagnostic rules and exit")
 	//nolint:errcheck // RegisterFlagCompletionFunc only returns error on invalid flag name, which is static.
 	_ = cmd.RegisterFlagCompletionFunc("output", func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
 		return []string{"pretty", "json"}, cobra.ShellCompDirectiveNoFileComp
 	})
 	return cmd
+}
+
+func printRuleCatalog(w io.Writer) {
+	tw := tabwriter.NewWriter(w, 0, 0, 4, ' ', 0)
+
+	fmt.Fprintln(tw, "RULE\tSEVERITY\tTHRESHOLD")
+
+	for _, rule := range doctor.ListRules() {
+		fmt.Fprintf(tw, "%s\t%s\t%s\n",
+			rule.Name,
+			rule.Severity,
+			rule.Threshold,
+		)
+	}
+
+	if err := tw.Flush(); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to flush rule catalog: %v\n", err)
+	}
 }
 
 type doctorOpts struct {

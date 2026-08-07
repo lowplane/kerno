@@ -13,6 +13,85 @@ import (
 	"github.com/optiqor/kerno/internal/config"
 )
 
+// RuleInfo contains metadata about a diagnostic rule.
+type RuleInfo struct {
+	Name      string
+	Severity  string
+	Threshold string
+}
+
+// ListRules returns a static catalog of all possible rules that can be
+// emitted by the diagnostic engine, in the same order they are evaluated.
+func ListRules() []RuleInfo {
+	return []RuleInfo{
+		{
+			Name:      "disk_io_bottleneck",
+			Severity:  "WARNING/CRITICAL",
+			Threshold: "fsync p99 > 50ms OR queue > 8",
+		},
+		{
+			Name:      "disk_io_write_high",
+			Severity:  "CRITICAL",
+			Threshold: "write p99 > 200ms",
+		},
+		{
+			Name:      "oom_kill_occurred",
+			Severity:  "CRITICAL",
+			Threshold: "OOM kill detected",
+		},
+		{
+			Name:      "tcp_retransmit_storm",
+			Severity:  "CRITICAL",
+			Threshold: "retransmit rate > 2%",
+		},
+		{
+			Name:      "tcp_rtt_degradation",
+			Severity:  "WARNING",
+			Threshold: "RTT p99 elevated",
+		},
+		{
+			Name:      "scheduler_contention",
+			Severity:  "WARNING/CRITICAL",
+			Threshold: "runqueue latency elevated",
+		},
+		{
+			Name:      "fd_leak",
+			Severity:  "WARNING",
+			Threshold: "FD growth exceeds threshold",
+		},
+		{
+			Name:      "syscall_latency_high",
+			Severity:  "WARNING/CRITICAL",
+			Threshold: "syscall p99 latency elevated",
+		},
+		{
+			Name:      "oom_imminent",
+			Severity:  "WARNING/CRITICAL",
+			Threshold: "memory > 90% with positive growth",
+		},
+		{
+			Name:      "syscall_error_rate",
+			Severity:  "WARNING/CRITICAL",
+			Threshold: "syscall error rate elevated",
+		},
+		{
+			Name:      "memory_limit_pressure",
+			Severity:  "WARNING/CRITICAL",
+			Threshold: "container nearing memory limit",
+		},
+		{
+			Name:      "memory_high_throttling",
+			Severity:  "WARNING",
+			Threshold: "memory reclaim pressure detected",
+		},
+		{
+			Name:      "healthy_system",
+			Severity:  "INFO",
+			Threshold: "no abnormal kernel signals detected",
+		},
+	}
+}
+
 // Evaluate runs all diagnostic rules against the collected signals and returns
 // findings sorted by severity. This is the deterministic core of kerno doctor —
 // no AI, no network calls, always available.

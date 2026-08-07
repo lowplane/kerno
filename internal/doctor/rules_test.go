@@ -4,6 +4,8 @@
 package doctor
 
 import (
+	"os"
+	"regexp"
 	"testing"
 	"time"
 
@@ -836,6 +838,69 @@ func TestFormatBytes(t *testing.T) {
 	for _, c := range cases {
 		if got := formatBytes(c.in); got != c.want {
 			t.Errorf("formatBytes(%d) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
+func TestListRules(t *testing.T) {
+	rules := ListRules()
+
+	if len(rules) == 0 {
+		t.Fatal("expected non-empty rule catalog")
+	}
+
+	seen := make(map[string]struct{})
+
+	for _, rule := range rules {
+		if rule.Name == "" {
+			t.Fatal("rule name must not be empty")
+		}
+
+		if _, exists := seen[rule.Name]; exists {
+			t.Fatalf("duplicate rule detected: %s", rule.Name)
+		}
+
+		seen[rule.Name] = struct{}{}
+	}
+}
+
+func TestCatalogParity(t *testing.T) {
+	// 1. Read rules.go
+	content, err := os.ReadFile("rules.go")
+	if err != nil {
+		t.Fatalf("failed to read rules.go: %v", err)
+	}
+
+	// 2. Extract every rule name appearing in literals of the form Rule: "..."
+	re := regexp.MustCompile(`Rule\s*:\s*"([^"]+)"`)
+	matches := re.FindAllStringSubmatch(string(content), -1)
+
+	emittedRules := make(map[string]struct{})
+	for _, match := range matches {
+		if len(match) > 1 {
+			emittedRules[match[1]] = struct{}{}
+		}
+	}
+
+	// 3. Get the catalog rules
+	catalog := ListRules()
+	catalogRules := make(map[string]struct{})
+	for _, rule := range catalog {
+		catalogRules[rule.Name] = struct{}{}
+	}
+
+	// 4. Assert both sets are exactly equal
+	// Check if emitted rules are missing from the catalog
+	for r := range emittedRules {
+		if _, exists := catalogRules[r]; !exists {
+			t.Errorf("Rule %q is emitted in rules.go but is missing from ListRules() catalog", r)
+		}
+	}
+
+	// Check if catalog rules are extra (not emitted in rules.go)
+	for r := range catalogRules {
+		if _, exists := emittedRules[r]; !exists {
+			t.Errorf("Rule %q is present in ListRules() catalog but is not emitted in rules.go", r)
 		}
 	}
 }
