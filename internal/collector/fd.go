@@ -188,11 +188,32 @@ func (c *FDCollector) Snapshot() any {
 		entries = entries[:MaxFDEntriesPerSnapshot]
 	}
 
+	// Populate CurrentFDs and FDLimit for the top-N entries (capped to avoid
+	// /proc overhead on systems with thousands of processes).
+	const procReadCap = 5
+	for i := range entries {
+		if i >= procReadCap {
+			break
+		}
+		if n, err := CountProcFDs(entries[i].PID); err == nil {
+			entries[i].CurrentFDs = n
+		}
+		if lim, err := ReadProcFDLimit(entries[i].PID); err == nil && lim > 0 {
+			entries[i].FDLimit = lim
+		}
+	}
+
+	topCurrentFDs := 0
+	if len(entries) > 0 {
+		topCurrentFDs = entries[0].CurrentFDs
+	}
+
 	return &FDSnapshot{
-		Entries:     entries,
-		TotalOpens:  totalOpens,
-		TotalCloses: totalCloses,
-		NetDelta:    netDelta,
-		GrowthRate:  growthRate,
+		Entries:          entries,
+		TotalOpens:       totalOpens,
+		TotalCloses:      totalCloses,
+		NetDelta:         netDelta,
+		GrowthRate:       growthRate,
+		TopPIDCurrentFDs: topCurrentFDs,
 	}
 }

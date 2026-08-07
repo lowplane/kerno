@@ -97,16 +97,23 @@ func predictFDExhaustion(snapshots []*collector.Signals) []Prediction {
 		return nil
 	}
 
-	// Assume 65536 ulimit, estimate current count from latest snapshot.
+	// Estimate current count and limit from latest snapshot using headroom helper.
 	latest := snapshots[len(snapshots)-1]
 	if latest.FD == nil {
 		return nil
 	}
 
-	remaining := 65536.0 - float64(latest.FD.NetDelta)
-	if remaining <= 0 {
-		remaining = 1 // About to exhaust.
+	var currentFDs, netDelta int64
+	var fdLimit int
+	if len(latest.FD.Entries) > 0 {
+		top := latest.FD.Entries[0]
+		currentFDs = int64(top.CurrentFDs)
+		netDelta = top.NetDelta
+		fdLimit = top.FDLimit
+	} else {
+		netDelta = latest.FD.NetDelta
 	}
+	remaining, limit, exact := fdHeadroom(currentFDs, netDelta, fdLimit)
 
 	etaSecs := remaining / avgRate
 	eta, ok := etaDuration(etaSecs)
@@ -117,14 +124,20 @@ func predictFDExhaustion(snapshots []*collector.Signals) []Prediction {
 	// Confidence based on consistency of growth rate.
 	confidence := rateConsistency(rates)
 
+	limitStr := fmt.Sprintf("ulimit %d", int(limit))
+	currentVal := fmt.Sprintf("growth %.1f FDs/sec, %d open fds", avgRate, int(currentFDs))
+	if !exact {
+		currentVal = fmt.Sprintf("growth %.1f FDs/sec, net delta %d (live count unavailable)", avgRate, latest.FD.NetDelta)
+	}
+
 	return []Prediction{{
 		Title:        "File Descriptor Exhaustion",
 		Signal:       "fd",
 		TimeToImpact: eta,
 		Confidence:   confidence,
-		CurrentValue: fmt.Sprintf("growth %.1f FDs/sec, net delta %d", avgRate, latest.FD.NetDelta),
+		CurrentValue: currentVal,
 		TrendRate:    fmt.Sprintf("+%.1f FDs/sec", avgRate),
-		Limit:        "ulimit 65536",
+		Limit:        limitStr,
 		Fix:          []string{"Find the leaking process: lsof -p <pid> | wc -l", "Check for unclosed connections/files", "Increase ulimit temporarily: ulimit -n 131072"},
 	}}
 }

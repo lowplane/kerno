@@ -268,16 +268,32 @@ func evalFDLeak(s *collector.Signals, t config.DoctorThresholds) []Finding {
 		Threshold: t.FDGrowthPerSec,
 	}
 
-	// Estimate time to ulimit (65536 default).
+	// Estimate time to fd limit.
 	if s.FD.GrowthRate > 0 {
-		// Assume 65536 ulimit and current count based on delta.
-		remainingFDs := 65536.0 - float64(s.FD.NetDelta)
-		if remainingFDs > 0 {
-			etaSecs := remainingFDs / s.FD.GrowthRate
-			if eta, ok := etaDuration(etaSecs); ok {
-				f.ETA = &eta
-				f.Impact = fmt.Sprintf("Process will hit ulimit (65536) in %s at current growth rate", f.ETAString())
+		// Use the top leaker's stats when available, fall back to snapshot-level values.
+		var currentFDs, netDelta int64
+		var fdLimit int
+		if len(s.FD.Entries) > 0 {
+			top := s.FD.Entries[0]
+			currentFDs = int64(top.CurrentFDs)
+			netDelta = top.NetDelta
+			fdLimit = top.FDLimit
+		} else {
+			netDelta = s.FD.NetDelta
+		}
+
+		remaining, limit, exact := fdHeadroom(currentFDs, netDelta, fdLimit)
+		etaSecs := remaining / s.FD.GrowthRate
+		if eta, ok := etaDuration(etaSecs); ok {
+			f.ETA = &eta
+			qualifier := ""
+			if !exact {
+				qualifier = " (estimated from window delta — actual may be lower)"
 			}
+			f.Impact = fmt.Sprintf(
+				"Process will hit fd limit (%d) in %s at current growth rate%s",
+				int(limit), f.ETAString(), qualifier,
+			)
 		}
 	}
 

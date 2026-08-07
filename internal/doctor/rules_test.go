@@ -4,6 +4,7 @@
 package doctor
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -187,35 +188,87 @@ func TestEvaluate_SchedulerContention_Critical(t *testing.T) {
 }
 
 func TestEvaluate_FDLeak(t *testing.T) {
-	signals := &collector.Signals{
-		FD: &collector.FDSnapshot{
-			GrowthRate:  20.0,
-			TotalOpens:  5000,
-			TotalCloses: 4400,
-			NetDelta:    600,
-			Entries: []collector.FDEntry{
-				{PID: 3891, Comm: "app-server", NetDelta: 600, GrowthRate: 20.0},
+	t.Run("Accurate", func(t *testing.T) {
+		signals := &collector.Signals{
+			FD: &collector.FDSnapshot{
+				GrowthRate:  20.0,
+				TotalOpens:  5000,
+				TotalCloses: 4400,
+				NetDelta:    600,
+				Entries: []collector.FDEntry{
+					{PID: 3891, Comm: "app-server", NetDelta: 600, GrowthRate: 20.0, CurrentFDs: 64000, FDLimit: 65536},
+				},
 			},
-		},
-	}
-
-	findings := Evaluate(signals, defaultThresholds())
-	found := false
-	for _, f := range findings {
-		if f.Rule == "fd_leak" {
-			found = true
-			if f.ETA == nil {
-				t.Error("expected ETA for FD leak finding")
-			}
-			if f.Process != "app-server" {
-				t.Errorf("expected process=app-server, got %q", f.Process)
-			}
-			break
 		}
-	}
-	if !found {
-		t.Error("expected fd_leak finding")
-	}
+
+		findings := Evaluate(signals, defaultThresholds())
+		found := false
+		for _, f := range findings {
+			if f.Rule == "fd_leak" {
+				found = true
+				if f.ETA == nil {
+					t.Error("expected ETA for FD leak finding")
+				} else {
+					// headroom = 65536 - 64000 = 1536. 1536 / 20.0 = 76.8 seconds.
+					expectedETA := 76800 * time.Millisecond // 76.8s
+					if *f.ETA != expectedETA {
+						t.Errorf("expected ETA %s, got %s", expectedETA, *f.ETA)
+					}
+				}
+				if f.Process != "app-server" {
+					t.Errorf("expected process=app-server, got %q", f.Process)
+				}
+				if strings.Contains(f.Impact, "estimated") {
+					t.Errorf("expected impact string to not contain 'estimated', got %q", f.Impact)
+				}
+				if !strings.Contains(f.Impact, "65536") {
+					t.Errorf("expected impact string to contain limit '65536', got %q", f.Impact)
+				}
+				break
+			}
+		}
+		if !found {
+			t.Error("expected fd_leak finding")
+		}
+	})
+
+	t.Run("Estimated", func(t *testing.T) {
+		signals := &collector.Signals{
+			FD: &collector.FDSnapshot{
+				GrowthRate:  20.0,
+				TotalOpens:  5000,
+				TotalCloses: 4400,
+				NetDelta:    600,
+				Entries: []collector.FDEntry{
+					{PID: 3891, Comm: "app-server", NetDelta: 600, GrowthRate: 20.0, CurrentFDs: 0},
+				},
+			},
+		}
+
+		findings := Evaluate(signals, defaultThresholds())
+		found := false
+		for _, f := range findings {
+			if f.Rule == "fd_leak" {
+				found = true
+				if f.ETA == nil {
+					t.Error("expected ETA for FD leak finding")
+				} else {
+					// headroom = 65536 - 600 = 64936. 64936 / 20.0 = 3246.8 seconds.
+					expectedETA := 3246800 * time.Millisecond // 3246.8s
+					if *f.ETA != expectedETA {
+						t.Errorf("expected ETA %s, got %s", expectedETA, *f.ETA)
+					}
+				}
+				if !strings.Contains(f.Impact, "estimated from window delta") {
+					t.Errorf("expected impact string to contain 'estimated from window delta', got %q", f.Impact)
+				}
+				break
+			}
+		}
+		if !found {
+			t.Error("expected fd_leak finding")
+		}
+	})
 }
 
 func TestEvaluate_SyscallLatencyHigh(t *testing.T) {

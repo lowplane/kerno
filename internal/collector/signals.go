@@ -173,6 +173,10 @@ type FDSnapshot struct {
 	TotalCloses uint64  `json:"totalCloses"`
 	NetDelta    int64   `json:"netDelta"`   // opens - closes
 	GrowthRate  float64 `json:"growthRate"` // FDs per second
+
+	// TopPIDCurrentFDs is the actual open-fd count of the top leaker, read from /proc/<pid>/fd.
+	// 0 means it was not available (process exited, permission denied, etc.).
+	TopPIDCurrentFDs int `json:"topPidCurrentFDs,omitempty"`
 }
 
 // FDEntry represents FD stats for one process.
@@ -183,6 +187,11 @@ type FDEntry struct {
 	Closes     uint64  `json:"closes"`
 	NetDelta   int64   `json:"netDelta"`
 	GrowthRate float64 `json:"growthRate"` // FDs per second
+
+	// CurrentFDs is the live fd count read from /proc/<pid>/fd at snapshot time. 0 = unavailable.
+	CurrentFDs int `json:"currentFDs,omitempty"`
+	// FDLimit is the soft RLIMIT_NOFILE for this PID read from /proc/<pid>/limits. 0 = unavailable.
+	FDLimit int `json:"fdLimit,omitempty"`
 }
 
 // ─── Cgroup Memory Snapshot ──────────────────────────────────────────────────
