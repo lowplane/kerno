@@ -20,12 +20,15 @@
 package bpf
 
 import (
+	"context"
 	"fmt"
+	"io"
+	"log/slog"
 
 	"github.com/cilium/ebpf"
 )
 
-// ─── Syscall Latency stubs ──────────────────────────────────────────────────
+// â”€â”€â”€ Syscall Latency stubs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type syscallLatencyObjects struct {
 	TracepointSysEnter *ebpf.Program `ebpf:"tracepoint_sys_enter"`
@@ -39,7 +42,7 @@ func loadSyscallLatencyObjects(obj *syscallLatencyObjects, opts *ebpf.Collection
 
 func (o *syscallLatencyObjects) Close() error { return nil }
 
-// ─── TCP Monitor stubs ──────────────────────────────────────────────────────
+// â”€â”€â”€ TCP Monitor stubs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type tcpMonitorObjects struct {
 	TracepointTcpRetransmit    *ebpf.Program `ebpf:"tracepoint_tcp_retransmit"`
@@ -53,7 +56,7 @@ func loadTcpMonitorObjects(obj *tcpMonitorObjects, opts *ebpf.CollectionOptions)
 
 func (o *tcpMonitorObjects) Close() error { return nil }
 
-// ─── OOM Track stubs ────────────────────────────────────────────────────────
+// â”€â”€â”€ OOM Track stubs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type oomTrackObjects struct {
 	KprobeOomKill *ebpf.Program `ebpf:"kprobe_oom_kill"`
@@ -66,7 +69,7 @@ func loadOomTrackObjects(obj *oomTrackObjects, opts *ebpf.CollectionOptions) err
 
 func (o *oomTrackObjects) Close() error { return nil }
 
-// ─── Disk I/O stubs ─────────────────────────────────────────────────────────
+// â”€â”€â”€ Disk I/O stubs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type diskIOObjects struct {
 	TracepointBlockRqIssue    *ebpf.Program `ebpf:"tracepoint_block_rq_issue"`
@@ -80,7 +83,7 @@ func loadDiskIOObjects(obj *diskIOObjects, opts *ebpf.CollectionOptions) error {
 
 func (o *diskIOObjects) Close() error { return nil }
 
-// ─── Sched Delay stubs ──────────────────────────────────────────────────────
+// â”€â”€â”€ Sched Delay stubs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type schedDelayObjects struct {
 	TracepointSchedWakeup *ebpf.Program `ebpf:"tracepoint_sched_wakeup"`
@@ -94,7 +97,7 @@ func loadSchedDelayObjects(obj *schedDelayObjects, opts *ebpf.CollectionOptions)
 
 func (o *schedDelayObjects) Close() error { return nil }
 
-// ─── FD Track stubs ─────────────────────────────────────────────────────────
+// â”€â”€â”€ FD Track stubs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type fdTrackObjects struct {
 	TracepointSysExitOpenat *ebpf.Program `ebpf:"tracepoint_sys_exit_openat"`
@@ -107,3 +110,84 @@ func loadFdTrackObjects(obj *fdTrackObjects, opts *ebpf.CollectionOptions) error
 }
 
 func (o *fdTrackObjects) Close() error { return nil }
+
+// --- DNS Monitor stubs -------------------------------------------------------
+
+type dnsMonitorObjects struct {
+	TracepointSysEnterSendmsg *ebpf.Program `ebpf:"tracepoint_sys_enter_sendmsg"`
+	TracepointSysEnterRecvmsg *ebpf.Program `ebpf:"tracepoint_sys_enter_recvmsg"`
+	DnsEvents                 *ebpf.Map     `ebpf:"dns_events"`
+	DnsInflight               *ebpf.Map     `ebpf:"dns_inflight"`
+}
+
+func loadDnsMonitorObjects(obj *dnsMonitorObjects, opts *ebpf.CollectionOptions) error {
+	return fmt.Errorf("eBPF programs not compiled; run 'make generate' first")
+}
+
+func (o *dnsMonitorObjects) Close() error { return nil }
+
+// --- Loader stubs (non-ebpf builds) -----------------------------------------
+
+func NewSyscallLatencyLoader(logger *slog.Logger) *SyscallLatencyLoader {
+	return &SyscallLatencyLoader{}
+}
+func NewTCPMonitorLoader(logger *slog.Logger) *TCPMonitorLoader { return &TCPMonitorLoader{} }
+func NewOOMTrackLoader(logger *slog.Logger) *OOMTrackLoader     { return &OOMTrackLoader{} }
+func NewDiskIOLoader(logger *slog.Logger) *DiskIOLoader         { return &DiskIOLoader{} }
+func NewSchedDelayLoader(logger *slog.Logger) *SchedDelayLoader { return &SchedDelayLoader{} }
+func NewFDTrackLoader(logger *slog.Logger) *FDTrackLoader       { return &FDTrackLoader{} }
+func NewDNSMonitorLoader(logger *slog.Logger) *DNSMonitorLoader { return &DNSMonitorLoader{} }
+
+// --- Loader type stubs (non-ebpf builds) ------------------------------------
+
+type SyscallLatencyLoader struct{}
+type TCPMonitorLoader struct{}
+type OOMTrackLoader struct{}
+type DiskIOLoader struct{}
+type SchedDelayLoader struct{}
+type FDTrackLoader struct{}
+type DNSMonitorLoader struct{}
+
+// --- Loader methods for non-ebpf builds --------------------------------------
+
+func (l *SyscallLatencyLoader) Load() (io.Closer, error) { return nil, fmt.Errorf("eBPF not compiled") }
+func (l *SyscallLatencyLoader) Events(ctx context.Context) (<-chan RawEvent, error) {
+	return nil, fmt.Errorf("eBPF not compiled")
+}
+func (l *SyscallLatencyLoader) Name() string { return "syscall_latency" }
+
+func (l *TCPMonitorLoader) Load() (io.Closer, error) { return nil, fmt.Errorf("eBPF not compiled") }
+func (l *TCPMonitorLoader) Events(ctx context.Context) (<-chan RawEvent, error) {
+	return nil, fmt.Errorf("eBPF not compiled")
+}
+func (l *TCPMonitorLoader) Name() string { return "tcp_monitor" }
+
+func (l *OOMTrackLoader) Load() (io.Closer, error) { return nil, fmt.Errorf("eBPF not compiled") }
+func (l *OOMTrackLoader) Events(ctx context.Context) (<-chan RawEvent, error) {
+	return nil, fmt.Errorf("eBPF not compiled")
+}
+func (l *OOMTrackLoader) Name() string { return "oom_track" }
+
+func (l *DiskIOLoader) Load() (io.Closer, error) { return nil, fmt.Errorf("eBPF not compiled") }
+func (l *DiskIOLoader) Events(ctx context.Context) (<-chan RawEvent, error) {
+	return nil, fmt.Errorf("eBPF not compiled")
+}
+func (l *DiskIOLoader) Name() string { return "disk_io" }
+
+func (l *SchedDelayLoader) Load() (io.Closer, error) { return nil, fmt.Errorf("eBPF not compiled") }
+func (l *SchedDelayLoader) Events(ctx context.Context) (<-chan RawEvent, error) {
+	return nil, fmt.Errorf("eBPF not compiled")
+}
+func (l *SchedDelayLoader) Name() string { return "sched_delay" }
+
+func (l *FDTrackLoader) Load() (io.Closer, error) { return nil, fmt.Errorf("eBPF not compiled") }
+func (l *FDTrackLoader) Events(ctx context.Context) (<-chan RawEvent, error) {
+	return nil, fmt.Errorf("eBPF not compiled")
+}
+func (l *FDTrackLoader) Name() string { return "fd_track" }
+
+func (l *DNSMonitorLoader) Load() (io.Closer, error) { return nil, fmt.Errorf("eBPF not compiled") }
+func (l *DNSMonitorLoader) Events(ctx context.Context) (<-chan RawEvent, error) {
+	return nil, fmt.Errorf("eBPF not compiled")
+}
+func (l *DNSMonitorLoader) Name() string { return "dns_monitor" }

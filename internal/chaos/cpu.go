@@ -12,7 +12,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"golang.org/x/sys/unix"
+	"time"
 )
 
 // CPUScenario saturates the host CPU by running tight loops on multiple
@@ -89,10 +89,9 @@ func (s CPUScenario) Run(ctx context.Context, opts Options) error {
 			// TASK_INTERRUPTIBLE → TASK_RUNNING, which is what
 			// kerno's sched_delay collector measures.
 			runtime.LockOSThread()
-			r := rand.New(rand.NewSource(seed))          //nolint:gosec
-			ts := unix.Timespec{Sec: 0, Nsec: 1_000_000} // 1 ms
+			r := rand.New(rand.NewSource(seed)) //nolint:gosec
 			for ctx.Err() == nil {
-				_ = unix.Nanosleep(&ts, nil)
+				time.Sleep(time.Millisecond)
 				var local float64
 				for k := 0; k < 5_000; k++ {
 					local += math.Sqrt(r.Float64())

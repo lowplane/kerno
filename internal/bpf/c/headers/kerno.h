@@ -163,4 +163,29 @@ struct file_event {
         __type(value, val_type); \
     } name SEC(".maps")
 
+// --- DNS Monitor Event -------------------------------------------------------
+
+#define EVENT_DNS_MONITOR  8
+
+// DNS event subtypes.
+#define DNS_EVENT_SEND  1
+#define DNS_EVENT_RECV  2
+
+struct dns_event {
+    __u64 timestamp_ns;
+    __u64 cgroup_id;
+    __u32 pid;
+    __u32 saddr;
+    __u32 daddr;
+    __u16 sport;
+    __u16 dport;
+    __u16 query_id;
+    __u8  event_type;
+    __u8  _pad;
+    char  comm[TASK_COMM_LEN];
+};
+
 #endif // __KERNO_H__
+
+
+

@@ -25,7 +25,9 @@ var validDoctorRules = map[string]bool{
 	"healthy_system":         true,
 	// "multiple" is a sentinel used by cascade — not a real rule but a
 	// recognized placeholder.
-	"multiple": true,
+	"multiple":         true,
+	"dns_high_latency": true,
+	"dns_failure_rate": true,
 }
 
 // TestPairedRulesExistInDoctor enforces that every chaos scenario's

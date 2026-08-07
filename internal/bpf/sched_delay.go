@@ -1,3 +1,5 @@
+//go:build ebpf
+
 // Copyright 2026 Optiqor contributors
 // SPDX-License-Identifier: Apache-2.0
 
@@ -125,10 +127,3 @@ func (l *SchedDelayLoader) close() {
 }
 
 // DecodeSchedEvent decodes a raw event into a typed SchedEvent.
-func DecodeSchedEvent(data []byte) (*SchedEvent, error) {
-	var event SchedEvent
-	if err := binary.Read(bytes.NewReader(data), binary.LittleEndian, &event); err != nil {
-		return nil, fmt.Errorf("decoding sched event: %w", err)
-	}
-	return &event, nil
-}

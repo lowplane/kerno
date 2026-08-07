@@ -1,3 +1,5 @@
+//go:build ebpf
+
 // Copyright 2026 Optiqor contributors
 // SPDX-License-Identifier: Apache-2.0
 
@@ -117,10 +119,3 @@ func (l *OOMTrackLoader) close() {
 }
 
 // DecodeOOMEvent decodes a raw event into a typed OOMEvent.
-func DecodeOOMEvent(data []byte) (*OOMEvent, error) {
-	var event OOMEvent
-	if err := binary.Read(bytes.NewReader(data), binary.LittleEndian, &event); err != nil {
-		return nil, fmt.Errorf("decoding oom event: %w", err)
-	}
-	return &event, nil
-}
