@@ -6,6 +6,7 @@ package metrics
 import (
 	"encoding/binary"
 	"log/slog"
+	"strconv"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
@@ -207,19 +208,22 @@ func TestRecordSchedDelay(t *testing.T) {
 
 func TestCardinalityLimit(t *testing.T) {
 	tests := []struct {
-		name     string
-		calls    int
-		wantLast bool
+		name   string
+		labels []string
+		calls  int
+		want   bool
 	}{
 		{
-			name:     "at_limit",
-			calls:    LabelCardinalityLimit,
-			wantLast: true,
+			name:   "same_tuple_still_allowed_at_limit",
+			labels: []string{"read", "nginx"},
+			calls:  LabelCardinalityLimit,
+			want:   true,
 		},
 		{
-			name:     "one_past_limit",
-			calls:    LabelCardinalityLimit + 1,
-			wantLast: false,
+			name:   "same_tuple_still_allowed_past_limit",
+			labels: []string{"read", "nginx"},
+			calls:  LabelCardinalityLimit + 1,
+			want:   true,
 		},
 	}
 
@@ -229,23 +233,41 @@ func TestCardinalityLimit(t *testing.T) {
 
 			var got bool
 			for i := 0; i < tt.calls; i++ {
-				got = b.cardinalityOK("test_metric")
+				got = b.cardinalityOK("test_metric", tt.labels...)
 			}
 
-			if got != tt.wantLast {
-				t.Fatalf("last cardinalityOK() = %v, want %v", got, tt.wantLast)
+			if got != tt.want {
+				t.Fatalf("last cardinalityOK() = %v, want %v", got, tt.want)
 			}
 		})
 	}
+
+	t.Run("new_tuple_rejected_after_limit", func(t *testing.T) {
+		b := NewBridge(slog.Default())
+
+		for i := 0; i < LabelCardinalityLimit; i++ {
+			if !b.cardinalityOK("test_metric", "syscall", strconv.Itoa(i)) {
+				t.Fatalf("tuple %d unexpectedly rejected before limit", i)
+			}
+		}
+
+		if b.cardinalityOK("test_metric", "syscall", "over-limit") {
+			t.Fatal("expected new tuple beyond limit to be rejected")
+		}
+
+		if !b.cardinalityOK("test_metric", "syscall", "0") {
+			t.Fatal("expected previously seen tuple to remain allowed")
+		}
+	})
 
 	t.Run("different_metric_still_allowed", func(t *testing.T) {
 		b := NewBridge(slog.Default())
 
 		for i := 0; i < LabelCardinalityLimit+1; i++ {
-			b.cardinalityOK("test_metric")
+			b.cardinalityOK("test_metric", "same", "tuple")
 		}
 
-		if !b.cardinalityOK("other_metric") {
+		if !b.cardinalityOK("other_metric", "new", "tuple") {
 			t.Error("expected cardinalityOK to return true for different metric")
 		}
 	})
