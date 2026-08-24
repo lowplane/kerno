@@ -402,6 +402,80 @@ kerno/
 
 ---
 
+---
+
+## Adding a New Doctor Rule
+
+The `kerno doctor` diagnostic engine uses deterministic evaluation rules in `internal/doctor/rules.go` to analyze system signals and generate actionable findings.
+
+Follow this step-by-step walkthrough to add a new diagnostic rule:
+
+### 1. Define the Rule Evaluator
+Create an evaluation function in `internal/doctor/rules.go` that inspects `*collector.Signals` and returns a slice of `Finding`:
+
+```go
+func evalCustomBottleneck(signals *collector.Signals, thresholds config.DoctorThresholds) []Finding {
+    if signals == nil {
+        return nil
+    }
+
+    var findings []Finding
+    // Check threshold conditions against collected telemetry
+    if signals.CustomMetric > thresholds.CustomThreshold {
+        findings = append(findings, Finding{
+            Category:    CategorySystem,
+            Severity:    SeverityWarning,
+            Title:       "High Custom Metric Pressure Detected",
+            Summary:     fmt.Sprintf("Current value %v exceeds threshold %v", signals.CustomMetric, thresholds.CustomThreshold),
+            Remediation: "Inspect workload resource utilization and adjust scaling limits.",
+        })
+    }
+    return findings
+}
+```
+
+### 2. Register the Rule in `Evaluate()`
+Add your rule invocation to the `Evaluate` pipeline in `internal/doctor/rules.go`:
+
+```go
+func Evaluate(signals *collector.Signals, thresholds config.DoctorThresholds) []Finding {
+    var findings []Finding
+
+    // Existing rules...
+    findings = append(findings, evalCustomBottleneck(signals, thresholds)...)
+    // ...
+    return findings
+}
+```
+
+### 3. Add Configurable Thresholds (If Applicable)
+If your rule requires configurable thresholds, add the field to `DoctorThresholds` in `internal/config/config.go` with appropriate default values.
+
+### 4. Add Unit Test Coverage
+Add positive (triggering) and negative (healthy) test cases in `internal/doctor/rules_test.go`:
+
+```go
+func TestEvalCustomBottleneck(t *testing.T) {
+    signals := &collector.Signals{
+        CustomMetric: 150,
+    }
+    thresholds := config.DoctorThresholds{
+        CustomThreshold: 100,
+    }
+    findings := evalCustomBottleneck(signals, thresholds)
+    assert.Len(t, findings, 1)
+    assert.Equal(t, SeverityWarning, findings[0].Severity)
+}
+```
+
+### 5. Verify and Test
+Run the test suite to ensure all diagnostics pass:
+
+```bash
+go test -v ./internal/doctor/...
+make test
+```
+
 ## Commit Message Convention
 
 We follow [Conventional Commits](https://www.conventionalcommits.org/):
