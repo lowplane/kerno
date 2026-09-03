@@ -9,8 +9,10 @@ import (
 
 func newCompletionCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "completion [bash|zsh|fish|powershell]",
-		Short: "Generate shell completion scripts",
+		Use:                   "completion [bash|zsh|fish|powershell]",
+		Short:                 "Generate shell completion scripts",
+		Hidden:                true, // plumbing, not a feature (issue #39)
+		DisableFlagsInUseLine: true,
 		Long: `Generate shell completion scripts for kerno.
 
 Kerno uses spf13/cobra's built-in completion generation which supports
@@ -56,7 +58,6 @@ Alternatively, specify the shell with the first argument:
   $ kerno completion fish
   $ kerno completion powershell
 `,
-		DisableFlagsInUseLine: true,
 		ValidArgs:             []string{"bash", "zsh", "fish", "powershell"},
 		Args:                  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
